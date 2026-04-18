@@ -1,0 +1,9 @@
+{
+  "name": "Remix: ZipRIGHT",
+  "description": "AI-powered size recommendation app helping users find their perfect fit across multiple brands.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation",
+    "microphone"
+  ]
+}

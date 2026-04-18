@@ -1,0 +1,179 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // ADMIN: ONLY crowngamer094@gmail.com — no other backdoor
+    function isAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email == "crowngamer094@gmail.com" &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isValidUser(data) {
+      return data.email is string &&
+             (!('zipPoints' in data) || data.zipPoints is number) &&
+             (!('sellerStatus' in data) || data.sellerStatus in ['none', 'pending', 'approved']);
+    }
+
+    // Global Products
+    match /global_products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Marketplace Products
+    match /marketplace_products/{productId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+
+    // Looks - Community Feed
+    match /looks/{lookId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+                    request.resource.data.creatorUid == request.auth.uid &&
+                    request.resource.data.keys().hasAll(['creatorUid', 'creatorUsername', 'creatorAvatar', 'mediaUrl', 'caption', 'taggedProducts', 'likesCount', 'viewsCount', 'status', 'createdAt']) &&
+                    request.resource.data.taggedProducts is list &&
+                    request.resource.data.taggedProducts.size() <= 5;
+      allow update: if isAuthenticated() && (
+                      (resource.data.creatorUid == request.auth.uid) ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'viewsCount']))
+                    );
+      allow delete: if isAuthenticated() && (resource.data.creatorUid == request.auth.uid || isAdmin());
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+
+      match /friends/{friendId} {
+        allow read: if isOwner(userId) || isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+
+      match /friend_inbox/{itemId} {
+        allow read: if isOwner(userId);
+        allow create: if isAuthenticated();
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /likes/{likeId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) &&
+                      request.resource.data.keys().hasAll(['productId', 'title', 'image']) &&
+                      request.resource.data.productId is string &&
+                      request.resource.data.title is string &&
+                      request.resource.data.title.size() < 200;
+        allow update: if isOwner(userId) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['timestamp']);
+        allow delete: if isOwner(userId);
+      }
+
+      match /cart/{cartId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) &&
+                      request.resource.data.keys().hasAll(['productId', 'title', 'image']) &&
+                      request.resource.data.productId is string &&
+                      request.resource.data.title is string &&
+                      request.resource.data.title.size() < 200;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /wardrobe/{itemId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) &&
+                      request.resource.data.keys().hasAll(['productId', 'title', 'image']) &&
+                      request.resource.data.productId is string &&
+                      request.resource.data.title is string &&
+                      request.resource.data.title.size() < 200;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /history/{historyId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId);
+      }
+
+      match /lookLikes/{lookId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // Addresses — fixed: removed invalid request.query.filters syntax
+    match /addresses/{addressId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated();
+    }
+
+    // Members — fixed: removed invalid request.query.filters syntax
+    match /members/{memberId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.uid == request.auth.uid && request.resource.data.uid == resource.data.uid;
+      allow list: if isAuthenticated();
+
+      match /wardrobe/{itemId} {
+        allow read: if isAuthenticated() && (get(/databases/$(database)/documents/members/$(memberId)).data.uid == request.auth.uid || isAdmin());
+        allow write: if isAuthenticated() && get(/databases/$(database)/documents/members/$(memberId)).data.uid == request.auth.uid;
+      }
+    }
+
+    // Seller Applications
+    match /seller_applications/{appId} {
+      allow read: if isOwner(appId) || isAdmin();
+      allow create: if isOwner(appId);
+      allow update: if isAdmin();
+      allow delete: if isOwner(appId) || isAdmin();
+    }
+
+    // Gifts
+    match /gifts/{giftId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.senderId == request.auth.uid ||
+         resource.data.recipientUid == request.auth.uid);
+      allow create: if isAuthenticated() &&
+        request.resource.data.senderId == request.auth.uid;
+      allow update: if isAuthenticated() &&
+        resource.data.recipientUid == request.auth.uid;
+    }
+
+    // Friend Requests
+    match /friend_requests/{reqId} {
+      allow read: if isAuthenticated() && (resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.fromUid == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid);
+    }
+
+    // Accepted Friend Requests
+    match /accepted_friend_requests/{docId} {
+      allow read: if isAuthenticated() && (
+        resource.data.acceptedByUid == request.auth.uid ||
+        resource.data.originalFromUid == request.auth.uid
+      );
+      allow create: if isAuthenticated() && request.resource.data.acceptedByUid == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.originalFromUid == request.auth.uid;
+      allow delete: if isAuthenticated() && (
+        resource.data.acceptedByUid == request.auth.uid ||
+        resource.data.originalFromUid == request.auth.uid
+      );
+    }
+  }
+}

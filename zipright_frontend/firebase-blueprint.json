@@ -1,0 +1,209 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and settings",
+      "type": "object",
+      "properties": {
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string" },
+        "zipPoints": { "type": "number" },
+        "sellerStatus": { "type": "string", "enum": ["none", "pending", "approved"] },
+        "role": { "type": "string" }
+      }
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Global product catalog",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "brand": { "type": "string" },
+        "price": { "type": "string" },
+        "image": { "type": "string" },
+        "category": { "type": "string" },
+        "type": { "type": "string" },
+        "url": { "type": "string" }
+      }
+    },
+    "MarketplaceProduct": {
+      "title": "Marketplace Product",
+      "description": "Products listed by users",
+      "type": "object",
+      "properties": {
+        "sellerId": { "type": "string" },
+        "title": { "type": "string" },
+        "brand": { "type": "string" },
+        "price": { "type": "string" },
+        "category": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "sizes": { "type": "array", "items": { "type": "string" } },
+        "inStock": { "type": "boolean" },
+        "description": { "type": "string" },
+        "stock": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "condition": { "type": "string" },
+        "fitScore": { "type": "number" },
+        "returnRisk": { "type": "string" }
+      }
+    },
+    "Look": {
+      "title": "Look",
+      "description": "Community fashion look",
+      "type": "object",
+      "properties": {
+        "creatorUid": { "type": "string" },
+        "creatorUsername": { "type": "string" },
+        "creatorAvatar": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "caption": { "type": "string" },
+        "taggedProducts": { "type": "array", "items": { "type": "string" } },
+        "likesCount": { "type": "number" },
+        "viewsCount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Like": {
+      "title": "Like",
+      "description": "User wishlist item",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "brand": { "type": "string" },
+        "title": { "type": "string" },
+        "price": { "type": "string" },
+        "image": { "type": "string" },
+        "url": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "title", "image"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "User profile and fit data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "isPrimary": { "type": "boolean" },
+        "fitData": {
+          "type": "object",
+          "properties": {
+            "bustSize": { "type": "string" },
+            "waistSize": { "type": "string" },
+            "heightCm": { "type": "string" },
+            "gender": { "type": "string" },
+            "fitPreference": { "type": "string" }
+          }
+        },
+        "avatarData": { "type": "string" },
+        "xp": { "type": "number" },
+        "zipCoins": { "type": "number" },
+        "streak": { "type": "number" },
+        "ratedCount": { "type": "number" }
+      },
+      "required": ["uid", "email", "name", "isPrimary", "fitData"]
+    },
+    "WardrobeItem": {
+      "title": "Wardrobe Item",
+      "description": "A garment saved by the user",
+      "type": "object",
+      "properties": {
+        "emoji": { "type": "string" },
+        "brand": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["emoji", "brand", "name", "createdAt"]
+    },
+    "Address": {
+      "title": "Address",
+      "description": "User shipping address",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "street": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "zip": { "type": "string" },
+        "isDefault": { "type": "boolean" }
+      }
+    },
+    "SellerApplication": {
+      "title": "Seller Application",
+      "description": "Application to become a seller",
+      "type": "object",
+      "properties": {
+        "brandName": { "type": "string" },
+        "businessType": { "type": "string" },
+        "storeLink": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "Gift": {
+      "title": "Gift",
+      "description": "Gift sent between users",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "recipientUid": { "type": "string" },
+        "productId": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/users/{userId}/likes/{likeId}": {
+      "schema": "Like",
+      "description": "User wishlist items"
+    },
+    "/users/{userId}/cart/{cartId}": {
+      "schema": "Like",
+      "description": "User cart items"
+    },
+    "/users/{userId}/wardrobe/{itemId}": {
+      "schema": "Like",
+      "description": "User wardrobe items"
+    },
+    "/global_products/{productId}": {
+      "schema": "Product",
+      "description": "Global product catalog"
+    },
+    "/marketplace_products/{productId}": {
+      "schema": "MarketplaceProduct",
+      "description": "Marketplace products"
+    },
+    "/looks/{lookId}": {
+      "schema": "Look",
+      "description": "Community looks"
+    },
+    "/members/{memberId}": {
+      "schema": "Member",
+      "description": "User members collection"
+    },
+    "/members/{memberId}/wardrobe/{itemId}": {
+      "schema": "WardrobeItem",
+      "description": "User's saved garments"
+    },
+    "/addresses/{addressId}": {
+      "schema": "Address",
+      "description": "User addresses"
+    },
+    "/seller_applications/{appId}": {
+      "schema": "SellerApplication",
+      "description": "Seller applications"
+    },
+    "/gifts/{giftId}": {
+      "schema": "Gift",
+      "description": "Gifts"
+    }
+  }
+}
