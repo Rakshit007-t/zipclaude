@@ -1,14 +1,62 @@
+from __future__ import annotations
+
+import asyncio
 import logging
+from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
-from core.api import success_response
-from models.schema import ApiResponse, ExtractProductRequest, ExtractProductResponse, RecentScansResponse
-from services.product_extractor import extract_product_details
-from services.recent_scans import store_scan, get_recent_scans
+from core.api import error_response, success_response
+from models.schema import ApiResponse, ExtractProductRequest, ExtractProductResponse
+from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user
+from services.product_providers import get_provider_for_url, validate_product_url
+from services.request_rate_limiter import enforce_rate_limit
 
 router = APIRouter(tags=["product"])
 logger = logging.getLogger(__name__)
+
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_USER_MAX_REQUESTS = 20
+RATE_LIMIT_IP_MAX_REQUESTS = 40
+INVALID_TITLE_VALUES = {"", "product"}
+INVALID_BRAND_VALUES = {""}
+INVALID_CATEGORY_VALUES = {""}
+
+
+def _clean_text(value: str | None) -> str:
+    return str(value or "").strip()
+
+
+def _validated_product(
+    extracted: ExtractProductResponse,
+    normalized_url: str,
+) -> ExtractProductResponse | None:
+    title = _clean_text(extracted.title)
+    brand = _clean_text(extracted.brand)
+    category = _clean_text(extracted.category)
+    image = _clean_text(extracted.image)
+    url = _clean_text(extracted.url) or normalized_url
+
+    if title.lower() in INVALID_TITLE_VALUES:
+        return None
+    if brand.lower() in INVALID_BRAND_VALUES:
+        return None
+    if category.lower() in INVALID_CATEGORY_VALUES:
+        return None
+    if not image:
+        return None
+    if not url:
+        return None
+
+    return extracted.model_copy(
+        update={
+            "title": title,
+            "brand": brand,
+            "category": category,
+            "image": image,
+            "url": url,
+        }
+    )
 
 
 @router.post(
@@ -19,57 +67,82 @@ logger = logging.getLogger(__name__)
 async def extract_product(
     payload: ExtractProductRequest,
     request: Request,
+    response: Response,
+    current_user: AuthenticatedUser = Depends(get_optional_user),
 ) -> ApiResponse[ExtractProductResponse]:
-    client_host = request.client.host if request.client else "unknown"
+    client_ip = request.client.host if request.client else "unknown"
+    request_id = request.headers.get("X-Request-Id", "").strip() or str(uuid4())
+    response.headers["X-Request-Id"] = request_id
+
     try:
+        normalized_url = validate_product_url(payload.url)
+        enforce_rate_limit(
+            key=f"extract:user:{current_user.uid}",
+            max_requests=RATE_LIMIT_USER_MAX_REQUESTS,
+            window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+            detail="Too many extraction requests for this user.",
+        )
+        enforce_rate_limit(
+            key=f"extract:ip:{client_ip}",
+            max_requests=RATE_LIMIT_IP_MAX_REQUESTS,
+            window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+            detail="Too many extraction requests from this IP.",
+        )
+
+        provider = get_provider_for_url(normalized_url)
+        try:
+            extracted = await asyncio.wait_for(
+                asyncio.to_thread(
+                    provider.fetch,
+                    normalized_url,
+                    current_user.uid,
+                ),
+                timeout=6.0,
+            )
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Extraction took too long.",
+            ) from exc
+
+        validated = _validated_product(extracted, normalized_url)
+        if validated is None:
+            return error_response(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"message": "Product extraction failed"},
+            )
         logger.info(
-            "Received product extraction request from client=%s url=%s",
-            client_host,
-            payload.url,
+            "extract-product audit request_id=%s user_id=%s ip=%s source=%s url=%s confidence=%.2f",
+            request_id,
+            current_user.uid,
+            client_ip,
+            validated.source,
+            validated.url,
+            validated.confidence,
         )
-        result = extract_product_details(str(payload.url), requester_id=client_host)
-        
-        # Store to recent scans
-        store_scan(
-            url=str(payload.url),
-            title=result.title,
-            brand=result.brand,
-            image=result.image
-        )
-        
+
         return success_response(
             message="Product details extracted successfully.",
-            data=result,
+            data=validated,
         )
     except HTTPException:
         raise
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
+            detail={
+                "message": "Invalid product extraction request.",
+                "details": {"code": "invalid_request", "reason": str(exc)},
+            },
         ) from exc
     except Exception as exc:
-        logger.exception("Unexpected product extraction failure for client=%s.", client_host)
+        logger.exception(
+            "Unexpected product extraction failure request_id=%s user_id=%s ip=%s",
+            request_id,
+            current_user.uid,
+            client_ip,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to extract product details.",
-        ) from exc
-
-@router.get(
-    "/recent-scans",
-    response_model=ApiResponse[RecentScansResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def fetch_recent_scans():
-    try:
-        scans = get_recent_scans()
-        return success_response(
-            message="Recent scans fetched successfully.",
-            data=RecentScansResponse(scans=scans)
-        )
-    except Exception as exc:
-        logger.exception("Failed to fetch recent scans.")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch recent scans."
         ) from exc

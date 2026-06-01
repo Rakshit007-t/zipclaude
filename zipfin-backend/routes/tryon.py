@@ -1,9 +1,10 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from core.api import success_response
 from models.schema import ApiResponse, TryOnImageRequest, TryOnImageResponse
+from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user
 from services.tryon_engine import process_tryon_request
 
 router = APIRouter(tags=["tryon"])
@@ -17,8 +18,17 @@ logger = logging.getLogger(__name__)
 )
 async def tryon_image(
     payload: TryOnImageRequest,
+    current_user: AuthenticatedUser = Depends(get_optional_user),
 ) -> ApiResponse[TryOnImageResponse]:
     try:
+        if payload.user_id != current_user.uid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "message": "user_id must match authenticated user.",
+                    "details": {"code": "user_mismatch"},
+                },
+            )
         logger.info(
             "Processing try-on request: user_id=%s product_image_url=%s",
             payload.user_id,

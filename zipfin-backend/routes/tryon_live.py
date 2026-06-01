@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
 
 from models.schema import (
@@ -17,6 +17,7 @@ from services.live_tryon_engine import (
     list_garments,
     register_garment,
 )
+from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user, verify_firebase_token
 
 router = APIRouter(tags=["tryon-live"])
 logger = logging.getLogger(__name__)
@@ -27,8 +28,12 @@ logger = logging.getLogger(__name__)
     response_model=GarmentResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_garment(payload: GarmentCreateRequest) -> GarmentResponse:
+async def create_garment(
+    payload: GarmentCreateRequest,
+    current_user: AuthenticatedUser = Depends(get_optional_user),
+) -> GarmentResponse:
     try:
+        logger.info("create_garment requested by user_id=%s", current_user.uid)
         return register_garment(payload)
     except HTTPException:
         raise
@@ -45,8 +50,11 @@ async def create_garment(payload: GarmentCreateRequest) -> GarmentResponse:
     response_model=list[GarmentResponse],
     status_code=status.HTTP_200_OK,
 )
-async def get_garments() -> list[GarmentResponse]:
+async def get_garments(
+    current_user: AuthenticatedUser = Depends(get_optional_user),
+) -> list[GarmentResponse]:
     try:
+        logger.info("get_garments requested by user_id=%s", current_user.uid)
         return list_garments()
     except HTTPException:
         raise
@@ -65,8 +73,17 @@ async def get_garments() -> list[GarmentResponse]:
 )
 async def create_session(
     payload: LiveTryOnSessionCreateRequest,
+    current_user: AuthenticatedUser = Depends(get_optional_user),
 ) -> LiveTryOnSessionResponse:
     try:
+        if payload.user_id != current_user.uid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "message": "user_id must match authenticated user.",
+                    "details": {"code": "user_mismatch"},
+                },
+            )
         return create_live_tryon_session(payload)
     except HTTPException:
         raise
@@ -85,6 +102,7 @@ async def create_session(
 )
 async def estimate_frame(
     payload: LiveTryOnFrameRequest,
+    current_user: AuthenticatedUser = Depends(get_optional_user),
 ) -> LiveTryOnFrameResponse:
     try:
         return estimate_live_tryon_frame(payload)
@@ -100,6 +118,15 @@ async def estimate_frame(
 
 @router.websocket("/tryon-live/ws/{session_id}")
 async def tryon_live_ws(websocket: WebSocket, session_id: str) -> None:
+    token = websocket.query_params.get("token", "")
+    if not token:
+        await websocket.close(code=1008)
+        return
+    try:
+        verify_firebase_token(token)
+    except HTTPException:
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     try:
         while True:

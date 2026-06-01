@@ -7,7 +7,7 @@ from models.schema import ApiResponse
 
 
 def success_response(*, data: Any, message: str) -> ApiResponse:
-    return ApiResponse(message=message, data=jsonable_encoder(data))
+    return ApiResponse(is_valid=True, message=message, data=jsonable_encoder(data))
 
 
 def error_response(
@@ -16,16 +16,12 @@ def error_response(
     detail: Any = None,
     default_message: str = "Request failed.",
 ) -> JSONResponse:
-    message, details = _normalize_error_detail(detail, default_message)
+    message, _ = _normalize_error_detail(detail, default_message)
     payload = {
-        "success": False,
-        "error": {
-            "message": message,
-            "status_code": status_code,
-        },
+        "isValid": False,
+        "message": message,
+        "data": None,
     }
-    if details is not None:
-        payload["error"]["details"] = jsonable_encoder(details)
     return JSONResponse(status_code=status_code, content=payload)
 
 

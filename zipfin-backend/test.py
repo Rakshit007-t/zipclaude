@@ -8,29 +8,95 @@ from models.schema import (
     AuthSession,
     AuthUser,
     AvatarCreateResponse,
+    PredictSizeResponse,
     ProfileResponse,
+    SizeEngineResponse,
     TryOnImageResponse,
 )
-from services.auth_service import CurrentUser, get_current_user
+from services.firebase_auth import AuthenticatedUser, get_current_user
+
+TEST_USER = AuthenticatedUser(uid="user-123", email="user@example.com")
+
+
+def _authorized_client() -> TestClient:
+    app.dependency_overrides[get_current_user] = lambda: TEST_USER
+    return TestClient(app)
+
+
+def _cleanup_overrides() -> None:
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_size_engine(client: TestClient) -> None:
-    response = client.post(
-        "/size-engine",
-        json={
-            "chest": 100,
-            "waist_cm": 85,
-            "hip_cm": 95,
-            "fit": "regular",
-            "brand": "zara",
-            "range": "M-L",
-        },
-    )
+    with patch(
+        "routes.size.calculate_size_recommendation",
+        new=AsyncMock(
+            return_value=SizeEngineResponse(
+                size="M",
+                confidence=88.0,
+                risk="low",
+                reason="Adjusted using category, brand bias, and fit preference.",
+            )
+        ),
+    ):
+        response = client.post(
+            "/size-engine",
+            json={
+                "product": {
+                    "id": "prod-1",
+                    "title": "Oversized Tee",
+                    "brand": "Zara",
+                    "category": "tshirt",
+                    "price": "INR 1999",
+                    "image": "https://example.com/shirt.png",
+                    "url": "https://www.zara.com/in/en/oversized-tee-p0000001.html",
+                    "source": "link",
+                    "confidence": 0.7,
+                },
+                "profile": {
+                    "base_size": "M",
+                    "fit_preference": "regular",
+                },
+            },
+        )
+
     response.raise_for_status()
     payload = response.json()
     assert payload["success"] is True
-    assert payload["data"]["size"] in {"S", "M", "L", "XL", "XXL", "XS"}
+    assert payload["data"]["size"] == "M"
+    assert payload["data"]["risk"] == "low"
     print("Size Engine:", response.status_code, payload["message"])
+
+
+def test_predict_size(client: TestClient) -> None:
+    with patch(
+        "routes.size.calculate_size_recommendation",
+        new=AsyncMock(
+            return_value=SizeEngineResponse(
+                size="S",
+                confidence=74.0,
+                risk="medium",
+                reason="Adjusted using category, brand bias, and fit preference.",
+            )
+        ),
+    ):
+        response = client.post(
+            "/predict-size",
+            json={
+                "link": "https://www.zara.com/in/en/basic-t-shirt-p0000002.html",
+                "height": 172,
+                "measurements": {
+                    "chest": 94,
+                    "waist": 81,
+                },
+            },
+        )
+
+    response.raise_for_status()
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["data"] == PredictSizeResponse(size="S", confidence=0.74).model_dump()
+    print("Predict Size:", response.status_code, payload["message"])
 
 
 def test_auth_signup(client: TestClient) -> None:
@@ -48,7 +114,7 @@ def test_auth_signup(client: TestClient) -> None:
             json={"email": "user@example.com", "password": "secret123"},
         )
 
-    response.raise_for_status()
+    assert response.status_code == 201
     payload = response.json()
     assert payload["success"] is True
     assert payload["data"]["needs_email_verification"] is True
@@ -97,7 +163,7 @@ def test_avatar(client: TestClient) -> None:
             files={"file": ("test.png", b"fake-image", "image/png")},
         )
 
-    response.raise_for_status()
+    assert response.status_code == 201
     payload = response.json()
     assert payload["success"] is True
     assert payload["data"]["user_id"] == "user-123"
@@ -105,11 +171,6 @@ def test_avatar(client: TestClient) -> None:
 
 
 def test_profile_fetch_and_save(client: TestClient) -> None:
-    current_user = CurrentUser(
-        id="user-123",
-        email="user@example.com",
-        access_token="access-token",
-    )
     mocked_profile = ProfileResponse(
         id="user-123",
         email="user@example.com",
@@ -117,28 +178,24 @@ def test_profile_fetch_and_save(client: TestClient) -> None:
         size="M",
         fit="regular",
     )
-    app.dependency_overrides[get_current_user] = lambda: current_user
-    try:
-        with patch(
-            "routes.profile.fetch_profile",
-            return_value=mocked_profile,
-        ):
-            fetch_response = client.get(
-                "/profiles/me",
-                headers={"Authorization": "Bearer access-token"},
-            )
+    with patch(
+        "routes.profile.fetch_profile",
+        return_value=mocked_profile,
+    ):
+        fetch_response = client.get(
+            "/profiles/me",
+            headers={"Authorization": "Bearer access-token"},
+        )
 
-        with patch(
-            "routes.profile.save_profile",
-            return_value=mocked_profile,
-        ):
-            save_response = client.put(
-                "/profiles/me",
-                headers={"Authorization": "Bearer access-token"},
-                json={"brand": "ZipRight", "size": "M", "fit": "regular"},
-            )
-    finally:
-        app.dependency_overrides.pop(get_current_user, None)
+    with patch(
+        "routes.profile.save_profile",
+        return_value=mocked_profile,
+    ):
+        save_response = client.put(
+            "/profiles/me",
+            headers={"Authorization": "Bearer access-token"},
+            json={"brand": "ZipRight", "size": "M", "fit": "regular"},
+        )
 
     fetch_response.raise_for_status()
     save_response.raise_for_status()
@@ -175,24 +232,29 @@ def test_cors(client: TestClient) -> None:
     response = client.options(
         "/size-engine",
         headers={
-            "Origin": "https://example.com",
+            "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "POST",
         },
     )
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "*"
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    assert response.headers.get("access-control-allow-credentials") == "true"
     print("CORS:", response.status_code, response.headers["access-control-allow-origin"])
 
 
 def main() -> None:
-    client = TestClient(app)
-    test_size_engine(client)
-    test_auth_signup(client)
-    test_auth_login(client)
-    test_avatar(client)
-    test_profile_fetch_and_save(client)
-    test_tryon(client)
-    test_cors(client)
+    client = _authorized_client()
+    try:
+        test_size_engine(client)
+        test_predict_size(client)
+        test_auth_signup(client)
+        test_auth_login(client)
+        test_avatar(client)
+        test_profile_fetch_and_save(client)
+        test_tryon(client)
+        test_cors(client)
+    finally:
+        _cleanup_overrides()
     print("API smoke tests passed.")
 
 

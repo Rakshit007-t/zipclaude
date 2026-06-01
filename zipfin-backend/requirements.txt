@@ -4,12 +4,13 @@ uvicorn[standard]==0.34.2
 python-multipart==0.0.20
 httpx==0.28.1
 pydantic==2.13.2
+protobuf>=4.25.3,<5
 python-dotenv==1.0.1
-firebase-admin==6.5.0
 insightface>=0.7.3,<1
 onnxruntime>=1.19,<2
 mediapipe==0.10.33
 opencv-contrib-python==4.13.0.92
 numpy==2.2.6
 requests==2.33.1
-supabase==2.28.3
+beautifulsoup4==4.12.3
+playwright==1.54.0

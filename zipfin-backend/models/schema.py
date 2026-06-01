@@ -1,25 +1,33 @@
+import math
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 T = TypeVar("T")
 
 
 class ApiResponse(BaseModel, Generic[T]):
-    success: Literal[True] = True
-    message: str
-    data: T
+    model_config = ConfigDict(populate_by_name=True)
 
-
-class ApiError(BaseModel):
+    is_valid: bool = Field(
+        ...,
+        serialization_alias="isValid",
+        validation_alias=AliasChoices("isValid", "is_valid"),
+    )
     message: str
-    status_code: int
-    details: Any | None = None
+    data: T | None = None
 
 
 class ApiErrorResponse(BaseModel):
-    success: Literal[False] = False
-    error: ApiError
+    model_config = ConfigDict(populate_by_name=True)
+
+    is_valid: Literal[False] = Field(
+        default=False,
+        serialization_alias="isValid",
+        validation_alias=AliasChoices("isValid", "is_valid"),
+    )
+    message: str
+    data: Any | None = None
 
 
 class EmailAuthRequest(BaseModel):
@@ -45,14 +53,36 @@ class AuthResult(BaseModel):
     needs_email_verification: bool = False
 
 
+class NormalizedProduct(BaseModel):
+    id: str = Field(default="", min_length=1, max_length=128)
+    title: str = Field(..., min_length=1, max_length=500)
+    brand: str = Field(..., min_length=1, max_length=120)
+    category: str = Field(..., min_length=1, max_length=120)
+    price: str | None = Field(default=None, max_length=120)
+    image: str | None = Field(default=None, max_length=2000)
+    url: str = Field(..., min_length=1, max_length=2048)
+    source: Literal["link", "amazon", "flipkart"] = "link"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    fit_hint: str | None = Field(default=None, max_length=40)
+    size_chart: dict[str, float] | None = None
+    available_sizes: list[str] | None = None
+    size_format: str | None = Field(default=None, max_length=40)
+
+
+class SizeEngineProfile(BaseModel):
+    base_size: Literal["XS", "S", "M", "L", "XL", "XXL"] = "M"
+    fit_preference: Literal["slim", "regular", "relaxed", "loose", "baggy"] = "regular"
+    chest: float | None = Field(default=None, gt=0, le=300)
+    waist: float | None = Field(default=None, gt=0, le=300)
+    shoulders: float | None = Field(default=None, gt=0, le=300)
+    hips: float | None = Field(default=None, gt=0, le=300)
+    legs: float | None = Field(default=None, gt=0, le=300)
+    bust: float | None = Field(default=None, gt=0, le=300)
+
+
 class SizeEngineRequest(BaseModel):
-    chest: int = Field(..., gt=0, le=200)
-    waist_cm: int | None = Field(default=None, gt=0, le=200)
-    hip_cm: int | None = Field(default=None, gt=0, le=250)
-    fit: str = Field(default="regular", min_length=3, max_length=20)
-    brand: str = Field(default="generic", min_length=1, max_length=50)
-    range: str = Field(..., min_length=1, max_length=50)
-    category: str | None = Field(default=None, max_length=50)
+    product: NormalizedProduct
+    profile: SizeEngineProfile
 
 
 class SizeEngineResponse(BaseModel):
@@ -62,16 +92,136 @@ class SizeEngineResponse(BaseModel):
     reason: str
 
 
+class PredictSizeMeasurements(BaseModel):
+    chest: float | None = Field(default=None, gt=0, le=300)
+    waist: float | None = Field(default=None, gt=0, le=300)
+    shoulders: float | None = Field(default=None, gt=0, le=300)
+    arms: float | None = Field(default=None, gt=0, le=300)
+    legs: float | None = Field(default=None, gt=0, le=300)
+    torso: float | None = Field(default=None, gt=0, le=300)
+    hips: float | None = Field(default=None, gt=0, le=300)
+    bust: float | None = Field(default=None, gt=0, le=300)
+
+
+class PredictSizeRequest(BaseModel):
+    link: str = Field(..., min_length=1, max_length=2048)
+    height: float = Field(..., gt=0, le=300)
+    measurements: PredictSizeMeasurements | None = None
+    product: NormalizedProduct | None = None
+    base_size: Literal["XS", "S", "M", "L", "XL", "XXL"] | None = None
+    fit_preference: Literal["slim", "regular", "relaxed", "loose", "baggy"] = "regular"
+
+
+class PredictSizeResponse(BaseModel):
+    size: str
+    confidence: float
+    risk: str | None = None
+    reason: str | None = None
+
+
+class SmartFitScanRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    front_image: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("front_image", "frontImage"),
+    )
+    side_image: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("side_image", "sideImage"),
+    )
+    height: float | None = Field(
+        default=None,
+        validation_alias=AliasChoices("height", "heightCm"),
+    )
+
+    @field_validator("front_image", "side_image", mode="before")
+    @classmethod
+    def normalize_image_field(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            normalized = value.strip()
+            return normalized or None
+        if isinstance(value, dict):
+            for key in ("base64", "data", "data_url", "dataUrl", "value", "url", "uri"):
+                nested_value = value.get(key)
+                if isinstance(nested_value, str):
+                    normalized = nested_value.strip()
+                    if normalized:
+                        return normalized
+            return None
+        raise ValueError("scan image must be a base64 string")
+
+    @field_validator("height", mode="before")
+    @classmethod
+    def normalize_height_field(cls, value: Any) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            raise ValueError("height must be numeric")
+        if isinstance(value, (int, float)):
+            numeric_value = float(value)
+        elif isinstance(value, str):
+            normalized = value.strip()
+            if not normalized:
+                return None
+            try:
+                numeric_value = float(normalized)
+            except ValueError as exc:
+                raise ValueError("height must be numeric") from exc
+        else:
+            raise ValueError("height must be numeric")
+
+        if not math.isfinite(numeric_value):
+            raise ValueError("height must be finite")
+        return numeric_value
+
+
+class SmartFitScanMeasurements(BaseModel):
+    chest: float = Field(..., gt=0, le=300)
+    waist: float = Field(..., gt=0, le=300)
+    shoulders: float = Field(..., gt=0, le=300)
+    arms: float | None = Field(default=None, gt=0, le=300)
+    legs: float | None = Field(default=None, gt=0, le=300)
+    torso: float | None = Field(default=None, gt=0, le=300)
+    hips: float | None = Field(default=None, gt=0, le=300)
+    bust: float | None = Field(default=None, gt=0, le=300)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
+class SmartFitScanResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    is_valid: bool = Field(
+        ...,
+        serialization_alias="isValid",
+        validation_alias=AliasChoices("isValid", "is_valid"),
+    )
+    message: str | None = None
+    measurements: SmartFitScanMeasurements | None = None
+
+
 class ExtractProductRequest(BaseModel):
-    url: HttpUrl
+    url: str = Field(..., min_length=1, max_length=2048)
 
 
 class ExtractProductResponse(BaseModel):
+    id: str = ""
     title: str = ""
     brand: str = ""
     category: str = ""
-    price: str = ""
-    image: str = ""
+    price: str | None = None
+    image: str | None = None
+    url: str = ""
+    source: Literal["link", "amazon", "flipkart"] = "link"
+    confidence: float = 0.0
+    fit_hint: str | None = None
+    size_chart: dict[str, float] | None = None
+    available_sizes: list[str] | None = None
+    size_format: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
 
 class RecentScan(BaseModel):
     url: str
@@ -97,7 +247,7 @@ class TryOnImageRequest(BaseModel):
         max_length=100,
         pattern=r"^[A-Za-z0-9_-]+$",
     )
-    product_image_url: HttpUrl
+    product_image_url: str = Field(..., min_length=1, max_length=2048)
 
 
 class TryOnImageResponse(BaseModel):
@@ -132,9 +282,9 @@ class GarmentCreateRequest(BaseModel):
     )
     name: str = Field(..., min_length=2, max_length=120)
     category: str = Field(..., min_length=2, max_length=50)
-    preview_image_url: HttpUrl | None = None
-    asset_url: HttpUrl | None = None
-    texture_image_url: HttpUrl | None = None
+    preview_image_url: str | None = None
+    asset_url: str | None = None
+    texture_image_url: str | None = None
     scale_multiplier: float = Field(default=1.0, gt=0.1, le=10.0)
     anchor_profile: GarmentAnchorProfile = Field(default_factory=GarmentAnchorProfile)
 

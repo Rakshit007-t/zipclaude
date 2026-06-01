@@ -39,11 +39,6 @@ class Settings:
         "https://oauth2.googleapis.com/token",
     ).strip()
 
-    # Supabase
-    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "").strip()
-    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "").strip()
-    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-
     def get_firebase_credentials_dict(self) -> dict[str, str] | None:
         if self.FIREBASE_CREDENTIALS_JSON:
             try:

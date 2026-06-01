@@ -66,10 +66,10 @@ def initialize_firebase() -> firebase_admin.App:
             pass
 
         try:
-            return firebase_admin.initialize_app(
-                get_firebase_credentials(),
-                {"storageBucket": get_storage_bucket_name()},
-            )
+            options: dict[str, str] = {}
+            if settings.FIREBASE_STORAGE_BUCKET:
+                options["storageBucket"] = get_storage_bucket_name()
+            return firebase_admin.initialize_app(get_firebase_credentials(), options or None)
         except (FileNotFoundError, RuntimeError):
             raise
         except Exception as exc:

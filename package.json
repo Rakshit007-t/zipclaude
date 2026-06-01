@@ -1,0 +1,13 @@
+{
+  "name": "zipright-mvp",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm run install:frontend",
+    "dev": "npm --prefix zipfend run dev",
+    "build": "npm --prefix zipfend run build",
+    "start": "npm --prefix zipfend run start",
+    "typecheck": "npm --prefix zipfend run typecheck",
+    "lint": "npm --prefix zipfend run lint",
+    "install:frontend": "npm --prefix zipfend install"
+  }
+}

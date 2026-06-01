@@ -1,9 +1,10 @@
 import logging
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from core.api import success_response
 from models.schema import ApiResponse, AvatarCreateResponse
+from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user
 from services.face_engine import process_avatar_upload
 
 router = APIRouter(tags=["avatar"])
@@ -17,10 +18,12 @@ logger = logging.getLogger(__name__)
 )
 async def avatar_create(
     file: UploadFile = File(...),
+    current_user: AuthenticatedUser = Depends(get_optional_user),
 ) -> ApiResponse[AvatarCreateResponse]:
     try:
         logger.info(
-            "Processing avatar upload: filename=%s content_type=%s",
+            "Processing avatar upload: user_id=%s filename=%s content_type=%s",
+            current_user.uid,
             file.filename,
             file.content_type,
         )
