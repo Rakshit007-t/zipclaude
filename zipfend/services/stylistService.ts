@@ -1,10 +1,6 @@
 import { getBackendBaseUrl } from './ziprightApi';
 
 const API_BASE_URL = getBackendBaseUrl();
-const API_KEY = (import.meta.env.VITE_API_KEY || '').trim();
-const SYSTEM_PROMPT = `You are a professional fashion stylist assistant.
-
-Your job is to give accurate, context-aware outfit advice.`;
 
 interface StylistResponse {
   reply: string;
@@ -37,26 +33,8 @@ export async function getStylistResponse(message: string): Promise<StylistRespon
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${API_KEY}`,
     },
-    body: JSON.stringify({
-      model: "gemini-1.5-flash",
-      messages: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT,
-        },
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
-      temperature: 0.9,
-      top_p: 0.95,
-      frequency_penalty: 0.7,
-      presence_penalty: 0.7,
-      message: userMessage,
-    }),
+    body: JSON.stringify({ message: userMessage }),
     timeout: 10000,
   });
 

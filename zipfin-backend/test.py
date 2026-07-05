@@ -13,18 +13,20 @@ from models.schema import (
     SizeEngineResponse,
     TryOnImageResponse,
 )
-from services.firebase_auth import AuthenticatedUser, get_current_user
+from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user
 
 TEST_USER = AuthenticatedUser(uid="user-123", email="user@example.com")
 
 
 def _authorized_client() -> TestClient:
     app.dependency_overrides[get_current_user] = lambda: TEST_USER
+    app.dependency_overrides[get_optional_user] = lambda: TEST_USER
     return TestClient(app)
 
 
 def _cleanup_overrides() -> None:
     app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_optional_user, None)
 
 
 def test_size_engine(client: TestClient) -> None:
@@ -62,7 +64,7 @@ def test_size_engine(client: TestClient) -> None:
 
     response.raise_for_status()
     payload = response.json()
-    assert payload["success"] is True
+    assert payload["isValid"] is True
     assert payload["data"]["size"] == "M"
     assert payload["data"]["risk"] == "low"
     print("Size Engine:", response.status_code, payload["message"])
@@ -89,13 +91,30 @@ def test_predict_size(client: TestClient) -> None:
                     "chest": 94,
                     "waist": 81,
                 },
+                "product": {
+                    "id": "prod-1",
+                    "title": "Unisex Classic Tee",
+                    "brand": "ZipRight",
+                    "category": "tshirt",
+                    "price": "$29.99",
+                    "image": "https://example.com/tee.png",
+                    "url": "https://example.com/products/tee",
+                    "source": "link",
+                    "size_chart": {
+                        "S": 92.0,
+                        "M": 98.0,
+                        "L": 104.0,
+                        "XL": 110.0,
+                    },
+                },
             },
         )
 
     response.raise_for_status()
     payload = response.json()
-    assert payload["success"] is True
-    assert payload["data"] == PredictSizeResponse(size="S", confidence=0.74).model_dump()
+    assert payload["isValid"] is True
+    assert payload["data"]["size"] == "S"
+    assert payload["data"]["confidence"] == 0.74
     print("Predict Size:", response.status_code, payload["message"])
 
 
@@ -116,7 +135,7 @@ def test_auth_signup(client: TestClient) -> None:
 
     assert response.status_code == 201
     payload = response.json()
-    assert payload["success"] is True
+    assert payload["isValid"] is True
     assert payload["data"]["needs_email_verification"] is True
     print("Auth Signup:", response.status_code, payload["message"])
 
@@ -143,7 +162,7 @@ def test_auth_login(client: TestClient) -> None:
 
     response.raise_for_status()
     payload = response.json()
-    assert payload["success"] is True
+    assert payload["isValid"] is True
     assert payload["data"]["session"]["access_token"] == "access-token"
     print("Auth Login:", response.status_code, payload["message"])
 
@@ -165,7 +184,7 @@ def test_avatar(client: TestClient) -> None:
 
     assert response.status_code == 201
     payload = response.json()
-    assert payload["success"] is True
+    assert payload["isValid"] is True
     assert payload["data"]["user_id"] == "user-123"
     print("Avatar:", response.status_code, payload["message"])
 
@@ -223,7 +242,7 @@ def test_tryon(client: TestClient) -> None:
 
     response.raise_for_status()
     payload = response.json()
-    assert payload["success"] is True
+    assert payload["isValid"] is True
     assert payload["data"]["tryon_image"] == "https://example.com/tryon.png"
     print("Tryon:", response.status_code, payload["message"])
 

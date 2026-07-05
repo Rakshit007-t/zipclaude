@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import logging
+import threading
+import time
+
 from models.schema import (
     NormalizedProduct,
     PredictSizeMeasurements,
@@ -7,6 +11,8 @@ from models.schema import (
     SizeEngineRequest,
     SizeEngineResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 SIZE_SCALE = ["XS", "S", "M", "L", "XL", "XXL"]
 SIZE_ALIASES = {
@@ -34,12 +40,12 @@ SIZE_BANDS = {
         {"size": "XXL", "chest": (126.0, 135.0), "shoulders": (51.0, 55.0)},
     ],
     "pants": [
-        {"size": "XS", "waist": (68.0, 74.0), "legs": (94.0, 100.0)},
-        {"size": "S", "waist": (74.0, 80.0), "legs": (96.0, 102.0)},
-        {"size": "M", "waist": (80.0, 86.0), "legs": (98.0, 104.0)},
-        {"size": "L", "waist": (86.0, 94.0), "legs": (100.0, 106.0)},
-        {"size": "XL", "waist": (94.0, 102.0), "legs": (102.0, 108.0)},
-        {"size": "XXL", "waist": (102.0, 110.0), "legs": (104.0, 110.0)},
+        {"size": "XS", "waist": (68.0, 74.0), "legs": (94.0, 100.0), "hips": (84.0, 90.0)},
+        {"size": "S", "waist": (74.0, 80.0), "legs": (96.0, 102.0), "hips": (90.0, 96.0)},
+        {"size": "M", "waist": (80.0, 86.0), "legs": (98.0, 104.0), "hips": (96.0, 102.0)},
+        {"size": "L", "waist": (86.0, 94.0), "legs": (100.0, 106.0), "hips": (102.0, 110.0)},
+        {"size": "XL", "waist": (94.0, 102.0), "legs": (102.0, 108.0), "hips": (110.0, 118.0)},
+        {"size": "XXL", "waist": (102.0, 110.0), "legs": (104.0, 110.0), "hips": (118.0, 126.0)},
     ],
 }
 FIT_ADJUSTMENTS = {
@@ -68,6 +74,7 @@ async def calculate_size_recommendation(payload: SizeEngineRequest) -> SizeEngin
     if not used_product_chart:
         measurement_result = _apply_base_size_prior(measurement_result, profile)
     measurement_result = _apply_product_context(measurement_result, product, profile)
+    measurement_result = _apply_brand_calibration(measurement_result, product, normalized_category)
 
     confidence = round(measurement_result["confidence"] * 100, 2)
     return SizeEngineResponse(
@@ -359,14 +366,20 @@ def _recommend_from_measurements(profile: SizeEngineProfile, category: str) -> d
 
     waist = _positive(profile.waist)
     inseam = _positive(profile.legs)
+    hips = _positive(profile.hips)
     if waist is None or inseam is None:
         return None
+    measurements = {"waist": waist, "legs": inseam}
+    weights = {"waist": 0.7, "legs": 0.3}
+    if hips is not None:
+        measurements["hips"] = hips
+        weights = {"waist": 0.55, "legs": 0.2, "hips": 0.25}
     return _score_size_band(
         size_bands=SIZE_BANDS["pants"],
-        measurements={"waist": waist, "legs": inseam},
-        weights={"waist": 0.7, "legs": 0.3},
+        measurements=measurements,
+        weights=weights,
         fit_preference=profile.fit_preference,
-        explanation_template="Waist and inseam align best with {size}",
+        explanation_template="Waist, hip and inseam fit align best with {size}",
     )
 
 
@@ -488,3 +501,95 @@ def _estimate_base_size(chest_cm: float, waist_cm: float, height_cm: float) -> s
             break
 
     return base_size
+
+
+# --- Brand calibration from real outcomes -----------------------------------
+# Reads aggregated size_feedback (kept / returned_too_small / returned_too_large)
+# and shifts recommendations for brands that consistently run small or large.
+# This is the loop that actually raises accuracy over time: every logged
+# outcome makes the next recommendation for that brand better.
+
+_BRAND_STATS_CACHE: dict[str, tuple[float, tuple[int, str]]] = {}
+_BRAND_STATS_TTL_SECONDS = 600.0
+_BRAND_STATS_LOCK = threading.Lock()
+_BRAND_MIN_SAMPLES = 5
+_BRAND_SKEW_THRESHOLD = 0.4
+
+
+def _brand_calibration_step(brand: str) -> tuple[int, str]:
+    key = brand.strip().lower()
+    if not key:
+        return 0, ""
+
+    now = time.monotonic()
+    with _BRAND_STATS_LOCK:
+        cached = _BRAND_STATS_CACHE.get(key)
+        if cached and now - cached[0] < _BRAND_STATS_TTL_SECONDS:
+            return cached[1]
+
+    step, label = 0, ""
+    try:
+        from firebase_config import get_firestore_client
+
+        client = get_firestore_client()
+        docs = (
+            client.collection("size_feedback")
+            .where("brand", "==", brand.strip())
+            .limit(200)
+            .stream()
+        )
+        total = too_small = too_large = 0
+        for doc in docs:
+            record = doc.to_dict() or {}
+            if not record.get("followed_recommendation", True):
+                continue
+            outcome = str(record.get("outcome", ""))
+            if outcome not in {"kept", "returned_too_small", "returned_too_large"}:
+                continue
+            total += 1
+            if outcome == "returned_too_small":
+                too_small += 1
+            elif outcome == "returned_too_large":
+                too_large += 1
+
+        if total >= _BRAND_MIN_SAMPLES:
+            if too_small / total >= _BRAND_SKEW_THRESHOLD:
+                step, label = 1, "runs small"
+            elif too_large / total >= _BRAND_SKEW_THRESHOLD:
+                step, label = -1, "runs large"
+    except Exception as exc:
+        logger.debug("Brand calibration unavailable for '%s': %s", brand, exc)
+
+    with _BRAND_STATS_LOCK:
+        _BRAND_STATS_CACHE[key] = (now, (step, label))
+    return step, label
+
+
+def _apply_brand_calibration(
+    result: dict[str, float | str],
+    product: NormalizedProduct,
+    category: str,
+) -> dict[str, float | str]:
+    del category
+    size = _normalize_size_key(result.get("size"))
+    brand = (product.brand or "").strip()
+    if not size or not brand:
+        return result
+
+    step, label = _brand_calibration_step(brand)
+    if not step:
+        return result
+
+    adjusted_size = _size_with_step(size, step)
+    if adjusted_size == size:
+        return result
+
+    return {
+        **result,
+        "size": adjusted_size,
+        "confidence": min(0.99, float(result["confidence"]) + 0.02),
+        "reason": (
+            f"{result['reason']}; shopper feedback shows {brand} {label}, "
+            f"so we recommend {adjusted_size}"
+        ),
+    }

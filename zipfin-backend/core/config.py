@@ -22,7 +22,7 @@ class Settings:
     FIREBASE_CREDENTIALS_PATH: Path | None = (
         Path(os.getenv("FIREBASE_CREDENTIALS_PATH", "").strip())
         if os.getenv("FIREBASE_CREDENTIALS_PATH", "").strip()
-        else None
+        else (Path("serviceAccountKey.json") if Path("serviceAccountKey.json").is_file() else None)
     )
     FIREBASE_CREDENTIALS_JSON: str = os.getenv("FIREBASE_CREDENTIALS_JSON", "").strip()
     FIREBASE_PROJECT_ID: str = os.getenv("FIREBASE_PROJECT_ID", "").strip()

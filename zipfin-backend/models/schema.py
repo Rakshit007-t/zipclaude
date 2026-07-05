@@ -247,11 +247,34 @@ class TryOnImageRequest(BaseModel):
         max_length=100,
         pattern=r"^[A-Za-z0-9_-]+$",
     )
-    product_image_url: str = Field(..., min_length=1, max_length=2048)
+    product_image_url: str = Field(default="", max_length=2048)
+    cloth_type: Literal["upper_body", "lower_body", "dress", "auto"] = "auto"
+    quality: Literal["fast", "hd", "2k"] = "hd"
+    # Optional base64 data URL of a person photo; used instead of the stored
+    # avatar when provided (e.g. a fresh camera capture).
+    person_image: str | None = Field(default=None, max_length=15_000_000)
+    # Optional base64 data URL of the garment photo; used instead of
+    # product_image_url (e.g. an uploaded garment picture).
+    garment_image: str | None = Field(default=None, max_length=15_000_000)
 
 
 class TryOnImageResponse(BaseModel):
     tryon_image: str
+    engine: Literal["catvton", "catvton_cloud", "overlay"] = "overlay"
+
+
+class TryOnJobCreateResponse(BaseModel):
+    job_id: str
+
+
+class TryOnJobStatusResponse(BaseModel):
+    job_id: str
+    status: Literal["queued", "running", "done", "failed"]
+    progress: int = Field(..., ge=0, le=100)
+    stage: str = ""
+    engine: str | None = None
+    tryon_image: str | None = None
+    error: str | None = None
 
 
 class ProfileUpsertRequest(BaseModel):

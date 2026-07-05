@@ -1,3 +1,5 @@
+import asyncio
+import base64
 import logging
 from pathlib import Path
 from uuid import uuid4
@@ -10,6 +12,7 @@ from fastapi import HTTPException, status
 
 from firebase_upload import FirebaseUploadError, upload_to_firebase
 from models.schema import TryOnImageResponse
+from services.vton_engine import VtonError, generate_vton_image
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +30,56 @@ FALLBACK_OVERLAY_TOP_RATIO = 0.35
 async def process_tryon_request(
     user_id: str,
     product_image_url: str,
+    cloth_type: str = "auto",
+    quality: str = "hd",
+    person_image: str | None = None,
+    garment_image: str | None = None,
 ) -> TryOnImageResponse:
     _validate_user_id(user_id)
-    _validate_product_image_url(product_image_url)
+    if not garment_image:
+        _validate_product_image_url(product_image_url)
 
-    source_image_path = _resolve_user_image_path(user_id)
+    if person_image:
+        person_bytes = _decode_person_data_url(person_image)
+    else:
+        source_image_path = _resolve_user_image_path(user_id)
+        try:
+            person_bytes = source_image_path.read_bytes()
+        except OSError as exc:
+            logger.exception("Failed to read avatar image for user '%s'.", user_id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to access uploaded avatar.",
+            ) from exc
 
     try:
-        image_bytes = generate_tryon_image(
-            user_image_path=source_image_path,
-            product_image_url=product_image_url,
-        )
+        if garment_image:
+            garment_bytes = _decode_person_data_url(garment_image)
+        else:
+            garment_bytes = _download_product_image_bytes(product_image_url)
+        image_bytes: bytes
+        engine: str
+        try:
+            # CatVTON runs minutes-long on CPU-adjacent hardware; keep the
+            # event loop free.
+            image_bytes, engine = await asyncio.to_thread(
+                generate_vton_image,
+                person_image_bytes=person_bytes,
+                garment_image_bytes=garment_bytes,
+                cloth_type=cloth_type,
+                quality=quality,
+            )
+        except VtonError as exc:
+            logger.warning(
+                "CatVTON try-on unavailable for user '%s'; using overlay fallback. Reason: %s",
+                user_id,
+                exc,
+            )
+            image_bytes = generate_tryon_image_from_bytes(
+                person_bytes=person_bytes,
+                garment_bytes=garment_bytes,
+            )
+            engine = "overlay"
     except TryOnDownloadError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -77,7 +119,30 @@ async def process_tryon_request(
             detail="Failed to upload try-on image.",
         ) from exc
 
-    return TryOnImageResponse(tryon_image=stored_image_url)
+    return TryOnImageResponse(tryon_image=stored_image_url, engine=engine)
+
+
+def _decode_person_data_url(person_image: str) -> bytes:
+    value = person_image.strip()
+    if not value.startswith("data:image/"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="person_image must be a base64 image data URL.",
+        )
+    _, _, encoded = value.partition(",")
+    try:
+        decoded = base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="person_image is not valid base64 data.",
+        ) from exc
+    if not decoded:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="person_image is empty.",
+        )
+    return decoded
 
 
 def _store_tryon_image(*, image_bytes: bytes, user_id: str) -> str:
@@ -153,11 +218,24 @@ class TryOnDownloadError(RuntimeError):
 
 
 def generate_tryon_image(user_image_path: str | Path, product_image_url: str) -> bytes:
-    avatar_image = cv2.imread(str(user_image_path), cv2.IMREAD_COLOR)
+    try:
+        person_bytes = Path(user_image_path).read_bytes()
+    except OSError as exc:
+        raise TryOnGenerationError("Unable to read the uploaded avatar image.") from exc
+    garment_bytes = _download_product_image_bytes(product_image_url)
+    return generate_tryon_image_from_bytes(
+        person_bytes=person_bytes,
+        garment_bytes=garment_bytes,
+    )
+
+
+def generate_tryon_image_from_bytes(*, person_bytes: bytes, garment_bytes: bytes) -> bytes:
+    avatar_array = np.frombuffer(person_bytes, dtype=np.uint8)
+    avatar_image = cv2.imdecode(avatar_array, cv2.IMREAD_COLOR)
     if avatar_image is None:
         raise TryOnGenerationError("Unable to read the uploaded avatar image.")
 
-    product_image = _download_product_image(product_image_url)
+    product_image = _decode_product_image(garment_bytes)
     image_height, image_width = avatar_image.shape[:2]
     shoulder_points = _detect_shoulder_points(avatar_image)
 
@@ -206,7 +284,7 @@ def generate_tryon_image(user_image_path: str | Path, product_image_url: str) ->
     return image_bytes
 
 
-def _download_product_image(product_image_url: str) -> np.ndarray:
+def _download_product_image_bytes(product_image_url: str) -> bytes:
     try:
         response = requests.get(
             product_image_url,
@@ -219,7 +297,13 @@ def _download_product_image(product_image_url: str) -> np.ndarray:
         logger.exception("Unexpected product image download failure for '%s'.", product_image_url)
         raise TryOnDownloadError("Failed to download product image.") from exc
 
-    image_array = np.frombuffer(response.content, dtype=np.uint8)
+    if not response.content:
+        raise TryOnGenerationError("Downloaded product image is empty.")
+    return response.content
+
+
+def _decode_product_image(garment_bytes: bytes) -> np.ndarray:
+    image_array = np.frombuffer(garment_bytes, dtype=np.uint8)
     product_image = cv2.imdecode(image_array, cv2.IMREAD_UNCHANGED)
     if product_image is None:
         raise TryOnGenerationError("Downloaded product image is not a valid image.")

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from fastapi import HTTPException, status
-from firebase_admin import firestore
 
-from firebase_config import initialize_firebase
+from firebase_config import get_firestore_client
 from models.schema import ProfileResponse, ProfileUpsertRequest
 from services.firebase_auth import AuthenticatedUser
 
@@ -48,6 +47,4 @@ def save_profile(current_user: AuthenticatedUser, payload: ProfileUpsertRequest)
 
 
 def _users_collection():
-    initialize_firebase()
-    db = firestore.client()
-    return db.collection("users")
+    return get_firestore_client().collection("users")

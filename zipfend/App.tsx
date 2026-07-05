@@ -18,6 +18,8 @@ import Recommendation from './screens/Recommendation';
 import Settings from './screens/Settings';
 import ComingSoon from './screens/ComingSoon';
 import FashionStudio from './screens/FashionStudio';
+import LiveTryOn from './screens/LiveTryOn';
+import TryOnStudio from './screens/TryOnStudio';
 import AIStudio from './screens/AIStudio';
 import AvatarIntro from './screens/AvatarIntro';
 import AvatarView from './screens/AvatarView';
@@ -266,6 +268,8 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="/avatar-intro" element={isAuthenticated ? <AvatarIntro /> : <Navigate to="/login" />} />
           <Route path="/avatar-view" element={isAuthenticated ? <AvatarView /> : <Navigate to="/login" />} />
           <Route path="/fashion-studio" element={isAuthenticated ? <FashionStudio /> : <Navigate to="/login" />} />
+          <Route path="/live-tryon" element={isAuthenticated ? <LiveTryOn /> : <Navigate to="/login" />} />
+          <Route path="/tryon-studio" element={isAuthenticated ? <TryOnStudio /> : <Navigate to="/login" />} />
           <Route path="/ai-studio" element={isAuthenticated ? <AIStudio /> : <Navigate to="/login" />} />
           <Route path="/voice-assistant" element={<ComingSoon featureName="Voice Assistant" />} />
           <Route path="/video-lookbook" element={<ComingSoon featureName="Video Lookbook" />} />

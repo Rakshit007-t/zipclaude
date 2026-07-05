@@ -11,7 +11,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+// This project's Firestore data lives in a named database (created by the AI
+// Studio deployment; see firebase-applet-config.json), not in "(default)" —
+// which does not exist for this project.
+const FIRESTORE_DATABASE_ID =
+  import.meta.env.VITE_FIRESTORE_DATABASE_ID || 'ai-studio-b0abadf0-fee1-4a8b-ad1b-c9b670ea63a7';
+
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getFirestore(app, FIRESTORE_DATABASE_ID);
 
 export default app;

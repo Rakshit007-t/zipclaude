@@ -1,6 +1,7 @@
 .env
 .env.*
 .venv/
+venv/
 __pycache__/
 *.pyc
 firebase_key.json
@@ -13,3 +14,4 @@ uvicorn_stderr.log
 out*.txt
 .ruff_cache/
 storage/mediapipe_models/
+uploads/

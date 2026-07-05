@@ -102,7 +102,11 @@ async function ensureAuthUser() {
   return null;
 }
 
-async function authorizedFetch(url: string, options: any = {}) {
+export function getCurrentUserId(): string {
+  return auth.currentUser?.uid || 'demo-anonymous';
+}
+
+export async function authorizedFetch(url: string, options: any = {}) {
   const user = await ensureAuthUser();
 
   const headers: Record<string, string> = {
@@ -329,7 +333,7 @@ export async function processSmartFitScan({
     res = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       body: JSON.stringify(scanPayload),
-      timeout: 60000,
+      timeout: 180000,
     });
   } catch (error: any) {
     throw new Error(error?.message || 'We could not analyze your photos. Please try again.');
@@ -451,4 +455,39 @@ export async function predictSize(input: {
     throw new Error(readApiErrorMessage(response, responsePayload, 'Processing unavailable'));
   }
   return responsePayload.data as PredictSizeResult;
+}
+
+export type SizeFeedbackOutcome = 'kept' | 'returned_too_small' | 'returned_too_large' | 'returned_other';
+
+/** Log whether a size recommendation worked out. This is the ground truth
+ * that makes recommendation accuracy measurable over time. */
+export async function submitSizeFeedback(input: {
+  productId: string;
+  productTitle?: string;
+  brand?: string;
+  category?: string;
+  recommendedSize: string;
+  recommendationConfidence?: number;
+  purchasedSize?: string;
+  outcome: SizeFeedbackOutcome;
+}): Promise<boolean> {
+  try {
+    const response = await authorizedFetch(`${getBackendBaseUrl()}/size-feedback`, {
+      method: 'POST',
+      body: JSON.stringify({
+        product_id: input.productId,
+        product_title: input.productTitle || '',
+        brand: input.brand || '',
+        category: input.category || '',
+        recommended_size: input.recommendedSize,
+        recommendation_confidence: input.recommendationConfidence ?? null,
+        purchased_size: input.purchasedSize || '',
+        outcome: input.outcome,
+      }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.warn('[ziprightApi] submitSizeFeedback failed:', error);
+    return false;
+  }
 }

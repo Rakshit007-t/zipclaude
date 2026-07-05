@@ -3,12 +3,25 @@ from pathlib import Path
 from threading import Lock
 
 import firebase_admin
-from firebase_admin import credentials, storage
+from firebase_admin import credentials, firestore, storage
 
 from core.config import settings
 
 _INIT_LOCK = Lock()
 _PROJECT_ROOT = Path(__file__).resolve().parent
+
+# This project's Firestore data lives in a named database created by the AI
+# Studio deployment — the "(default)" database does not exist for the project.
+# Must match VITE_FIRESTORE_DATABASE_ID / firebase.ts on the frontend.
+FIRESTORE_DATABASE_ID = os.getenv(
+    "FIRESTORE_DATABASE_ID",
+    "ai-studio-b0abadf0-fee1-4a8b-ad1b-c9b670ea63a7",
+).strip()
+
+
+def get_firestore_client():
+    initialize_firebase()
+    return firestore.client(database_id=FIRESTORE_DATABASE_ID)
 
 
 def get_storage_bucket_name() -> str:

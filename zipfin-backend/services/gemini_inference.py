@@ -8,7 +8,7 @@ import httpx
 
 GEMINI_TIMEOUT_SECONDS = 0.8
 GEMINI_MODEL = "gemini-1.5-flash"
-STYLIST_TIMEOUT_SECONDS = 6.0
+STYLIST_TIMEOUT_SECONDS = 12.0
 STYLIST_FALLBACK_TIMEOUT_SECONDS = 18.0
 STYLIST_MODEL_CANDIDATES = (
     "gemini-2.5-flash",
@@ -114,24 +114,29 @@ async def generate_stylist_reply(message: str) -> str:
         raise RuntimeError("Missing Gemini API key.")
 
     headers = {"Content-Type": "application/json"}
-    body = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": STYLIST_PROMPT_TEMPLATE.format(user_msg=user_message)
-                    }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.25,
-            "maxOutputTokens": 140,
-        },
-    }
 
     last_error: Exception | None = None
     for model, timeout_seconds in _stylist_models_with_timeout():
+        generation_config: dict = {
+            "temperature": 0.25,
+            "maxOutputTokens": 500,
+        }
+        # Gemini 2.5 models spend output tokens on internal "thinking" before any
+        # visible text; disable it on flash (pro does not allow a zero budget).
+        if "flash" in model:
+            generation_config["thinkingConfig"] = {"thinkingBudget": 0}
+        body = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": STYLIST_PROMPT_TEMPLATE.format(user_msg=user_message)
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": generation_config,
+        }
         endpoint = (
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         )

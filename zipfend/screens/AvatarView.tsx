@@ -84,7 +84,7 @@ const AvatarView: React.FC = () => {
             <span className="material-symbols-outlined text-[20px]">download</span> Save
           </button>
           <button 
-            onClick={() => navigate('/fashion-studio')}
+            onClick={() => navigate('/tryon-studio')}
             className="h-14 rounded-2xl bg-[#C9A06C] text-black flex items-center justify-center gap-2 font-bold active:scale-95 transition-all shadow-lg shadow-[#C9A06C]/20"
           >
             <span className="material-symbols-outlined text-[20px]">auto_awesome</span> Try Outfits

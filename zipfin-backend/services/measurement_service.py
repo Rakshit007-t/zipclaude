@@ -345,6 +345,18 @@ def _decode_image(image_base64: str) -> np.ndarray:
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
     if image is None:
         raise MeasurementProcessingError("Uploaded scan image could not be decoded.")
+
+    # Phone photos arrive at 4000px+; pose/segmentation on that takes minutes.
+    # Landmarks are normalized ratios, so downscaling does not change the
+    # resulting measurements.
+    max_side = max(image.shape[:2])
+    if max_side > 1280:
+        scale = 1280.0 / max_side
+        image = cv2.resize(
+            image,
+            (max(int(image.shape[1] * scale), 1), max(int(image.shape[0] * scale), 1)),
+            interpolation=cv2.INTER_AREA,
+        )
     return image
 
 

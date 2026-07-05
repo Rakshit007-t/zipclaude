@@ -1,1 +1,0 @@
-"""ZipRight backend tests."""

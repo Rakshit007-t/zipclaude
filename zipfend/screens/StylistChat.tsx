@@ -1,19 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleGenAI } from '@google/genai';
-
-// Lazy-initialize to prevent crashing the entire app if the API key is missing
-let _ai: GoogleGenAI | null = null;
-function getAI(): GoogleGenAI {
-  if (!_ai) {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('VITE_GEMINI_API_KEY is not configured. Please add it to your .env file.');
-    }
-    _ai = new GoogleGenAI({ apiKey });
-  }
-  return _ai;
-}
+import { getStylistResponse } from '../services/stylistService';
 
 interface Message {
   role: 'user' | 'ai';
@@ -64,50 +51,16 @@ const StylistChat: React.FC = () => {
     setLoading(true);
 
     try {
-      const conversationHistory = newMessages.map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }],
-      }));
+      // Backend caps message at 1000 chars (StylistRequest.max_length)
+      const { reply } = await getStylistResponse(userInput.slice(0, 1000));
 
-      const chat = getAI().chats.create({
-        model: 'gemini-2.0-flash-exp',
-        config: {
-          maxOutputTokens: 1024,
-          temperature: 0.9,
-          systemInstruction: `You are ZipStyle, ZipRIGHT's elite AI fashion stylist for the Indian market. 
-You give COMPLETE, detailed outfit recommendations - never cut off mid-sentence.
-
-Rules:
-- Always give a FULL outfit: top + bottom + footwear + 1 accessory
-- Mention Indian brands where relevant (Manyavar, FabIndia, W, Allen Solly, Van Heusen, H&M India, Zara India)
-- Tailor advice to Indian weather, occasions, and culture (weddings, festivals, office, college)
-- For fancy dress or costume requests, go creative and specific with a WINNING look
-- Format responses clearly:
-  ✦ TOP: [specific item + color]
-  ✦ BOTTOM: [specific item + color]  
-  ✦ FOOTWEAR: [specific item]
-  ✦ ACCESSORY: [1 item]
-  ✦ PRO TIP: [1 styling tip]
-- NEVER end a sentence without completing it
-- NEVER repeat the same answer for different questions
-- Keep responses under 120 words but always COMPLETE`,
-        },
-        history: conversationHistory.slice(0, -1),
-      });
-
-      const response = await chat.sendMessage({
-        message: userInput,
-      });
-
-      const aiText = response.text;
-
-      if (!aiText || aiText.trim() === '') {
+      if (!reply.trim()) {
         throw new Error('Empty response');
       }
 
-      setMessages(prev => [...prev, { role: 'ai', content: aiText.trim() }]);
+      setMessages(prev => [...prev, { role: 'ai', content: reply.trim() }]);
     } catch (error) {
-      console.error('Gemini error:', error);
+      console.error('Stylist error:', error);
       setMessages(prev => [...prev, {
         role: 'ai',
         content: 'I had a styling emergency! Please try again in a moment.',

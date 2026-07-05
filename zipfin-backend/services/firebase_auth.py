@@ -2,21 +2,10 @@ import os
 from dataclasses import dataclass
 
 from fastapi import HTTPException, Request, status
-from firebase_admin import auth, credentials, initialize_app
+from firebase_admin import auth
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "serviceAccountKey.json")
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = SERVICE_ACCOUNT_PATH
-
-if not os.path.exists(SERVICE_ACCOUNT_PATH):
-    raise Exception("Firebase service account file missing")
-
-cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
-
-try:
-    initialize_app(cred)
-except ValueError:
-    pass
+from firebase_config import initialize_firebase
+initialize_firebase()
 
 
 @dataclass

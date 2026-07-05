@@ -585,7 +585,7 @@ const Home: React.FC = () => {
 
               {/* Try-On */}
               <button
-                onClick={() => navigate('/fashion-studio')}
+                onClick={() => navigate('/tryon-studio', { state: { product } })}
                 className="flex flex-col items-center gap-1 active:scale-90"
               >
                 <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">

@@ -641,7 +641,7 @@ const Recommendation: React.FC = () => {
           product: productForEngine,
           baseSize: selectedBaseSize,
           fitPreference: input.fitPreference,
-          timeoutMs: 2000,
+          timeoutMs: 15000,
         });
 
         if (cancelled) return;

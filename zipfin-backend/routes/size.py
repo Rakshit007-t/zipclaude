@@ -1,13 +1,14 @@
 import asyncio
 import json
 import logging
+from typing import Literal
 
 from firebase_admin import firestore as firebase_firestore
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import ValidationError
+from pydantic import BaseModel as PydanticBaseModel, Field as PydanticField, ValidationError
 
 from core.api import error_response, success_response
-from firebase_config import initialize_firebase
+from firebase_config import get_firestore_client, initialize_firebase
 from models.schema import (
     ApiResponse,
     PredictSizeRequest,
@@ -45,8 +46,7 @@ def _invalid_scan_response(message: str = INVALID_SCAN_MESSAGE) -> ApiResponse[S
 
 def _get_previous_smartfit(uid: str) -> dict[str, float] | None:
     try:
-        initialize_firebase()
-        client = firebase_firestore.client()
+        client = get_firestore_client()
         snapshot = client.collection("users").document(uid).get()
     except Exception as exc:
         logger.warning("Unable to load previous smartFit scan. user_id=%s reason=%s", uid, exc)
@@ -227,3 +227,71 @@ async def smart_fit_measurements(
     except Exception:
         logger.exception("Unexpected smart-fit measurement failure.")
         return _invalid_scan_response()
+
+
+class SizeFeedbackRequest(PydanticBaseModel):
+    product_id: str = PydanticField(..., min_length=1, max_length=200)
+    product_title: str = PydanticField(default="", max_length=300)
+    brand: str = PydanticField(default="", max_length=100)
+    category: str = PydanticField(default="", max_length=60)
+    recommended_size: str = PydanticField(..., min_length=1, max_length=20)
+    recommendation_confidence: float | None = PydanticField(default=None, ge=0, le=100)
+    purchased_size: str = PydanticField(default="", max_length=20)
+    outcome: Literal["kept", "returned_too_small", "returned_too_large", "returned_other"] = "kept"
+
+
+class SizeFeedbackResponse(PydanticBaseModel):
+    recorded: bool
+
+
+@router.post(
+    "/size-feedback",
+    response_model=ApiResponse[SizeFeedbackResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def size_feedback(
+    payload: SizeFeedbackRequest,
+    current_user: AuthenticatedUser = Depends(get_optional_user),
+) -> ApiResponse[SizeFeedbackResponse]:
+    """Record whether a size recommendation worked out.
+
+    This is the ground truth that makes recommendation accuracy measurable:
+    accuracy = kept / (kept + returned_too_small + returned_too_large).
+    """
+    try:
+        client = get_firestore_client()
+
+        def _write() -> None:
+            client.collection("size_feedback").add(
+                {
+                    "user_id": current_user.uid,
+                    "product_id": payload.product_id,
+                    "product_title": payload.product_title,
+                    "brand": payload.brand,
+                    "category": payload.category,
+                    "recommended_size": payload.recommended_size,
+                    "recommendation_confidence": payload.recommendation_confidence,
+                    "purchased_size": payload.purchased_size or payload.recommended_size,
+                    "outcome": payload.outcome,
+                    "followed_recommendation": (
+                        not payload.purchased_size
+                        or payload.purchased_size.strip().upper()
+                        == payload.recommended_size.strip().upper()
+                    ),
+                    "created_at": firebase_firestore.SERVER_TIMESTAMP,
+                }
+            )
+
+        await asyncio.to_thread(_write)
+        return success_response(
+            message="Size feedback recorded.",
+            data=SizeFeedbackResponse(recorded=True),
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to record size feedback for user '%s'.", current_user.uid)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to record size feedback.",
+        )
