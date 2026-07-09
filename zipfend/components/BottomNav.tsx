@@ -20,7 +20,7 @@ const BottomNav: React.FC = () => {
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 flex items-center justify-around border-t border-white/5 px-2 pb-[env(safe-area-inset-bottom)] pt-2"
+      className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 flex items-center justify-around border-t border-line px-2 pb-[env(safe-area-inset-bottom)] pt-2"
       style={{ 
         backgroundColor: 'rgba(17, 17, 17, 0.95)',
         backdropFilter: 'blur(10px)',
@@ -35,7 +35,7 @@ const BottomNav: React.FC = () => {
           style={{ 
             width: '48px', 
             height: '48px',
-            color: isActive(item.path) ? '#B5853F' : '#F5F0E8'
+            color: isActive(item.path) ? '#6157FF' : '#F5F0E8'
           }}
         >
           <span 
@@ -47,7 +47,7 @@ const BottomNav: React.FC = () => {
           >
             {item.icon}
           </span>
-          <span className="text-[10px] font-medium tracking-tight" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <span className="text-[12px] font-medium tracking-tight" style={{ fontFamily: 'DM Sans, sans-serif' }}>
             {item.label}
           </span>
         </button>

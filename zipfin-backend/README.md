@@ -43,29 +43,65 @@ zipfin-backend/
 └── README.md
 ```
 
-## Setup
+## Development Startup
+
+The canonical backend virtual environment is `zipfin-backend/venv`.
+
+The backend must be started through the repo-level startup script. The script
+uses the canonical venv, installs dependencies from `zipfin-backend/requirements.txt`
+when needed, verifies `uvicorn`, changes into `zipfin-backend`, and runs:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+python -m uvicorn main:app --reload
 ```
 
-Copy `.env.example` to `.env` and fill in the required environment variables before running the app.
+Copy `zipfin-backend/.env.example` to `zipfin-backend/.env` and fill in the
+required environment variables before running the app.
 
-If you previously installed dependencies and saw `mediapipe` / `protobuf` import errors, reinstall after the new `protobuf` pin:
+The API will be available at `http://127.0.0.1:8000` and docs at
+`http://127.0.0.1:8000/docs`.
+
+### Windows
+
+### PowerShell
+
+From the repository root:
+
+```powershell
+.\start_backend.ps1
+```
+
+### CMD
+
+From the repository root:
+
+```bat
+start_backend.bat
+```
+
+### Linux
+
+From the repository root:
 
 ```bash
-pip install --upgrade --force-reinstall -r requirements.txt
+cd zipfin-backend
+python3 -m venv venv
+. venv/bin/activate
+python -m pip install -r requirements.txt
+python -m uvicorn main:app --reload
 ```
 
-## Run Server
+### Mac
+
+From the repository root:
 
 ```bash
-uvicorn main:app --reload
+cd zipfin-backend
+python3 -m venv venv
+. venv/bin/activate
+python -m pip install -r requirements.txt
+python -m uvicorn main:app --reload
 ```
-
-The API will be available at `http://127.0.0.1:8000` and docs at `http://127.0.0.1:8000/docs`.
 
 ## Production Server
 
@@ -120,6 +156,78 @@ Fallback option for mounted secrets:
 ```bash
 FIREBASE_CREDENTIALS_PATH=/run/secrets/firebase-service-account.json
 ```
+
+### Virtual Try-On Quality Flags
+
+The local CatVTON engine applies a quality pipeline on top of raw diffusion
+output. Every stage defaults to on and has an env kill-switch for rollback:
+
+```bash
+VTON_REPAINT=1              # composite only the garment region back onto the
+                            # original photo at full resolution (identity,
+                            # background and framing stay pixel-original)
+VTON_CLIP_TO_SILHOUETTE=1   # clip the garment mask to the person segmentation
+                            # so background is never repainted
+VTON_PROTECT_FACE_HANDS=1   # carve face/hands/feet out of the repaint mask
+VTON_SUPERRES=1             # Real-ESRGAN x2 on the render before compositing
+                            # (weights auto-download once to storage/upscaler/)
+VTON_SEED=                  # optional fixed seed to replay a generation
+VTON_PROVIDERS=local,cloud  # try-on engine order
+```
+
+### AI Stylist (local-first)
+
+The stylist runs on a local LLM via [Ollama](https://ollama.com) — no API
+keys, no cloud cost. Install Ollama, then `ollama pull qwen2.5:3b` (fits a
+6GB GPU). The Gemini path remains as automatic fallback.
+
+```bash
+STYLIST_PROVIDERS=ollama,gemini   # provider order; add "openai" for vLLM
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_STYLIST_MODEL=qwen2.5:3b
+
+# Production scale-out: point at any OpenAI-compatible server (vLLM,
+# TensorRT-LLM, llama.cpp) running an open-weight model, no code changes:
+#   vllm serve Qwen/Qwen3-8B
+# OPENAI_COMPAT_BASE_URL=http://gpu-box:8001
+# OPENAI_COMPAT_MODEL=Qwen/Qwen3-8B
+# STYLIST_PROVIDERS=openai,ollama,gemini
+```
+
+Authenticated requests automatically include the shopper's context: Fit
+Profile (Smart Fit measurements, usual size, fit preference, preferred
+brand), derived body shape, and recent purchase/recommendation outcomes.
+
+### Concurrency
+
+```bash
+TRYON_MAX_WORKERS=2   # bounded try-on worker pool; extra jobs queue with
+                      # status "queued" instead of spawning unbounded threads
+```
+
+Generated images upload with `Cache-Control: public, max-age=31536000,
+immutable` (UUID filenames never change), so Firebase Storage's CDN edge and
+browsers cache them for free.
+
+## Size Recommendation Learning Loop
+
+Recommendation accuracy improves continuously from real purchase outcomes:
+
+```
+User Scan -> Measurement Extraction (services/measurement_service.py)
+          -> Size Recommendation    (services/size_engine.py)
+          -> Purchase
+          -> Feedback               (POST /size-feedback -> Firestore size_feedback)
+          -> Calibration Update     (services/calibration_service.py)
+          -> Improved Future Recommendations
+```
+
+`calibration_service.calibration_for(...)` aggregates feedback at four
+granularities — product, brand+category, brand, and per-user — picks the most
+specific one with enough evidence, and returns a bounded `CalibrationSignal`
+(size step, confidence adjustment, human-readable reason). The size engine
+consumes only that signal, so a learned model can replace the rule-based
+internals later without changing any API.
 
 ## Supabase Setup
 

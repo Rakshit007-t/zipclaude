@@ -118,19 +118,19 @@ const GiftInbox: React.FC = () => {
   const unseenCount = gifts.filter(g => !g.seen || g.action === null).length;
 
   return (
-    <div className="min-h-screen bg-[#111111] text-white font-body flex flex-col">
+    <div className="min-h-screen bg-surface-0 text-ink font-body flex flex-col">
 
       {/* HEADER */}
       <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5
-        bg-[#111111]/80 backdrop-blur-xl border-b border-white/5">
-        <button onClick={() => navigate(-1)}
-          className="h-10 w-10 flex items-center justify-center rounded-full bg-white/5 active:scale-90">
-          <span className="material-symbols-outlined text-[20px] text-[#C9A06C]">arrow_back</span>
+        bg-surface-0/80 backdrop-blur-xl border-b border-line">
+        <button aria-label="Go back" onClick={() => navigate(-1)}
+          className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 active:scale-90">
+          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
         </button>
         <div className="flex items-center gap-2">
-          <h1 className="text-xs font-bold tracking-[0.35em] uppercase text-[#C9A06C]">Gift Inbox</h1>
+          <h1 className="text-xs font-bold text-[#6157FF]">Gift Inbox</h1>
           {unseenCount > 0 && (
-            <span className="bg-[#8B5CF6] text-white text-[9px] font-black rounded-full h-5 w-5 flex items-center justify-center">
+            <span className="bg-[#6157FF] text-ink text-[11px] font-bold rounded-full h-5 w-5 flex items-center justify-center">
               {unseenCount}
             </span>
           )}
@@ -143,21 +143,21 @@ const GiftInbox: React.FC = () => {
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[#8B5CF6]" />
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[#6157FF]" />
           </div>
         ) : gifts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[70vh] text-center">
-            <div className="h-24 w-24 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-[#8B5CF6] text-5xl"
+            <div className="h-24 w-24 rounded-full bg-[#6157FF]/10 flex items-center justify-center mb-6">
+              <span className="material-symbols-outlined text-[#6157FF] text-5xl"
                 style={{ fontVariationSettings: "'FILL' 1" }}>card_giftcard</span>
             </div>
-            <p className="text-white font-bold text-lg mb-2">No gifts yet</p>
-            <p className="text-white/40 text-sm max-w-[220px] leading-relaxed">
+            <p className="text-ink font-bold text-lg mb-2">No gifts yet</p>
+            <p className="text-ink-soft text-sm max-w-[220px] leading-relaxed">
               When a friend gifts you a look, it'll appear here.
             </p>
             <button
               onClick={() => navigate('/home')}
-              className="mt-8 px-8 py-3 bg-[#8B5CF6] text-white rounded-full font-black text-xs uppercase tracking-widest active:scale-95"
+              className="mt-8 px-8 py-3 bg-[#6157FF] text-ink rounded-full font-bold text-xs active:scale-95"
             >
               Explore Feed
             </button>
@@ -172,15 +172,15 @@ const GiftInbox: React.FC = () => {
                 transition={{ delay: i * 0.06 }}
                 className={`mb-4 rounded-3xl border overflow-hidden ${
                   !gift.seen || gift.action === null
-                    ? 'border-[#8B5CF6]/30 bg-[#8B5CF6]/5'
-                    : 'border-white/5 bg-white/[0.03]'
+                    ? 'border-[#6157FF]/30 bg-[#6157FF]/5'
+                    : 'border-line bg-surface-2'
                 }`}
               >
                 {/* NEW badge */}
                 {(!gift.seen || gift.action === null) && (
                   <div className="px-5 pt-3 pb-0 flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-[#8B5CF6]" />
-                    <span className="text-[#8B5CF6] text-[9px] font-black uppercase tracking-widest">New gift</span>
+                    <div className="h-1.5 w-1.5 rounded-full bg-[#6157FF]" />
+                    <span className="text-[#6157FF] text-[11px] font-bold">New gift</span>
                   </div>
                 )}
 
@@ -195,22 +195,22 @@ const GiftInbox: React.FC = () => {
                   </div>
                   <div className="flex-1 flex flex-col justify-between py-0.5">
                     <div>
-                      <span className="text-[#C9A06C] text-[9px] font-bold uppercase tracking-wider">
+                      <span className="text-[#6157FF] text-[11px] font-bold">
                         {gift.product.brand}
                       </span>
-                      <p className="text-white font-bold text-sm leading-tight mt-0.5 line-clamp-2">
+                      <p className="text-ink font-bold text-sm leading-tight mt-0.5 line-clamp-2">
                         {gift.product.title}
                       </p>
-                      <p className="text-white font-black text-sm mt-1">{gift.product.price}</p>
+                      <p className="text-ink font-bold text-sm mt-1">{gift.product.price}</p>
                     </div>
 
                     {/* From + note */}
                     <div className="mt-2">
-                      <p className="text-white/40 text-[10px]">
-                        From <span className="text-[#8B5CF6] font-bold">@{gift.senderUsername}</span>
+                      <p className="text-ink-soft text-[12px]">
+                        From <span className="text-[#6157FF] font-bold">@{gift.senderUsername}</span>
                       </p>
                       {gift.note ? (
-                        <p className="text-white/60 text-xs italic mt-0.5">"{gift.note}"</p>
+                        <p className="text-ink-soft text-xs mt-0.5">"{gift.note}"</p>
                       ) : null}
                     </div>
                   </div>
@@ -229,7 +229,7 @@ const GiftInbox: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleGiftAction(gift, 'wardrobed')}
-                      className="flex-1 bg-[#8B5CF6]/10 border border-[#8B5CF6]/25 text-[#8B5CF6] rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95"
+                      className="flex-1 bg-[#6157FF]/10 border border-[#6157FF]/25 text-[#6157FF] rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95"
                     >
                       <span className="material-symbols-outlined text-sm"
                         style={{ fontVariationSettings: "'FILL' 1" }}>checkroom</span>
@@ -246,9 +246,9 @@ const GiftInbox: React.FC = () => {
                   </div>
                 ) : (
                   <div className="px-4 pb-4 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-white/20 text-sm"
+                    <span className="material-symbols-outlined text-ink-faint text-sm"
                       style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                    <p className="text-white/25 text-xs">
+                    <p className="text-ink-faint text-xs">
                       {gift.action === 'carted' ? 'Added to cart' :
                        gift.action === 'wardrobed' ? 'Saved to wardrobe' : 'Liked'}
                     </p>

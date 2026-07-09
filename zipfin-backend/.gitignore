@@ -9,9 +9,11 @@ firebase_key.json
 *_key.json
 *serviceaccount*.json
 *service-account*.json
+serviceAccountKey.json
 uvicorn_stdout.log
 uvicorn_stderr.log
 out*.txt
 .ruff_cache/
 storage/mediapipe_models/
+storage/upscaler/
 uploads/

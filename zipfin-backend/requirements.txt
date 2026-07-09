@@ -1,10 +1,11 @@
 fastapi==0.115.12
 gunicorn==23.0.0
 uvicorn[standard]==0.34.2
+pytest==9.1.1
 python-multipart==0.0.20
 httpx==0.28.1
 pydantic==2.13.2
-protobuf>=4.25.3,<5
+protobuf>=6.33.5,<8
 python-dotenv==1.0.1
 insightface>=0.7.3,<1
 onnxruntime>=1.19,<2
@@ -15,8 +16,10 @@ requests==2.33.1
 beautifulsoup4==4.12.3
 playwright==1.54.0
 firebase-admin>=6.5,<7
-# Virtual try-on (local CatVTON). torch/torchvision must be installed from the
-# CUDA index first: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# Virtual try-on (local CatVTON).
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
 diffusers>=0.29
 transformers>=4.41
 accelerate
@@ -24,3 +27,5 @@ safetensors
 huggingface_hub
 gradio_client
 pillow
+# Local AI super-resolution (Real-ESRGAN x2 for ~2K try-on output)
+spandrel>=0.4

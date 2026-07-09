@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import logging
-import threading
-import time
 
 from models.schema import (
     NormalizedProduct,
@@ -60,7 +58,10 @@ SIZE_CHART_STEP_CM = 5.08
 SIZE_CHART_TOLERANCE_CM = 1.0
 
 
-async def calculate_size_recommendation(payload: SizeEngineRequest) -> SizeEngineResponse:
+async def calculate_size_recommendation(
+    payload: SizeEngineRequest,
+    user_id: str = "",
+) -> SizeEngineResponse:
     product = payload.product
     profile = payload.profile
     normalized_category = _normalize_category(product.title, product.category)
@@ -74,7 +75,9 @@ async def calculate_size_recommendation(payload: SizeEngineRequest) -> SizeEngin
     if not used_product_chart:
         measurement_result = _apply_base_size_prior(measurement_result, profile)
     measurement_result = _apply_product_context(measurement_result, product, profile)
-    measurement_result = _apply_brand_calibration(measurement_result, product, normalized_category)
+    measurement_result = _apply_feedback_calibration(
+        measurement_result, product, normalized_category, user_id
+    )
 
     confidence = round(measurement_result["confidence"] * 100, 2)
     return SizeEngineResponse(
@@ -503,93 +506,47 @@ def _estimate_base_size(chest_cm: float, waist_cm: float, height_cm: float) -> s
     return base_size
 
 
-# --- Brand calibration from real outcomes -----------------------------------
+# --- Feedback calibration from real outcomes --------------------------------
 # Reads aggregated size_feedback (kept / returned_too_small / returned_too_large)
-# and shifts recommendations for brands that consistently run small or large.
-# This is the loop that actually raises accuracy over time: every logged
-# outcome makes the next recommendation for that brand better.
-
-_BRAND_STATS_CACHE: dict[str, tuple[float, tuple[int, str]]] = {}
-_BRAND_STATS_TTL_SECONDS = 600.0
-_BRAND_STATS_LOCK = threading.Lock()
-_BRAND_MIN_SAMPLES = 5
-_BRAND_SKEW_THRESHOLD = 0.4
+# via services.calibration_service and shifts recommendations for products,
+# brand+category combinations, brands, and individual shoppers that
+# consistently run small or large. This is the loop that raises accuracy over
+# time: every logged outcome makes the next recommendation better.
 
 
-def _brand_calibration_step(brand: str) -> tuple[int, str]:
-    key = brand.strip().lower()
-    if not key:
-        return 0, ""
-
-    now = time.monotonic()
-    with _BRAND_STATS_LOCK:
-        cached = _BRAND_STATS_CACHE.get(key)
-        if cached and now - cached[0] < _BRAND_STATS_TTL_SECONDS:
-            return cached[1]
-
-    step, label = 0, ""
-    try:
-        from firebase_config import get_firestore_client
-
-        client = get_firestore_client()
-        docs = (
-            client.collection("size_feedback")
-            .where("brand", "==", brand.strip())
-            .limit(200)
-            .stream()
-        )
-        total = too_small = too_large = 0
-        for doc in docs:
-            record = doc.to_dict() or {}
-            if not record.get("followed_recommendation", True):
-                continue
-            outcome = str(record.get("outcome", ""))
-            if outcome not in {"kept", "returned_too_small", "returned_too_large"}:
-                continue
-            total += 1
-            if outcome == "returned_too_small":
-                too_small += 1
-            elif outcome == "returned_too_large":
-                too_large += 1
-
-        if total >= _BRAND_MIN_SAMPLES:
-            if too_small / total >= _BRAND_SKEW_THRESHOLD:
-                step, label = 1, "runs small"
-            elif too_large / total >= _BRAND_SKEW_THRESHOLD:
-                step, label = -1, "runs large"
-    except Exception as exc:
-        logger.debug("Brand calibration unavailable for '%s': %s", brand, exc)
-
-    with _BRAND_STATS_LOCK:
-        _BRAND_STATS_CACHE[key] = (now, (step, label))
-    return step, label
-
-
-def _apply_brand_calibration(
+def _apply_feedback_calibration(
     result: dict[str, float | str],
     product: NormalizedProduct,
     category: str,
+    user_id: str = "",
 ) -> dict[str, float | str]:
-    del category
     size = _normalize_size_key(result.get("size"))
-    brand = (product.brand or "").strip()
-    if not size or not brand:
+    if not size:
         return result
 
-    step, label = _brand_calibration_step(brand)
-    if not step:
-        return result
+    from services.calibration_service import calibration_for
 
-    adjusted_size = _size_with_step(size, step)
-    if adjusted_size == size:
-        return result
+    signal = calibration_for(
+        brand=(product.brand or "").strip(),
+        category=category,
+        product_id=(product.id or "").strip(),
+        user_id=user_id,
+    )
 
-    return {
-        **result,
-        "size": adjusted_size,
-        "confidence": min(0.99, float(result["confidence"]) + 0.02),
-        "reason": (
-            f"{result['reason']}; shopper feedback shows {brand} {label}, "
-            f"so we recommend {adjusted_size}"
-        ),
-    }
+    adjusted = dict(result)
+    if signal.confidence_delta:
+        adjusted["confidence"] = max(
+            0.5, min(0.99, float(adjusted["confidence"]) + signal.confidence_delta)
+        )
+
+    if signal.step:
+        adjusted_size = _size_with_step(size, signal.step)
+        if adjusted_size != size:
+            adjusted["size"] = adjusted_size
+            adjusted["confidence"] = min(0.99, float(adjusted["confidence"]) + 0.02)
+            why = ", and ".join(signal.notes) or f"shopper feedback shows fit {signal.label}"
+            adjusted["reason"] = f"{adjusted['reason']}; {why}, so we recommend {adjusted_size}"
+
+    if adjusted == result:
+        return result
+    return adjusted

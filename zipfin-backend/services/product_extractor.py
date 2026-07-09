@@ -761,7 +761,7 @@ def mvp_fallback_extractor(
     body_text: str,
     fallback_result: ExtractProductResponse,
 ) -> ExtractProductResponse:
-    print("Extraction fallback used for:", url)
+    logger.debug("Extraction fallback used for: %s", url)
     metadata = _extract_meta_content(dom)
     title = clean_title(
         _first_non_empty(

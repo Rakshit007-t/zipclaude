@@ -26,6 +26,9 @@ def upload_to_firebase(
         blob = bucket.blob(filename)
         download_token = str(uuid.uuid4())
 
+        # Generated files are immutable (UUID names, never rewritten), so let
+        # browsers and Google's CDN edge cache them for a year.
+        blob.cache_control = "public, max-age=31536000, immutable"
         blob.upload_from_string(image_bytes, content_type=content_type)
         blob.metadata = {
             **(blob.metadata or {}),

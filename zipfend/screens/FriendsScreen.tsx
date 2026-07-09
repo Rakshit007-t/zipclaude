@@ -207,16 +207,16 @@ const FriendsScreen: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-dvh bg-[#111111] text-white pb-32 font-body">
+    <div className="min-h-dvh bg-surface-0 text-ink pb-32 font-body">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#111111]/90 backdrop-blur-xl border-b border-white/5 px-6 py-5">
+      <div className="sticky top-0 z-50 bg-surface-0/90 backdrop-blur-xl border-b border-line px-6 py-5">
         <div className="flex items-center justify-between">
-          <h1 className="text-white font-black text-xl tracking-tight">
-            Style <span className="text-[#C9A06C]">Circle</span>
+          <h1 className="text-ink font-bold text-xl tracking-tight">
+            Style <span className="text-[#6157FF]">Circle</span>
           </h1>
           {unreadCount > 0 && (
             <div className="bg-[#FF4D6D] rounded-full px-3 py-1 flex items-center gap-1">
-              <span className="text-white text-[10px] font-black">{unreadCount} new</span>
+              <span className="text-ink text-[12px] font-bold">{unreadCount} new</span>
             </div>
           )}
         </div>
@@ -227,10 +227,10 @@ const FriendsScreen: React.FC = () => {
             <button
               key={t.key}
               onClick={() => setActiveTab(t.key)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest active:scale-95 transition-colors ${
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold active:scale-95 transition-colors ${
                 activeTab === t.key
-                  ? 'bg-[#B5853F] text-white'
-                  : 'bg-white/5 text-white/40'
+                  ? 'bg-[#6157FF] text-ink'
+                  : 'bg-surface-2 text-ink-soft'
               }`}
             >
               <span className="material-symbols-outlined text-[14px]"
@@ -239,7 +239,7 @@ const FriendsScreen: React.FC = () => {
               </span>
               {t.label}
               {t.key === 'requests' && requests.length > 0 && (
-                <span className="bg-[#FF4D6D] rounded-full h-4 w-4 flex items-center justify-center text-[8px] text-white font-black">
+                <span className="bg-[#FF4D6D] rounded-full h-4 w-4 flex items-center justify-center text-[12px] text-ink font-bold">
                   {requests.length}
                 </span>
               )}
@@ -255,7 +255,7 @@ const FriendsScreen: React.FC = () => {
           <div>
             {/* Search to add */}
             <div className="mb-6">
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.25em] mb-3">Add by email</p>
+              <p className="text-ink-soft text-[12px] font-bold mb-3">Add by email</p>
               <div className="flex gap-2">
                 <input
                   type="email"
@@ -263,14 +263,14 @@ const FriendsScreen: React.FC = () => {
                   onChange={e => setSearchEmail(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearchUser()}
                   placeholder="friend@email.com"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/20 outline-none focus:border-[#B5853F]/50"
+                  className="flex-1 bg-surface-2 border border-line rounded-xl px-4 py-3 text-ink text-sm placeholder:text-ink-faint outline-none focus:border-[#6157FF]/50"
                 />
                 <button
                   onClick={handleSearchUser}
                   disabled={isSearching}
-                  className="bg-[#B5853F] px-4 py-3 rounded-xl active:scale-95"
+                  className="bg-[#6157FF] px-4 py-3 rounded-xl active:scale-95"
                 >
-                  <span className="material-symbols-outlined text-white text-[20px]">
+                  <span className="material-symbols-outlined text-ink text-[20px]">
                     {isSearching ? 'hourglass_empty' : 'search'}
                   </span>
                 </button>
@@ -278,19 +278,19 @@ const FriendsScreen: React.FC = () => {
 
               {/* Search result */}
               {searchResult && (
-                <div className="mt-3 flex items-center justify-between bg-white/5 rounded-2xl p-4 border border-white/5">
+                <div className="mt-3 flex items-center justify-between bg-surface-2 rounded-2xl p-4 border border-line">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-[#B5853F]/20 flex items-center justify-center">
-                      <span className="text-[#B5853F] font-black">{searchResult.name.charAt(0).toUpperCase()}</span>
+                    <div className="h-10 w-10 rounded-full bg-[#6157FF]/20 flex items-center justify-center">
+                      <span className="text-[#6157FF] font-bold">{searchResult.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div>
-                      <p className="text-white font-bold text-sm">{searchResult.name}</p>
-                      <p className="text-white/40 text-xs">{searchResult.email}</p>
+                      <p className="text-ink font-bold text-sm">{searchResult.name}</p>
+                      <p className="text-ink-soft text-xs">{searchResult.email}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => handleSendRequest(searchResult)}
-                    className="bg-[#B5853F] text-white px-4 py-2 rounded-full text-xs font-black active:scale-95"
+                    className="bg-[#6157FF] text-ink px-4 py-2 rounded-full text-xs font-bold active:scale-95"
                   >
                     Add
                   </button>
@@ -301,29 +301,29 @@ const FriendsScreen: React.FC = () => {
             {/* Friends list */}
             {friends.length === 0 ? (
               <div className="text-center py-16">
-                <span className="material-symbols-outlined text-white/10 text-7xl block mb-4">group</span>
-                <p className="text-white/40 text-sm">Your circle is empty</p>
-                <p className="text-white/20 text-xs mt-1">Add friends by email above</p>
+                <span className="material-symbols-outlined text-ink-faint text-7xl block mb-4">group</span>
+                <p className="text-ink-soft text-sm">Your circle is empty</p>
+                <p className="text-ink-faint text-xs mt-1">Add friends by email above</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.25em] mb-1">
+                <p className="text-ink-soft text-[12px] font-bold mb-1">
                   {friends.length} in your circle
                 </p>
                 {friends.map(friend => (
-                  <div key={friend.uid} className="flex items-center gap-4 bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <div className="h-11 w-11 rounded-full bg-[#B5853F]/20 flex items-center justify-center shrink-0">
-                      <span className="text-[#B5853F] font-black text-base">{friend.name.charAt(0).toUpperCase()}</span>
+                  <div key={friend.uid} className="flex items-center gap-4 bg-surface-2 rounded-2xl p-4 border border-line">
+                    <div className="h-11 w-11 rounded-full bg-[#6157FF]/20 flex items-center justify-center shrink-0">
+                      <span className="text-[#6157FF] font-bold text-base">{friend.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm truncate">{friend.name}</p>
-                      <p className="text-white/30 text-xs truncate">{friend.email}</p>
+                      <p className="text-ink font-bold text-sm truncate">{friend.name}</p>
+                      <p className="text-ink-faint text-xs truncate">{friend.email}</p>
                     </div>
                     <button
                       onClick={() => handleRemoveFriend(friend.uid)}
-                      className="p-2 rounded-full bg-white/5 active:scale-90"
+                      className="p-2 rounded-full bg-surface-2 active:scale-90"
                     >
-                      <span className="material-symbols-outlined text-white/30 text-[18px]">person_remove</span>
+                      <span className="material-symbols-outlined text-ink-faint text-[18px]">person_remove</span>
                     </button>
                   </div>
                 ))}
@@ -337,9 +337,9 @@ const FriendsScreen: React.FC = () => {
           <div>
             {inboxItems.length === 0 ? (
               <div className="text-center py-16">
-                <span className="material-symbols-outlined text-white/10 text-7xl block mb-4">inbox</span>
-                <p className="text-white/40 text-sm">Nothing here yet</p>
-                <p className="text-white/20 text-xs mt-1">When friends send you fits, they'll appear here</p>
+                <span className="material-symbols-outlined text-ink-faint text-7xl block mb-4">inbox</span>
+                <p className="text-ink-soft text-sm">Nothing here yet</p>
+                <p className="text-ink-faint text-xs mt-1">When friends send you fits, they'll appear here</p>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
@@ -347,53 +347,53 @@ const FriendsScreen: React.FC = () => {
                   <div
                     key={item.id}
                     onClick={() => markSeen(item.id)}
-                    className={`rounded-2xl overflow-hidden border ${item.seen ? 'border-white/5 bg-white/3' : 'border-[#B5853F]/20 bg-[#B5853F]/5'}`}
+                    className={`rounded-2xl overflow-hidden border ${item.seen ? 'border-line bg-white/3' : 'border-[#6157FF]/20 bg-[#6157FF]/5'}`}
                   >
                     {/* Product image */}
                     <div className="relative h-48 w-full">
                       <img src={item.image} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                       {!item.seen && (
                         <div className="absolute top-3 left-3 bg-[#FF4D6D] rounded-full px-2 py-0.5">
-                          <span className="text-white text-[9px] font-black">NEW</span>
+                          <span className="text-ink text-[11px] font-bold">NEW</span>
                         </div>
                       )}
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                        <p className="text-[#C9A06C] text-[10px] font-bold uppercase tracking-widest">From {item.fromName}</p>
-                        <p className="text-white font-bold text-base">{item.brand}</p>
-                        <p className="text-white/60 text-xs">{item.title} · {item.price}</p>
+                        <p className="text-[#6157FF] text-[12px] font-bold">From {item.fromName}</p>
+                        <p className="text-ink font-bold text-base">{item.brand}</p>
+                        <p className="text-ink-soft text-xs">{item.title} · {item.price}</p>
                       </div>
                     </div>
 
                     {/* Reaction row */}
                     <div className="px-4 py-4">
-                      <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-3">Your take</p>
+                      <p className="text-ink-faint text-[12px] font-bold mb-3">Your take</p>
                       <div className="flex gap-3">
                         <button
                           onClick={() => handleReact(item.id, 'cop')}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest active:scale-95 border ${
+                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold active:scale-95 border ${
                             item.reaction === 'cop'
-                              ? 'bg-[#22c55e] border-[#22c55e] text-white'
-                              : 'bg-white/5 border-white/5 text-white/50'
+                              ? 'bg-[#22c55e] border-[#22c55e] text-ink'
+                              : 'bg-surface-2 border-line text-ink-soft'
                           }`}
                         >
                           ✅ Cop it
                         </button>
                         <button
                           onClick={() => handleReact(item.id, 'maybe')}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest active:scale-95 border ${
+                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold active:scale-95 border ${
                             item.reaction === 'maybe'
-                              ? 'bg-[#B5853F] border-[#B5853F] text-white'
-                              : 'bg-white/5 border-white/5 text-white/50'
+                              ? 'bg-[#6157FF] border-[#6157FF] text-ink'
+                              : 'bg-surface-2 border-line text-ink-soft'
                           }`}
                         >
                           🤔 Maybe
                         </button>
                         <button
                           onClick={() => handleReact(item.id, 'skip')}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest active:scale-95 border ${
+                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold active:scale-95 border ${
                             item.reaction === 'skip'
-                              ? 'bg-[#FF4D6D] border-[#FF4D6D] text-white'
-                              : 'bg-white/5 border-white/5 text-white/50'
+                              ? 'bg-[#FF4D6D] border-[#FF4D6D] text-ink'
+                              : 'bg-surface-2 border-line text-ink-soft'
                           }`}
                         >
                           ❌ Skip
@@ -402,9 +402,9 @@ const FriendsScreen: React.FC = () => {
                       {/* Check MY size button */}
                       <button
                         onClick={() => navigate('/add-product', { state: { prefill: { id: item.id, brand: item.brand, title: item.title, image: item.image, url: item.url, category: 'Tops' } } })}
-                        className="mt-3 w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs font-bold uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2"
+                        className="mt-3 w-full py-3 rounded-xl bg-surface-2 border border-line text-ink-soft text-xs font-bold active:scale-95 flex items-center justify-center gap-2"
                       >
-                        <span className="material-symbols-outlined text-[#B5853F] text-[16px]">straighten</span>
+                        <span className="material-symbols-outlined text-[#6157FF] text-[16px]">straighten</span>
                         Check if this fits me
                       </button>
                     </div>
@@ -420,32 +420,32 @@ const FriendsScreen: React.FC = () => {
           <div>
             {requests.length === 0 ? (
               <div className="text-center py-16">
-                <span className="material-symbols-outlined text-white/10 text-7xl block mb-4">person_add</span>
-                <p className="text-white/40 text-sm">No pending requests</p>
+                <span className="material-symbols-outlined text-ink-faint text-7xl block mb-4">person_add</span>
+                <p className="text-ink-soft text-sm">No pending requests</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
                 {requests.map(req => (
-                  <div key={req.id} className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                  <div key={req.id} className="bg-surface-2 rounded-2xl p-4 border border-line">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="h-11 w-11 rounded-full bg-[#B5853F]/20 flex items-center justify-center shrink-0">
-                        <span className="text-[#B5853F] font-black text-base">{req.fromName.charAt(0).toUpperCase()}</span>
+                      <div className="h-11 w-11 rounded-full bg-[#6157FF]/20 flex items-center justify-center shrink-0">
+                        <span className="text-[#6157FF] font-bold text-base">{req.fromName.charAt(0).toUpperCase()}</span>
                       </div>
                       <div>
-                        <p className="text-white font-bold text-sm">{req.fromName}</p>
-                        <p className="text-white/30 text-xs">{req.fromEmail}</p>
+                        <p className="text-ink font-bold text-sm">{req.fromName}</p>
+                        <p className="text-ink-faint text-xs">{req.fromEmail}</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
                       <button
                         onClick={() => handleAcceptRequest(req)}
-                        className="flex-1 bg-[#B5853F] text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-widest active:scale-95"
+                        className="flex-1 bg-[#6157FF] text-ink py-2.5 rounded-xl text-xs font-bold active:scale-95"
                       >
                         Accept
                       </button>
                       <button
                         onClick={() => handleDeclineRequest(req.id)}
-                        className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/5 text-white/40 text-xs font-black uppercase tracking-widest active:scale-95"
+                        className="px-5 py-2.5 rounded-xl bg-surface-2 border border-line text-ink-soft text-xs font-bold active:scale-95"
                       >
                         Decline
                       </button>

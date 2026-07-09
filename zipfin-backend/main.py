@@ -1,5 +1,18 @@
+"""ZipRIGHT Backend — application entry point.
+
+Environment variables:
+  ENV              development | staging | production  (default: development)
+  LOG_LEVEL        DEBUG | INFO | WARNING | ERROR       (default: INFO)
+  LOG_FORMAT       pretty | json                        (auto-detected from ENV)
+  HOST             bind address                         (default: 0.0.0.0)
+  PORT             bind port                            (default: 8000)
+  CORS_ALLOW_ORIGINS comma-separated allowed origins
+  PRODUCTION_CORS_ORIGIN  e.g. https://zipright.ai
+"""
+
 import logging
 import os
+import time
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
@@ -12,27 +25,39 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from core.api import error_response, success_response
+from core.logging_config import configure_logging
 from models.schema import ApiResponse
 from routes.auth import router as auth_router
 from routes.product import router as product_router
+from routes.seller import router as seller_router
 from routes.size import router as size_router
 from routes.stylist import router as stylist_router
 from routes.tryon import router as tryon_router
 from routes.tryon_live import router as tryon_live_router
+from routes.public import router as public_router
 from services.tryon_live_store import initialize_tryon_store
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 load_dotenv()
 
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+APP_VERSION = "1.0.0"
+APP_START_TIME = time.time()
+
+# ── Configure logging before anything else emits a log record ─────────────────
+configure_logging(os.getenv("ENV", "development"))
 
 logger = logging.getLogger(__name__)
 UPLOAD_DIR = Path("uploads")
 UI_DIR = Path("ui")
+
+# ── Simple in-process metrics counters ───────────────────────────────────────
+_metrics: dict = {
+    "requests_total": 0,
+    "requests_4xx": 0,
+    "requests_5xx": 0,
+    "requests_in_flight": 0,
+}
 
 
 def _get_cors_origins() -> list[str]:
@@ -71,8 +96,8 @@ def _get_cors_origin_regex() -> str:
         return configured_regex
 
     return (
-        r"https?://("
-        r"localhost|127\.0\.0\.1|"
+        r"https?://"
+        r"(localhost|127\.0\.0\.1|"
         r"192\.168\.\d{1,3}\.\d{1,3}|"
         r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
         r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"
@@ -85,10 +110,16 @@ def create_app() -> FastAPI:
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     UI_DIR.mkdir(parents=True, exist_ok=True)
 
+    env = os.getenv("ENV", "development")
+
     app = FastAPI(
         title="ZipRIGHT Backend",
-        version="1.0.0",
+        version=APP_VERSION,
         description="Production-ready FastAPI backend for ZipRIGHT.",
+        # Hide docs in production
+        docs_url=None if env == "production" else "/docs",
+        redoc_url=None if env == "production" else "/redoc",
+        openapi_url=None if env == "production" else "/openapi.json",
     )
 
     cors_origins = _get_cors_origins()
@@ -101,49 +132,68 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(auth_router)
     app.include_router(size_router)
     app.include_router(stylist_router)
     app.include_router(product_router)
+    app.include_router(seller_router)
     app.include_router(_load_router("routes.avatar", "avatar"))
     _include_optional_router(app, "routes.profile", "profile")
     app.include_router(tryon_router)
     app.include_router(tryon_live_router)
+    app.include_router(public_router)
+
+    # ── Static file mounts ────────────────────────────────────────────────────
     app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
     app.mount("/ui", StaticFiles(directory=UI_DIR, html=True), name="ui")
 
+    # ── Request logging + metrics middleware ──────────────────────────────────
     @app.middleware("http")
-    async def log_http_requests(request: Request, call_next):
+    async def observe_requests(request: Request, call_next):
         start_time = perf_counter()
         request_id = request.headers.get("X-Request-Id", "").strip() or str(uuid4())
         request.state.request_id = request_id
-        
-        status_label = "error"
+
+        _metrics["requests_total"] += 1
+        _metrics["requests_in_flight"] += 1
+
+        status_code = 500
         try:
             response = await call_next(request)
-            status_label = str(response.status_code)
-            
-            # Additional check for timeout in detail
-            if response.status_code == 504:
-                status_label = "timeout"
-                
+            status_code = response.status_code
             response.headers["X-Request-Id"] = request_id
             return response
         except Exception:
-            status_label = "exception"
             raise
         finally:
+            _metrics["requests_in_flight"] -= 1
             duration_ms = (perf_counter() - start_time) * 1000
-            # Log format: [request_id] URL | duration | status
+
+            if 400 <= status_code < 500:
+                _metrics["requests_4xx"] += 1
+            elif status_code >= 500:
+                _metrics["requests_5xx"] += 1
+
+            # Emit structured-friendly log record (JsonFormatter picks up extras)
+            extra = {
+                "request_id": request_id,
+                "duration_ms": round(duration_ms, 2),
+                "method": request.method,
+                "path": request.url.path,
+                "status": status_code,
+            }
             logger.info(
                 "[%s] %s %s | %.2fms | %s",
                 request_id,
                 request.method,
                 request.url.path,
                 duration_ms,
-                status_label
+                status_code,
+                extra=extra,
             )
 
+    # ── Exception handlers ────────────────────────────────────────────────────
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         request: Request,
@@ -182,19 +232,70 @@ def create_app() -> FastAPI:
             default_message="Internal server error.",
         )
 
+    # ── Core routes ───────────────────────────────────────────────────────────
     @app.get("/", tags=["root"], response_model=ApiResponse[dict[str, str]])
     async def root() -> ApiResponse[dict[str, str]]:
         return success_response(
             message="ZipRIGHT backend running.",
-            data={"status": "running"},
+            data={"status": "running", "version": APP_VERSION, "env": env},
         )
 
-    @app.get("/health", tags=["health"], response_model=ApiResponse[dict[str, str]])
-    async def health_check() -> ApiResponse[dict[str, str]]:
-        return success_response(
-            message="Health check passed.",
-            data={"status": "ok"},
-        )
+    @app.get("/health", tags=["health"], response_model=ApiResponse[dict])
+    async def health_check() -> ApiResponse[dict]:
+        """Deep health check.
+
+        Verifies Firebase connectivity. Returns HTTP 503 if any dependency is
+        degraded so load balancers and uptime monitors can detect failures.
+        """
+        checks: dict[str, str] = {}
+        overall = "ok"
+
+        # Firebase Firestore probe
+        try:
+            from firebase_config import get_firestore_client
+            db = get_firestore_client()
+            # Lightweight read — fetches at most 1 document from a sentinel collection
+            list(db.collection("_health_probe").limit(1).get())
+            checks["firestore"] = "ok"
+        except Exception as exc:
+            logger.warning("Health check — Firestore degraded: %s", exc)
+            checks["firestore"] = "degraded"
+            overall = "degraded"
+
+        uptime_seconds = round(time.time() - APP_START_TIME)
+        data = {
+            "status": overall,
+            "version": APP_VERSION,
+            "env": env,
+            "uptime_seconds": uptime_seconds,
+            "checks": checks,
+        }
+
+        if overall != "ok":
+            from fastapi.responses import JSONResponse
+            from core.api import success_response as _sr
+            resp = _sr(message="Health check degraded.", data=data)
+            return JSONResponse(status_code=503, content=resp.model_dump(by_alias=True))
+
+        return success_response(message="Health check passed.", data=data)
+
+    @app.get("/metrics", tags=["health"])
+    async def metrics() -> dict:
+        """Lightweight in-process metrics for uptime monitors.
+
+        Returns a plain JSON object (not the ApiResponse envelope) so that
+        external tools like UptimeRobot or Prometheus scrapers can consume it
+        without configuration changes.
+        """
+        return {
+            "version": APP_VERSION,
+            "env": env,
+            "uptime_seconds": round(time.time() - APP_START_TIME),
+            "requests_total": _metrics["requests_total"],
+            "requests_4xx": _metrics["requests_4xx"],
+            "requests_5xx": _metrics["requests_5xx"],
+            "requests_in_flight": _metrics["requests_in_flight"],
+        }
 
     return app
 

@@ -1,0 +1,6 @@
+pip 26.1.2 from C:\Users\abcra\zipright-mvpcopy\zipfin-backend\venv\Lib\site-packages\pip (python 3.12)
+
+2026-07-07 21:56:54 INFO     main: [9215971b-2028-40df-a653-f3eaca946177] GET /health | 4241.94ms | 200
+INFO:     127.0.0.1:53499 - "GET /health HTTP/1.1" 200 OK
+2026-07-07 21:56:54 INFO     main: [03893aad-1905-46ba-88e8-f90d7cce485c] GET /health | 294.79ms | 200
+INFO:     127.0.0.1:53505 - "GET /health HTTP/1.1" 200 OK

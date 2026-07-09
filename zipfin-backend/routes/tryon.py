@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,6 +17,35 @@ from services.tryon_jobs import get_job, start_tryon_job
 
 router = APIRouter(tags=["tryon"])
 logger = logging.getLogger(__name__)
+
+
+def log_tryon_event(user_id: str, product_image_url: str) -> None:
+    try:
+        from firebase_admin import firestore
+        from firebase_config import get_firestore_client
+        db = get_firestore_client()
+        
+        # Look up if this image belongs to a seller product
+        snapshots = db.collection("seller_products").where("images", "array_contains", product_image_url).get()
+        product = None
+        for snap in snapshots:
+            product = snap.to_dict()
+            product["id"] = snap.id
+            break
+        
+        event = {
+            "user_id": user_id,
+            "product_image_url": product_image_url,
+            "timestamp": firestore.SERVER_TIMESTAMP,
+        }
+        if product:
+            event["product_id"] = product["id"]
+            event["seller_uid"] = product.get("seller_uid")
+            event["brand"] = product.get("brand")
+            
+        db.collection("tryon_events").add(event)
+    except Exception as exc:
+        logger.warning("Failed to log tryon event: %s", exc)
 
 
 @router.post(
@@ -43,6 +73,8 @@ async def tryon_image(
             payload.cloth_type,
             payload.quality,
         )
+        if payload.product_image_url:
+            await asyncio.to_thread(log_tryon_event, payload.user_id, str(payload.product_image_url))
         result = await process_tryon_request(
             user_id=payload.user_id,
             product_image_url=str(payload.product_image_url),
@@ -94,6 +126,8 @@ async def create_tryon_job(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Provide product_image_url or garment_image.",
         )
+    if payload.product_image_url:
+        await asyncio.to_thread(log_tryon_event, payload.user_id, str(payload.product_image_url))
     job_id = start_tryon_job(
         user_id=payload.user_id,
         product_image_url=str(payload.product_image_url),

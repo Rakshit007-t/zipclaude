@@ -1,0 +1,58 @@
+# ─── ZipRIGHT Backend — .dockerignore ───────────────────────────────────────
+#
+# Exclude dev artefacts, secrets, and large directories that are not needed
+# at runtime. Keeps the Docker build context small and fast.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Python artefacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Environment / secrets — NEVER include in image
+.env
+.env.*
+serviceAccountKey.json
+*serviceaccount*.json
+*service-account*.json
+*-key.json
+*_key.json
+
+# Test code (not needed in image)
+tests/
+test.py
+test_*.py
+conftest.py
+pytest.ini
+.pytest_cache/
+.ruff_cache/
+
+# Dev / CI tooling
+Makefile
+.editorconfig
+.github/
+
+# Runtime-generated files (created fresh in each container)
+uploads/
+storage/mediapipe_models/
+storage/upscaler/
+
+# Logs
+*.log
+out*.txt
+
+# Documentation
+*.md
+docs/
+
+# Local dev scratch files
+*.ipynb

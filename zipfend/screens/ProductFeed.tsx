@@ -63,21 +63,21 @@ const ProductFeed: React.FC = () => {
 
   const riskColor = (risk: string) => {
     const r = risk.toLowerCase();
-    if (r.includes('very low')) return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
-    if (r.includes('low')) return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
-    if (r.includes('medium')) return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+    if (r.includes('very low')) return 'text-emerald-600 bg-emerald-400/10 border-emerald-400/20';
+    if (r.includes('low')) return 'text-emerald-600 bg-emerald-400/10 border-emerald-400/20';
+    if (r.includes('medium')) return 'text-amber-600 bg-amber-400/10 border-amber-400/20';
     return 'text-red-400 bg-red-400/10 border-red-400/20';
   };
 
   return (
-    <div className="relative flex h-full min-h-screen w-full flex-col bg-[#111111] text-white font-sans">
+    <div className="relative flex h-full min-h-screen w-full flex-col bg-surface-0 text-ink font-sans">
 
       {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#111111]/80 backdrop-blur-xl border-b border-white/5">
-        <button onClick={() => navigate(-1)} className="h-10 w-10 flex items-center justify-center rounded-full bg-white/5 border border-white/5 active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[20px] text-[#C9A06C]">arrow_back</span>
+      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-surface-0/80 backdrop-blur-xl border-b border-line">
+        <button onClick={() => navigate(-1)} aria-label="Go back" className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 border border-line active:scale-90 transition-transform">
+          <span className="material-symbols-outlined text-[20px] text-[#6157FF]" aria-hidden="true">arrow_back</span>
         </button>
-        <h1 className="text-[10px] font-bold tracking-[0.4em] uppercase text-[#C9A06C]">Product Feed</h1>
+        <h1 className="text-[12px] font-bold text-[#6157FF]">Product Feed</h1>
         <div className="w-10"></div>
       </div>
 
@@ -85,32 +85,48 @@ const ProductFeed: React.FC = () => {
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-6 pb-24">
         <div className="flex flex-col gap-5">
           {demoProducts.map((product) => (
-            <div key={product.id} className="bg-white/5 rounded-[1.5rem] border border-white/10 overflow-hidden">
-              <div className="aspect-[4/5] bg-white/5">
-                <img src={product.image} alt={product.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+            <div key={product.id} className="bg-surface-2 rounded-[1.5rem] border border-line overflow-hidden">
+              <div className="aspect-[4/5] bg-surface-2">
+                <img
+                  src={product.image}
+                  alt={product.title}
+                  loading="lazy"
+                  className="h-full w-full object-cover opacity-0 transition-opacity duration-500"
+                  onLoad={(e) => e.currentTarget.classList.remove('opacity-0')}
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-white font-bold text-base">{product.brand}</p>
-                    <p className="text-white/60 text-xs mt-1">{product.title}</p>
-                    <p className="text-[#C9A06C] font-black text-sm mt-2">{product.price}</p>
+                    <p className="text-ink font-bold text-base">{product.brand}</p>
+                    <p className="text-ink-soft text-xs mt-1">{product.title}</p>
+                    <p className="text-[#6157FF] font-bold text-sm mt-2">{product.price}</p>
                   </div>
-                  <span className={`text-[10px] font-bold uppercase tracking-[0.2em] rounded-full px-3 py-1 border ${riskColor(results[product.id]?.risk || 'low')}`}>
+                  <span className={`text-[12px] font-bold rounded-full px-3 py-1 border ${riskColor(results[product.id]?.risk || 'low')}`}>
                     {results[product.id]?.risk || product.category}
                   </span>
                 </div>
-                {results[product.id] ? (
-                  <p className="mt-4 text-xs text-white/70">
-                    Recommended size {results[product.id].size} with {Math.round(results[product.id].confidence)}% confidence.
-                  </p>
-                ) : null}
+                <AnimatePresence>
+                  {results[product.id] ? (
+                    <motion.p
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-4 text-xs text-ink-soft"
+                    >
+                      Recommended size <span className="text-[#6157FF] font-bold">{results[product.id].size}</span> with{' '}
+                      {Math.round(results[product.id].confidence)}% confidence.
+                    </motion.p>
+                  ) : null}
+                </AnimatePresence>
                 {errors[product.id] ? (
-                  <p className="mt-4 text-xs text-red-300">{errors[product.id]}</p>
+                  <p role="alert" className="mt-4 text-xs text-red-600">{errors[product.id]}</p>
                 ) : null}
                 <button
                   onClick={() => handleGetSize(product)}
-                  className="mt-4 w-full bg-[#C9A06C] text-black rounded-full py-3 text-[11px] font-black uppercase tracking-[0.2em] active:scale-95"
+                  disabled={loadingId === product.id}
+                  aria-busy={loadingId === product.id}
+                  className="mt-4 w-full bg-[#6157FF] text-ink rounded-full py-3 text-[11px] font-bold active:scale-95 transition-transform disabled:opacity-60"
                 >
                   {loadingId === product.id ? 'Checking...' : 'Get My Size'}
                 </button>

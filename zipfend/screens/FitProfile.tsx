@@ -4,6 +4,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
+import { recordJourneyEvent } from '../services/styleJourney';
 
 interface FitData {
   gender: string;
@@ -837,6 +838,9 @@ const FitProfile: React.FC = () => {
       });
 
       showToast(mode === 'edit' ? 'Profile updated!' : 'Profile saved!', 'success');
+      if (completeness >= 100) {
+        recordJourneyEvent('profile_completed');
+      }
       const requestedReturnTo = typeof navigationState.returnTo === 'string' ? navigationState.returnTo : '';
       const safeReturnTo = requestedReturnTo && !isRecommendationRoute(requestedReturnTo)
         ? requestedReturnTo
@@ -852,18 +856,18 @@ const FitProfile: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-[#111111] text-white font-display items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#C9A06C]"></div>
+      <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6157FF]"></div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#111111] text-white font-display relative">
+    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans relative">
       {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 bg-[#111111]/95 backdrop-blur-xl border-b border-white/5">
-        <button onClick={handleBack} className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[22px] text-white">arrow_back</span>
+      <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 bg-surface-0/95 backdrop-blur-xl border-b border-line">
+        <button onClick={handleBack} aria-label="Go back" className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform">
+          <span className="material-symbols-outlined text-[22px] text-ink" aria-hidden="true">arrow_back</span>
         </button>
         <h1 className="text-base font-bold">{mode === 'edit' ? 'Edit Profile' : 'New Profile'}</h1>
         <div className="w-10"></div>
@@ -872,20 +876,34 @@ const FitProfile: React.FC = () => {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-44">
 
-        {/* Profile Completion */}
-        <div className="py-4 flex items-center justify-between">
+        {/* Profile Completion — turns green + celebrates when complete */}
+        <div className="py-4 flex items-center justify-between" role="status" aria-label={`Profile ${completeness}% complete`}>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Profile Completion: {completeness}%</p>
-            <p className="text-[11px] text-white/30 mt-0.5">Takes 15 seconds</p>
+            <p className={`text-[12px] font-bold transition-colors ${completeness >= 100 ? 'text-emerald-600' : 'text-ink-soft'}`}>
+              {completeness >= 100 ? 'Profile Complete' : `Profile Completion: ${completeness}%`}
+            </p>
+            <p className="text-[11px] text-ink-faint mt-0.5">
+              {completeness >= 100 ? 'Your size accuracy is at its best' : 'Takes 15 seconds — better data, better fit'}
+            </p>
           </div>
-          <div className="w-28 h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full bg-[#C9A06C] rounded-full transition-all duration-500" style={{ width: `${completeness}%` }}></div>
+          <div className="flex items-center gap-2">
+            {completeness >= 100 && (
+              <span className="material-symbols-outlined text-emerald-600 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
+                check_circle
+              </span>
+            )}
+            <div className="w-28 h-1.5 bg-surface-2 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${completeness >= 100 ? 'bg-emerald-400' : 'bg-[#6157FF]'}`}
+                style={{ width: `${completeness}%` }}
+              ></div>
+            </div>
           </div>
         </div>
 
         {/* --- Profile Name --- */}
         <div className="mb-7">
-          <label className="text-[15px] font-bold text-white mb-1.5 block">
+          <label className="text-[15px] font-bold text-ink mb-1.5 block">
             Profile Name <span className="text-[#FF4D6D]">*</span>
           </label>
           <input
@@ -893,15 +911,15 @@ const FitProfile: React.FC = () => {
             value={profileName}
             onChange={(e) => setProfileName(e.target.value)}
             placeholder="e.g. Dad, Brother, My Fit"
-            className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors"
+            className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors"
           />
         </div>
 
         {/* --- Gender --- */}
         <div className="mb-7">
-          <label className="text-[15px] font-bold text-white mb-1.5 block">Gender</label>
-          <p className="text-[13px] text-white/40 mb-3">Used to apply gender-specific sizing rules.</p>
-          <div className="flex rounded-2xl border border-white/10 overflow-hidden">
+          <label className="text-[15px] font-bold text-ink mb-1.5 block">Gender</label>
+          <p className="text-[13px] text-ink-soft mb-3">Used to apply gender-specific sizing rules.</p>
+          <div className="flex rounded-2xl border border-line overflow-hidden">
             {['Male', 'Female', 'Other'].map((g) => (
               <button
                 key={g}
@@ -911,7 +929,7 @@ const FitProfile: React.FC = () => {
                 }}
                 className={`flex-1 py-3.5 text-sm font-bold transition-all ${fitData.gender === g
                     ? 'bg-white text-[#111111]'
-                    : 'bg-[#1A1A1A] text-white/40'
+                    : 'bg-surface-1 text-ink-soft'
                   }`}
               >
                 {g}
@@ -922,27 +940,27 @@ const FitProfile: React.FC = () => {
 
         {/* --- Preferred Brand --- */}
         <div className="mb-7">
-          <label className="text-[15px] font-bold text-white mb-1.5 block">
+          <label className="text-[15px] font-bold text-ink mb-1.5 block">
             Preferred Brand <span className="text-[#FF4D6D]">*</span>
           </label>
-          <p className="text-[13px] text-white/40 mb-3">We use this brand as your sizing reference to compare other brands.</p>
+          <p className="text-[13px] text-ink-soft mb-3">We use this brand as your sizing reference to compare other brands.</p>
           <div className="relative">
             <button
               onClick={() => setShowBrandDropdown(!showBrandDropdown)}
-              className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 flex items-center justify-between font-medium focus:outline-none focus:border-[#C9A06C]/50 transition-colors"
+              className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 flex items-center justify-between font-medium focus:outline-none focus:border-[#6157FF]/50 transition-colors"
             >
-              <span className={fitData.brand ? 'text-white' : 'text-white/25'}>{fitData.brand || 'Select a brand'}</span>
-              <span className={`material-symbols-outlined text-white/30 transition-transform ${showBrandDropdown ? 'rotate-180' : ''}`}>expand_more</span>
+              <span className={fitData.brand ? 'text-ink' : 'text-ink-faint'}>{fitData.brand || 'Select a brand'}</span>
+              <span className={`material-symbols-outlined text-ink-faint transition-transform ${showBrandDropdown ? 'rotate-180' : ''}`}>expand_more</span>
             </button>
             {showBrandDropdown && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowBrandDropdown(false)}></div>
-                <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#1E1E1E] border border-white/10 rounded-2xl shadow-2xl max-h-60 overflow-y-auto no-scrollbar">
+                <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-1 border border-line rounded-2xl shadow-2xl max-h-60 overflow-y-auto no-scrollbar">
                   {brands.map((b) => (
                     <button
                       key={b}
                       onClick={() => { setFitData({ ...fitData, brand: b }); setShowBrandDropdown(false); }}
-                      className={`w-full text-left px-5 py-3.5 text-sm font-medium border-b border-white/5 last:border-none transition-colors ${fitData.brand === b ? 'text-[#C9A06C] bg-[#C9A06C]/5' : 'text-white/70 hover:bg-white/5'
+                      className={`w-full text-left px-5 py-3.5 text-sm font-medium border-b border-line last:border-none transition-colors ${fitData.brand === b ? 'text-[#6157FF] bg-[#6157FF]/5' : 'text-ink-soft hover:bg-surface-2'
                         }`}
                     >
                       {b}
@@ -956,10 +974,10 @@ const FitProfile: React.FC = () => {
 
         {/* --- Usual T-Shirt Size --- */}
         <div className="mb-7">
-          <label className="text-[15px] font-bold text-white mb-1.5 block">
+          <label className="text-[15px] font-bold text-ink mb-1.5 block">
             Usual T-Shirt Size <span className="text-[#FF4D6D]">*</span>
           </label>
-          <p className="text-[13px] text-white/40 mb-3">Your most reliable size reference for tops and jackets.</p>
+          <p className="text-[13px] text-ink-soft mb-3">Your most reliable size reference for tops and jackets.</p>
           <div className="flex flex-wrap gap-2.5">
             {sizes.map((s) => (
               <button
@@ -970,7 +988,7 @@ const FitProfile: React.FC = () => {
                 }}
                 className={`h-12 min-w-[56px] px-5 rounded-2xl text-sm font-bold border transition-all ${fitData.topSize === s
                     ? 'bg-white text-[#111111] border-white'
-                    : 'bg-[#1A1A1A] text-white/50 border-white/10'
+                    : 'bg-surface-1 text-ink-soft border-line'
                   }`}
               >
                 {s}
@@ -983,20 +1001,20 @@ const FitProfile: React.FC = () => {
         <div className="mb-7">
           <div className="flex items-start justify-between mb-1.5">
             <div>
-              <label className="text-[15px] font-bold text-white block">
+              <label className="text-[15px] font-bold text-ink block">
                 Height <span className="text-[#FF4D6D]">*</span>
               </label>
-              <p className="text-[13px] text-white/40 mt-1">Helps us estimate garment length and proportions.</p>
+              <p className="text-[13px] text-ink-soft mt-1">Helps us estimate garment length and proportions.</p>
             </div>
-            <div className="flex rounded-xl border border-white/10 overflow-hidden flex-shrink-0 ml-4">
+            <div className="flex rounded-xl border border-line overflow-hidden flex-shrink-0 ml-4">
               <button
                 onClick={() => handleHeightUnitChange('ft')}
-                className={`px-4 py-2 text-xs font-bold transition-all ${fitData.heightUnit === 'ft' ? 'bg-white text-[#111111]' : 'bg-[#1A1A1A] text-white/40'
+                className={`px-4 py-2 text-xs font-bold transition-all ${fitData.heightUnit === 'ft' ? 'bg-white text-[#111111]' : 'bg-surface-1 text-ink-soft'
                   }`}
               >FT</button>
               <button
                 onClick={() => handleHeightUnitChange('cm')}
-                className={`px-4 py-2 text-xs font-bold transition-all ${fitData.heightUnit === 'cm' ? 'bg-white text-[#111111]' : 'bg-[#1A1A1A] text-white/40'
+                className={`px-4 py-2 text-xs font-bold transition-all ${fitData.heightUnit === 'cm' ? 'bg-white text-[#111111]' : 'bg-surface-1 text-ink-soft'
                   }`}
               >CM</button>
             </div>
@@ -1005,20 +1023,20 @@ const FitProfile: React.FC = () => {
             <div className="flex gap-3 mt-3">
               <div className="flex-1 relative">
                 <input type="number" value={fitData.heightFt} onChange={(e) => handleHeightFtChange(e.target.value)} placeholder="5"
-                  className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-12 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors" />
-                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">ft</span>
+                  className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
+                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">ft</span>
               </div>
               <div className="flex-1 relative">
                 <input type="number" value={fitData.heightIn} onChange={(e) => handleHeightInChange(e.target.value)} placeholder="10"
-                  className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-12 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors" />
-                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">in</span>
+                  className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
+                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">in</span>
               </div>
             </div>
           ) : (
             <div className="mt-3 relative">
               <input type="number" value={userProfile.height > 0 ? String(userProfile.height) : fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178"
-                className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-12 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">cm</span>
+                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
+              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">cm</span>
             </div>
           )}
         </div>
@@ -1026,40 +1044,40 @@ const FitProfile: React.FC = () => {
         {/* --- Weight & Waist --- */}
         <div className="flex gap-3 mb-7">
           <div className="flex-1">
-            <label className="text-[15px] font-bold text-white mb-1.5 block">
+            <label className="text-[15px] font-bold text-ink mb-1.5 block">
               Weight <span className="text-[#FF4D6D]">*</span>
             </label>
-            <p className="text-[13px] text-white/40 mb-3">Helps estimate body build.</p>
+            <p className="text-[13px] text-ink-soft mb-3">Helps estimate body build.</p>
             <div className="relative">
               <input type="number" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70"
-                className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-12 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">kg</span>
+                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
+              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">kg</span>
             </div>
           </div>
           <div className="flex-1">
-            <label className="text-[15px] font-bold text-white mb-1.5 block">
-              Waist <span className="text-white/30 text-xs font-normal">(Optional)</span>
+            <label className="text-[15px] font-bold text-ink mb-1.5 block">
+              Waist <span className="text-ink-faint text-xs font-normal">(Optional)</span>
             </label>
-            <p className="text-[13px] text-white/40 mb-3">Improves pant size accuracy.</p>
+            <p className="text-[13px] text-ink-soft mb-3">Improves pant size accuracy.</p>
             <div className="relative">
               <input type="number" value={fitData.waistSize} onChange={(e) => handleMeasurementChange('waist', e.target.value)} placeholder="32"
-                className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-12 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">in</span>
+                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
+              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">in</span>
             </div>
           </div>
         </div>
 
         {/* --- AI Measure Now Card --- */}
-        <div className="mb-7 bg-[#1e293b] border border-white/10 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className="mb-7 bg-[#1e293b] border border-line rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <span className="material-symbols-outlined text-[80px]">center_focus_strong</span>
           </div>
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-2">
-              <span className="material-symbols-outlined text-[#C9A06C] text-[18px]">auto_awesome</span>
-              <h3 className="text-[16px] font-bold text-white">Not sure about your size?</h3>
+              <span className="material-symbols-outlined text-[#6157FF] text-[18px]">auto_awesome</span>
+              <h3 className="text-[16px] font-bold text-ink">Not sure about your size?</h3>
             </div>
-            <p className="text-[13px] text-white/60 mb-5 max-w-[85%]">
+            <p className="text-[13px] text-ink-soft mb-5 max-w-[85%]">
               Scan yourself using AI and auto-fill your measurements
             </p>
             <button
@@ -1067,7 +1085,7 @@ const FitProfile: React.FC = () => {
                 console.log('Measure clicked');
                 navigate('/smart-fit-scan');
               }}
-              className="bg-white/10 border border-white/10 text-white font-bold text-[13px] py-2.5 px-5 rounded-xl transition-colors inline-flex items-center gap-2 active:scale-95"
+              className="bg-surface-2 border border-line text-ink font-bold text-[13px] py-2.5 px-5 rounded-xl transition-colors inline-flex items-center gap-2 active:scale-95"
             >
               Measure Now &rarr;
             </button>
@@ -1078,12 +1096,12 @@ const FitProfile: React.FC = () => {
         <div className="mb-7">
           <div className="flex items-start justify-between mb-1.5">
             <div>
-              <label className="text-[15px] font-bold text-white block">
+              <label className="text-[15px] font-bold text-ink block">
                 Body Shape <span className="text-[#FF4D6D]">*</span>
               </label>
-              <p className="text-[13px] text-white/40 mt-1">Body shape helps us adjust size recommendations for better fit.</p>
+              <p className="text-[13px] text-ink-soft mt-1">Body shape helps us adjust size recommendations for better fit.</p>
             </div>
-            <button onClick={() => setShowBodyShapeGuide(true)} className="text-[13px] font-bold text-[#C9A06C] whitespace-nowrap ml-4 flex-shrink-0">
+            <button onClick={() => setShowBodyShapeGuide(true)} className="text-[13px] font-bold text-[#6157FF] whitespace-nowrap ml-4 flex-shrink-0">
               What's this?
             </button>
           </div>
@@ -1101,15 +1119,15 @@ const FitProfile: React.FC = () => {
                   }}
                   className={`relative p-5 rounded-2xl border text-left transition-all active:scale-[0.97] ${isSelected
                       ? 'bg-white text-[#111111] border-white'
-                      : 'bg-[#1A1A1A] text-white border-white/10'
+                      : 'bg-surface-1 text-ink border-line'
                     }`}
                 >
                   {isSuggested && (
-                    <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider z-10 ${isSelected ? 'bg-[#111111] text-white' : 'bg-[#C9A06C] text-[#111111]'
+                    <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-md text-[12px] font-bold z-10 ${isSelected ? 'bg-surface-0 text-ink' : 'bg-[#6157FF] text-[#111111]'
                       }`}>Suggested</span>
                   )}
-                  <h4 className={`text-[14px] font-bold mb-1 ${isSelected ? 'text-[#111111]' : 'text-white'}`}>{shape.label}</h4>
-                  <p className={`text-[11px] leading-tight ${isSelected ? 'text-[#111111]/60' : 'text-white/40'}`}>{shape.desc}</p>
+                  <h4 className={`text-[14px] font-bold mb-1 ${isSelected ? 'text-[#111111]' : 'text-ink'}`}>{shape.label}</h4>
+                  <p className={`text-[11px] leading-tight ${isSelected ? 'text-[#111111]/60' : 'text-ink-soft'}`}>{shape.desc}</p>
                 </button>
               );
             })}
@@ -1118,28 +1136,28 @@ const FitProfile: React.FC = () => {
 
         {/* --- Chest Size --- */}
         <div className="mb-7">
-          <label className="text-[15px] font-bold text-white mb-1.5 block">
-            Chest Size <span className="text-white/30 text-xs font-normal">(Optional)</span>
+          <label className="text-[15px] font-bold text-ink mb-1.5 block">
+            Chest Size <span className="text-ink-faint text-xs font-normal">(Optional)</span>
           </label>
-          <p className="text-[13px] text-white/40 mb-3">Improves accuracy for shirts, jackets, and suits.</p>
+          <p className="text-[13px] text-ink-soft mb-3">Improves accuracy for shirts, jackets, and suits.</p>
           <div className="relative">
             <input type="number" value={fitData.chestSize} onChange={(e) => handleMeasurementChange('chest', e.target.value)} placeholder="e.g., 38"
-              className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-16 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors" />
-            <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">inches</span>
+              className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-16 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
+            <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">inches</span>
           </div>
         </div>
 
         {/* --- Hips (Female only) --- */}
         {isFemale && (
           <div className="mb-7">
-            <label className="text-[15px] font-bold text-white mb-1.5 block">
-              Hips <span className="text-white/30 text-xs font-normal">(Optional)</span>
+            <label className="text-[15px] font-bold text-ink mb-1.5 block">
+              Hips <span className="text-ink-faint text-xs font-normal">(Optional)</span>
             </label>
-            <p className="text-[13px] text-white/40 mb-3">Critical for dresses, lehengas, and ethnic wear accuracy.</p>
+            <p className="text-[13px] text-ink-soft mb-3">Critical for dresses, lehengas, and ethnic wear accuracy.</p>
             <div className="relative">
               <input type="number" value={fitData.hipsSize} onChange={(e) => handleMeasurementChange('hips', e.target.value)} placeholder="38"
-                className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-12 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">in</span>
+                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
+              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">in</span>
             </div>
           </div>
         )}
@@ -1147,14 +1165,14 @@ const FitProfile: React.FC = () => {
         {/* --- Bust Size (Female only) --- */}
         {isFemale && (
           <div className="mb-7">
-            <label className="text-[15px] font-bold text-white mb-1.5 block">
-              Bust Size <span className="text-white/30 text-xs font-normal">(Optional)</span>
+            <label className="text-[15px] font-bold text-ink mb-1.5 block">
+              Bust Size <span className="text-ink-faint text-xs font-normal">(Optional)</span>
             </label>
-            <p className="text-[13px] text-white/40 mb-3">Helps recommend better fitting tops and dresses.</p>
+            <p className="text-[13px] text-ink-soft mb-3">Helps recommend better fitting tops and dresses.</p>
             <div className="relative">
               <input type="number" value={fitData.bustSize} onChange={(e) => handleMeasurementChange('bust', e.target.value)} placeholder="e.g., 34"
-                className="w-full h-14 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-16 text-white font-medium placeholder:text-white/25 focus:outline-none focus:border-[#C9A06C]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">inches</span>
+                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-16 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
+              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">inches</span>
             </div>
           </div>
         )}
@@ -1162,8 +1180,8 @@ const FitProfile: React.FC = () => {
         {/* --- Bra Cup (Female only) --- */}
         {isFemale && (
           <div className="mb-7">
-            <label className="text-[15px] font-bold text-white mb-1.5 block">
-              Bra Cup <span className="text-white/30 text-xs font-normal">(Optional)</span>
+            <label className="text-[15px] font-bold text-ink mb-1.5 block">
+              Bra Cup <span className="text-ink-faint text-xs font-normal">(Optional)</span>
             </label>
             <div className="flex gap-2.5 mt-3">
               {braCups.map((cup) => (
@@ -1172,7 +1190,7 @@ const FitProfile: React.FC = () => {
                   onClick={() => setFitData({ ...fitData, braCup: fitData.braCup === cup ? '' : cup })}
                   className={`h-12 min-w-[48px] px-4 rounded-2xl text-sm font-bold border transition-all ${fitData.braCup === cup
                       ? 'bg-white text-[#111111] border-white'
-                      : 'bg-[#1A1A1A] text-white/50 border-white/10'
+                      : 'bg-surface-1 text-ink-soft border-line'
                     }`}
                 >
                   {cup}
@@ -1185,17 +1203,17 @@ const FitProfile: React.FC = () => {
         {/* --- Fit Preference --- */}
         <div className="mb-7">
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[15px] font-bold text-white block">Fit Preference</label>
-            <div className="h-6 w-6 rounded-full border border-white/10 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[14px] text-white/30">info</span>
+            <label className="text-[15px] font-bold text-ink block">Fit Preference</label>
+            <div className="h-6 w-6 rounded-full border border-line flex items-center justify-center">
+              <span className="material-symbols-outlined text-[14px] text-ink-faint">info</span>
             </div>
           </div>
-          <p className="text-[13px] text-white/40 mb-4">Determines how fitted or loose your clothing should feel.</p>
+          <p className="text-[13px] text-ink-soft mb-4">Determines how fitted or loose your clothing should feel.</p>
 
           {/* T-Shirt Visual */}
-          <div className="bg-[#1A1A1A] rounded-2xl p-8 flex items-center justify-center relative border border-white/5">
+          <div className="bg-surface-1 rounded-2xl p-8 flex items-center justify-center relative border border-line">
             <div className="absolute top-4 right-4 px-3 py-1 rounded-lg bg-[#2A7B5C]/20 border border-[#2A7B5C]/40">
-              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#4ADE80]">
+              <span className="text-[12px] font-bold text-[#4ADE80]">
                 {fitData.fitPreference === 1 ? 'FITTED' : fitData.fitPreference === 3 ? 'LOOSE' : 'STANDARD'}
               </span>
             </div>
@@ -1214,7 +1232,7 @@ const FitProfile: React.FC = () => {
           </div>
 
           {/* Slim / Regular / Relaxed */}
-          <div className="flex mt-4 bg-[#1A1A1A] rounded-2xl border border-white/10 overflow-hidden">
+          <div className="flex mt-4 bg-surface-1 rounded-2xl border border-line overflow-hidden">
             {[
               { value: 1, label: 'Slim', icon: 'compress' },
               { value: 2, label: 'Regular', icon: 'straighten' },
@@ -1230,35 +1248,35 @@ const FitProfile: React.FC = () => {
                 }}
                 className={`flex-1 flex flex-col items-center gap-1.5 py-4 transition-all ${fitData.fitPreference === pref.value
                     ? 'bg-white text-[#111111]'
-                    : 'text-white/30'
+                    : 'text-ink-faint'
                   }`}
               >
                 <span className="material-symbols-outlined text-[20px]">{pref.icon}</span>
-                <span className="text-[10px] font-black uppercase tracking-[0.12em]">{pref.label}</span>
+                <span className="text-[12px] font-bold">{pref.label}</span>
               </button>
             ))}
           </div>
         </div>
 
         {/* --- Fit Summary Card --- */}
-        <div className="mb-6 p-6 bg-[#1A1A1A] rounded-2xl border border-white/10">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.25em] text-white/50 mb-4">Your Fit Summary</h3>
+        <div className="mb-6 p-6 bg-surface-1 rounded-2xl border border-line">
+          <h3 className="text-[12px] font-bold text-ink-soft mb-4">Your Fit Summary</h3>
           <div className="grid grid-cols-2 gap-y-4 gap-x-6">
             <div>
-              <p className="text-[12px] text-white/40 mb-0.5">Height:</p>
-              <p className="text-[14px] font-bold text-white">{heightDisplay}</p>
+              <p className="text-[12px] text-ink-soft mb-0.5">Height:</p>
+              <p className="text-[14px] font-bold text-ink">{heightDisplay}</p>
             </div>
             <div>
-              <p className="text-[12px] text-white/40 mb-0.5">Build:</p>
-              <p className="text-[14px] font-bold text-white">{buildLabel}</p>
+              <p className="text-[12px] text-ink-soft mb-0.5">Build:</p>
+              <p className="text-[14px] font-bold text-ink">{buildLabel}</p>
             </div>
             <div>
-              <p className="text-[12px] text-white/40 mb-0.5">Usual Size:</p>
-              <p className="text-[14px] font-bold text-white">{fitData.topSize}</p>
+              <p className="text-[12px] text-ink-soft mb-0.5">Usual Size:</p>
+              <p className="text-[14px] font-bold text-ink">{fitData.topSize}</p>
             </div>
             <div>
-              <p className="text-[12px] text-white/40 mb-0.5">Fit:</p>
-              <p className="text-[14px] font-bold text-white">{fitPreferenceLabel}</p>
+              <p className="text-[12px] text-ink-soft mb-0.5">Fit:</p>
+              <p className="text-[14px] font-bold text-ink">{fitPreferenceLabel}</p>
             </div>
           </div>
         </div>
@@ -1266,23 +1284,23 @@ const FitProfile: React.FC = () => {
       </div>
 
       {/* Fixed Bottom CTA */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full sm:max-w-[430px] px-5 pb-8 pt-5 bg-gradient-to-t from-[#111111] via-[#111111] to-transparent">
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full sm:max-w-[430px] px-5 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0 to-transparent">
         <button
           onClick={handleSave}
           disabled={saving}
           className={`w-full h-[58px] rounded-2xl font-bold text-[15px] shadow-xl active:scale-[0.97] transition-all flex items-center justify-center gap-2 ${isComplete
-              ? 'bg-gradient-to-r from-[#B5853F] to-[#C9A06C] text-white shadow-[#B5853F]/20'
-              : 'bg-[#1A1A1A] text-white/40 border border-white/10'
+              ? 'bg-gradient-to-r from-[#6157FF] to-[#6157FF] text-ink shadow-[#6157FF]/20'
+              : 'bg-surface-1 text-ink-soft border border-line'
             } disabled:opacity-50`}
         >
           {saving ? (
-            <div className="h-5 w-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+            <div className="h-5 w-5 border-2 border-line border-t-white rounded-full animate-spin"></div>
           ) : (
             'Save Profile'
           )}
         </button>
         {!isComplete && (
-          <p className="text-[11px] text-white/30 text-center mt-3">Complete the required fields to save your profile.</p>
+          <p className="text-[11px] text-ink-faint text-center mt-3">Complete the required fields to save your profile.</p>
         )}
       </div>
 
@@ -1293,17 +1311,17 @@ const FitProfile: React.FC = () => {
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowBodyShapeGuide(false)}></div>
 
           {/* Bottom Sheet */}
-          <div className="relative z-10 w-full max-w-lg bg-[#1A1A1A] rounded-t-[2rem] max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300">
+          <div className="relative z-10 w-full max-w-lg bg-surface-1 rounded-t-[2rem] max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 bg-white/20 rounded-full"></div>
+              <div className="w-10 h-1 bg-surface-3 rounded-full"></div>
             </div>
 
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4">
-              <h2 className="text-xl font-bold text-white">Body Shape Guide</h2>
-              <button onClick={() => setShowBodyShapeGuide(false)} className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-[18px] text-white/60">close</span>
+              <h2 className="text-xl font-bold text-ink">Body Shape Guide</h2>
+              <button onClick={() => setShowBodyShapeGuide(false)} className="h-8 w-8 rounded-full bg-surface-2 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[18px] text-ink-soft">close</span>
               </button>
             </div>
 
@@ -1313,9 +1331,9 @@ const FitProfile: React.FC = () => {
               <div className="bg-[#1E3A5F]/30 border border-[#3B82F6]/20 rounded-2xl p-5 mb-6">
                 <div className="flex items-center gap-2.5 mb-3">
                   <span className="material-symbols-outlined text-[#3B82F6] text-xl">help</span>
-                  <h3 className="text-[15px] font-bold text-white">How to Determine Your Shape</h3>
+                  <h3 className="text-[15px] font-bold text-ink">How to Determine Your Shape</h3>
                 </div>
-                <p className="text-[13px] text-white/50 mb-4 leading-relaxed">
+                <p className="text-[13px] text-ink-soft mb-4 leading-relaxed">
                   Stand in front of a mirror with light clothing to observe your silhouette.
                 </p>
                 <div className="flex flex-col gap-3">
@@ -1326,10 +1344,10 @@ const FitProfile: React.FC = () => {
                   ].map((step) => (
                     <div key={step.num} className="flex items-start gap-3">
                       <div className="h-6 w-6 rounded-full bg-[#3B82F6] flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-[11px] font-bold text-white">{step.num}</span>
+                        <span className="text-[11px] font-bold text-ink">{step.num}</span>
                       </div>
-                      <p className="text-[13px] text-white/60 leading-relaxed">
-                        <span className="font-bold text-white/80">{step.title}</span> {step.desc}
+                      <p className="text-[13px] text-ink-soft leading-relaxed">
+                        <span className="font-bold text-ink-soft">{step.title}</span> {step.desc}
                       </p>
                     </div>
                   ))}
@@ -1339,38 +1357,38 @@ const FitProfile: React.FC = () => {
               {/* Shape Cards */}
               <div className="flex flex-col gap-5">
                 {shapeGuideData.map((shape) => (
-                  <div key={shape.id} className="bg-[#222222] rounded-2xl overflow-hidden border border-white/5">
+                  <div key={shape.id} className="bg-[#222222] rounded-2xl overflow-hidden border border-line">
                     {/* Shape Header */}
                     <div className="flex items-center gap-4 p-5 pb-3">
-                      <div className="h-11 w-11 rounded-xl bg-white/10 flex items-center justify-center text-white/60 flex-shrink-0">
+                      <div className="h-11 w-11 rounded-xl bg-surface-2 flex items-center justify-center text-ink-soft flex-shrink-0">
                         {shape.icon}
                       </div>
                       <div>
-                        <h4 className="text-[15px] font-bold text-white">{shape.label}</h4>
-                        <p className="text-[12px] text-white/40">{shape.desc}</p>
+                        <h4 className="text-[15px] font-bold text-ink">{shape.label}</h4>
+                        <p className="text-[12px] text-ink-soft">{shape.desc}</p>
                       </div>
                     </div>
 
                     {/* Key Features */}
                     <div className="px-5 pb-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mb-2.5">Key Features</p>
+                      <p className="text-[12px] font-bold text-ink-faint mb-2.5">Key Features</p>
                       <div className="flex flex-col gap-1.5">
                         {shape.features.map((f, i) => (
                           <div key={i} className="flex items-start gap-2.5">
-                            <div className="h-1.5 w-1.5 rounded-full bg-[#C9A06C] mt-1.5 flex-shrink-0"></div>
-                            <p className="text-[13px] text-white/60 leading-relaxed">{f}</p>
+                            <div className="h-1.5 w-1.5 rounded-full bg-[#6157FF] mt-1.5 flex-shrink-0"></div>
+                            <p className="text-[13px] text-ink-soft leading-relaxed">{f}</p>
                           </div>
                         ))}
                       </div>
                     </div>
 
                     {/* Styling Tip */}
-                    <div className="mx-5 mb-5 bg-[#C9A06C]/10 border border-[#C9A06C]/15 rounded-xl p-4">
+                    <div className="mx-5 mb-5 bg-[#6157FF]/10 border border-[#6157FF]/15 rounded-xl p-4">
                       <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className="material-symbols-outlined text-[14px] text-[#C9A06C]">auto_awesome</span>
-                        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[#C9A06C]">Styling Tip</span>
+                        <span className="material-symbols-outlined text-[14px] text-[#6157FF]">auto_awesome</span>
+                        <span className="text-[12px] font-bold text-[#6157FF]">Styling Tip</span>
                       </div>
-                      <p className="text-[12px] text-white/50 leading-relaxed">{shape.tip}</p>
+                      <p className="text-[12px] text-ink-soft leading-relaxed">{shape.tip}</p>
                     </div>
                   </div>
                 ))}

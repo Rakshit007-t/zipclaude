@@ -536,38 +536,38 @@ const AdminAnalytics: React.FC = () => {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-[#111111] text-white font-sans pb-12">
-      <div className="sticky top-0 z-40 flex items-center gap-4 px-6 py-5 bg-[#111111]/90 backdrop-blur-xl border-b border-white/5">
-        <button
+    <div className="min-h-screen bg-surface-0 text-ink font-sans pb-12">
+      <div className="sticky top-0 z-40 flex items-center gap-4 px-6 py-5 bg-surface-0/90 backdrop-blur-xl border-b border-line">
+        <button aria-label="Go back"
           onClick={() => navigate(-1)}
-          className="h-10 w-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center active:scale-95 transition-transform"
+          className="h-10 w-10 rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95 transition-transform"
         >
-          <span className="material-symbols-outlined text-[#C9A06C] text-xl">arrow_back</span>
+          <span className="material-symbols-outlined text-[#6157FF] text-xl">arrow_back</span>
         </button>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Admin</p>
-          <h1 className="text-xl font-black">Analytics Dashboard</h1>
+          <p className="text-[12px] font-bold text-[#6157FF]">Admin</p>
+          <h1 className="text-xl font-bold">Analytics Dashboard</h1>
         </div>
       </div>
 
       <div className="px-6 py-6 flex flex-col gap-6">
         {isLoading && (
-          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 text-center">
-            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[#C9A06C]/20 border-t-[#C9A06C]"></div>
-            <p className="text-sm font-bold text-white/70">Loading analytics...</p>
+          <div className="rounded-[2rem] border border-line bg-surface-2 p-8 text-center">
+            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[#6157FF]/20 border-t-[#6157FF]"></div>
+            <p className="text-sm font-bold text-ink-soft">Loading analytics...</p>
           </div>
         )}
 
         {error && !isLoading && (
           <div className="rounded-[2rem] border border-amber-500/20 bg-amber-500/10 p-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-300 mb-2">Unavailable</p>
+            <p className="text-[12px] font-bold text-amber-600 mb-2">Unavailable</p>
             <p className="text-sm text-amber-50/80">{error}</p>
           </div>
         )}
 
         {aggregationStatus && !isLoading && !error && (
           <div className="rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-5">
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-300 mb-1">Brand Intelligence</p>
+            <p className="text-[12px] font-bold text-emerald-600 mb-1">Brand Intelligence</p>
             <p className="text-sm text-emerald-50/80">{aggregationStatus}</p>
           </div>
         )}
@@ -575,19 +575,19 @@ const AdminAnalytics: React.FC = () => {
         {!isLoading && (
           <>
             <section className="flex flex-col gap-4">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Overview</h2>
+              <h2 className="text-[12px] font-bold text-[#6157FF]">Overview</h2>
               <div className="grid grid-cols-2 gap-3">
                 {overviewCards.map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">{label}</p>
-                    <p className="mt-2 text-3xl font-black text-white">{value}</p>
+                  <div key={label} className="rounded-2xl border border-line bg-surface-2 p-5">
+                    <p className="text-[12px] font-bold text-ink-soft">{label}</p>
+                    <p className="mt-2 text-3xl font-bold text-ink">{value}</p>
                   </div>
                 ))}
               </div>
             </section>
 
             <section className="flex flex-col gap-4">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Brand Table</h2>
+              <h2 className="text-[12px] font-bold text-[#6157FF]">Brand Table</h2>
               <AnalyticsTable
                 headers={['Brand', 'Generated', 'Accepted', 'Perfect', 'Wrong']}
                 rows={stats.brands.map(brand => [
@@ -602,7 +602,7 @@ const AdminAnalytics: React.FC = () => {
             </section>
 
             <section className="flex flex-col gap-4">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Brand Bias Candidates</h2>
+              <h2 className="text-[12px] font-bold text-[#6157FF]">Brand Bias Candidates</h2>
               <AnalyticsTable
                 headers={['Brand', 'Family', 'Samples', 'Direction', 'Strength', 'Confidence']}
                 rows={brandBiasCandidates.map(candidate => [
@@ -618,7 +618,7 @@ const AdminAnalytics: React.FC = () => {
             </section>
 
             <section className="flex flex-col gap-4">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Garment Families</h2>
+              <h2 className="text-[12px] font-bold text-[#6157FF]">Garment Families</h2>
               <AnalyticsTable
                 headers={['Family', 'Generated', 'Accepted', 'Wrong']}
                 rows={stats.families.map(family => [
@@ -632,7 +632,7 @@ const AdminAnalytics: React.FC = () => {
             </section>
 
             <section className="flex flex-col gap-4">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Confidence Calibration</h2>
+              <h2 className="text-[12px] font-bold text-[#6157FF]">Confidence Calibration</h2>
               <AnalyticsTable
                 headers={['Band', 'Generated', 'Perfect', 'Wrong']}
                 rows={stats.confidenceBands.map(band => [
@@ -652,13 +652,13 @@ const AdminAnalytics: React.FC = () => {
 };
 
 const AnalyticsTable: React.FC<{ headers: string[]; rows: string[][]; emptyLabel: string }> = ({ headers, rows, emptyLabel }) => (
-  <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03]">
+  <div className="overflow-hidden rounded-[2rem] border border-line bg-surface-2">
     <div className="overflow-x-auto">
       <table className="w-full min-w-[420px] text-left">
-        <thead className="bg-white/5">
+        <thead className="bg-surface-2">
           <tr>
             {headers.map(header => (
-              <th key={header} className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white/40">
+              <th key={header} className="px-4 py-3 text-[12px] font-bold text-ink-soft">
                 {header}
               </th>
             ))}
@@ -666,16 +666,16 @@ const AnalyticsTable: React.FC<{ headers: string[]; rows: string[][]; emptyLabel
         </thead>
         <tbody>
           {rows.length ? rows.map((row, rowIndex) => (
-            <tr key={`${row[0]}-${rowIndex}`} className="border-t border-white/5">
+            <tr key={`${row[0]}-${rowIndex}`} className="border-t border-line">
               {row.map((cell, cellIndex) => (
-                <td key={`${cell}-${cellIndex}`} className="px-4 py-4 text-xs font-bold text-white/80">
+                <td key={`${cell}-${cellIndex}`} className="px-4 py-4 text-xs font-bold text-ink-soft">
                   {cell}
                 </td>
               ))}
             </tr>
           )) : (
             <tr>
-              <td colSpan={headers.length} className="px-4 py-8 text-center text-sm font-bold text-white/35">
+              <td colSpan={headers.length} className="px-4 py-8 text-center text-sm font-bold text-ink-faint">
                 {emptyLabel}
               </td>
             </tr>

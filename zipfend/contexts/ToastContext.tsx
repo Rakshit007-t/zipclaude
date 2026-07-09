@@ -41,9 +41,9 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           <div 
             key={toast.id}
             className={`p-4 rounded-2xl shadow-2xl animate-in slide-in-from-top duration-300 flex items-center gap-3 border ${
-              toast.type === 'success' ? 'bg-green-500 border-green-400 text-white' :
-              toast.type === 'error' ? 'bg-red-500 border-red-400 text-white' :
-              'bg-[#1E1E1E] border-white/10 text-white'
+              toast.type === 'success' ? 'bg-green-500 border-green-400 text-ink' :
+              toast.type === 'error' ? 'bg-red-500 border-red-400 text-ink' :
+              'bg-surface-1 border-line text-ink'
             }`}
           >
             <span className="material-symbols-outlined text-xl">

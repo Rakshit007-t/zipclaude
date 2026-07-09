@@ -1,3 +1,4 @@
+import logging
 import os
 from dataclasses import dataclass
 
@@ -6,6 +7,8 @@ from firebase_admin import auth
 
 from firebase_config import initialize_firebase
 initialize_firebase()
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -26,7 +29,7 @@ def verify_firebase_token(token: str) -> AuthenticatedUser:
     try:
         decoded = auth.verify_id_token(token_value)
     except Exception as exc:
-        print("AUTH ERROR:", str(exc))
+        logger.warning("Firebase token verification failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={

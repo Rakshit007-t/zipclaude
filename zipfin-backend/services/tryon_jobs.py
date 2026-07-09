@@ -1,16 +1,23 @@
 """Background try-on jobs.
 
-Generation runs in a server-side thread keyed by a job id, so closing or
-minimizing the app/browser does not cancel it — the client just polls
-GET /tryon-job/{id} whenever it comes back. Progress is a real 0-100
-percentage (per-diffusion-step for the local engine).
+Generation runs server-side keyed by a job id, so closing or minimizing the
+app/browser does not cancel it — the client just polls GET /tryon-job/{id}
+whenever it comes back. Progress is a real 0-100 percentage
+(per-diffusion-step for the local engine).
+
+Jobs execute on a bounded worker pool (TRYON_MAX_WORKERS, default 2: one
+render on the GPU while another talks to the cloud provider). Excess jobs
+wait in the pool queue with status "queued" — under load the server degrades
+to longer waits instead of spawning an unbounded thread per request.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from uuid import uuid4
 
@@ -19,6 +26,24 @@ logger = logging.getLogger(__name__)
 _JOBS: dict[str, "TryOnJob"] = {}
 _JOBS_LOCK = threading.Lock()
 _JOB_TTL_SECONDS = 2 * 60 * 60
+
+_EXECUTOR: ThreadPoolExecutor | None = None
+_EXECUTOR_LOCK = threading.Lock()
+
+
+def _executor() -> ThreadPoolExecutor:
+    global _EXECUTOR
+    if _EXECUTOR is None:
+        with _EXECUTOR_LOCK:
+            if _EXECUTOR is None:
+                try:
+                    max_workers = max(1, int(os.getenv("TRYON_MAX_WORKERS", "2")))
+                except ValueError:
+                    max_workers = 2
+                _EXECUTOR = ThreadPoolExecutor(
+                    max_workers=max_workers, thread_name_prefix="tryon-job"
+                )
+    return _EXECUTOR
 
 
 @dataclass
@@ -66,25 +91,20 @@ def start_tryon_job(
     person_image: str | None,
     garment_image: str | None,
 ) -> str:
-    job = TryOnJob(job_id=uuid4().hex, user_id=user_id)
+    job = TryOnJob(job_id=uuid4().hex, user_id=user_id, stage="Waiting for a free renderer")
     with _JOBS_LOCK:
         _cleanup_expired()
         _JOBS[job.job_id] = job
 
-    thread = threading.Thread(
-        target=_run_job,
-        kwargs={
-            "job": job,
-            "product_image_url": product_image_url,
-            "cloth_type": cloth_type,
-            "quality": quality,
-            "person_image": person_image,
-            "garment_image": garment_image,
-        },
-        daemon=True,
-        name=f"tryon-job-{job.job_id[:8]}",
+    _executor().submit(
+        _run_job,
+        job=job,
+        product_image_url=product_image_url,
+        cloth_type=cloth_type,
+        quality=quality,
+        person_image=person_image,
+        garment_image=garment_image,
     )
-    thread.start()
     return job.job_id
 
 

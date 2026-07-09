@@ -288,38 +288,38 @@ const LiveTryOn: React.FC = () => {
   }, [garmentUrl, clothType]);
 
   return (
-    <div className="relative h-screen w-full bg-black text-white overflow-hidden font-display select-none">
+    <div className="relative h-screen w-full bg-black text-white overflow-hidden font-sans select-none">
       <video ref={videoRef} className="hidden" playsInline muted />
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full object-cover" />
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/70 to-transparent">
-        <button
+        <button aria-label="Go back"
           onClick={() => navigate(-1)}
           className="h-10 w-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 active:scale-95 transition-all"
         >
-          <span className="material-symbols-outlined text-[18px] text-[#C9A06C]">arrow_back</span>
+          <span className="material-symbols-outlined text-[18px] text-[#6157FF]">arrow_back</span>
         </button>
         <div className="flex flex-col items-center">
-          <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">{product?.brand || 'Live'}</span>
-          <span className="text-[11px] font-black uppercase tracking-tight text-white">Live Try-On</span>
+          <span className="text-[11px] font-bold text-gray-300">{product?.brand || 'Live'}</span>
+          <span className="text-[11px] font-bold tracking-tight text-white">Live Try-On</span>
         </div>
         <div className="h-10 px-3 flex items-center justify-center rounded-full bg-black/40 border border-white/10">
-          <span className="text-[10px] font-bold text-[#C9A06C]">{fps} FPS</span>
+          <span className="text-[12px] font-bold text-[#6157FF]">{fps} FPS</span>
         </div>
       </div>
 
       {/* Status overlays */}
       {status === 'loading' && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/80">
-          <div className="h-12 w-12 rounded-full border-2 border-[#C9A06C] border-t-transparent animate-spin"></div>
-          <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#C9A06C]">Starting camera & tracker</span>
+          <div className="h-12 w-12 rounded-full border-2 border-[#6157FF] border-t-transparent animate-spin"></div>
+          <span className="text-[12px] font-bold text-[#6157FF]">Starting camera & tracker</span>
         </div>
       )}
       {status === 'no-person' && (
         <div className="absolute top-24 left-0 right-0 z-40 flex justify-center">
           <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">Step back so your upper body is visible</span>
+            <span className="text-[12px] font-bold text-white/80">Step back so your upper body is visible</span>
           </div>
         </div>
       )}
@@ -329,7 +329,7 @@ const LiveTryOn: React.FC = () => {
           <p className="text-sm text-white/80 max-w-xs">{errorMessage}</p>
           <button
             onClick={() => navigate(-1)}
-            className="mt-2 px-8 py-3 bg-[#C9A06C] text-black font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-all"
+            className="mt-2 px-8 py-3 bg-[#6157FF] text-white font-bold text-xs rounded-xl active:scale-95 transition-all"
           >
             Go Back
           </button>
@@ -340,7 +340,7 @@ const LiveTryOn: React.FC = () => {
       {status === 'tracking' || status === 'no-person' ? (
         <div className="absolute bottom-0 left-0 right-0 z-50 p-6 bg-gradient-to-t from-black/80 to-transparent">
           <div className="max-w-md mx-auto flex items-center gap-4">
-            <span className="material-symbols-outlined text-[18px] text-[#C9A06C]">opacity</span>
+            <span className="material-symbols-outlined text-[18px] text-[#6157FF]">opacity</span>
             <input
               type="range"
               min={0.4}
@@ -348,7 +348,7 @@ const LiveTryOn: React.FC = () => {
               step={0.02}
               value={opacity}
               onChange={(e) => setOpacity(Number(e.target.value))}
-              className="flex-1 accent-[#C9A06C]"
+              className="flex-1 accent-[#6157FF]"
             />
           </div>
         </div>

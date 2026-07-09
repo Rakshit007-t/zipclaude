@@ -143,7 +143,7 @@ const CommunityFeed: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-dvh bg-[#111111] flex items-center justify-center">
+      <div className="h-dvh bg-surface-0 flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-[#0D9488]" />
       </div>
     );
@@ -151,20 +151,20 @@ const CommunityFeed: React.FC = () => {
 
   if (looks.length === 0) {
     return (
-      <div className="h-dvh bg-[#111111] flex flex-col items-center justify-center px-8 text-center">
+      <div className="h-dvh bg-surface-0 flex flex-col items-center justify-center px-8 text-center">
         <div className="h-24 w-24 rounded-full bg-[#0D9488]/10 border border-[#0D9488]/20 flex items-center justify-center mb-6">
           <span className="material-symbols-outlined text-[#0D9488] text-5xl"
             style={{ fontVariationSettings: "'FILL' 1" }}>photo_camera</span>
         </div>
-        <h2 className="text-white font-display text-2xl font-bold mb-3">Be the first</h2>
-        <p className="text-white/40 text-sm mb-8">No community looks yet. Post yours and inspire others.</p>
+        <h2 className="text-ink font-sans text-2xl font-bold mb-3">Be the first</h2>
+        <p className="text-ink-soft text-sm mb-8">No community looks yet. Post yours and inspire others.</p>
         <button
           onClick={() => navigate('/create-look')}
-          className="bg-[#0D9488] text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest active:scale-95"
+          className="bg-[#0D9488] text-ink px-8 py-4 rounded-2xl font-bold text-sm active:scale-95"
         >
           Post a Look
         </button>
-        <button onClick={() => navigate(-1)} className="mt-4 text-white/30 text-sm active:opacity-70">← Back</button>
+        <button onClick={() => navigate(-1)} className="mt-4 text-ink-faint text-sm active:opacity-70">← Back</button>
       </div>
     );
   }
@@ -176,23 +176,23 @@ const CommunityFeed: React.FC = () => {
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between
         px-5 pt-[22px] pb-10 pointer-events-none
         bg-gradient-to-b from-black/70 via-black/30 to-transparent">
-        <button
+        <button aria-label="Go back"
           onClick={() => navigate(-1)}
-          className="h-10 w-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 border border-white/10"
+          className="h-10 w-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 border border-line"
         >
-          <span className="material-symbols-outlined text-white text-[20px]">arrow_back</span>
+          <span className="material-symbols-outlined text-ink text-[20px]">arrow_back</span>
         </button>
 
         <div className="flex flex-col items-center pointer-events-none">
-          <span className="text-white text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Community</span>
-          <span className="text-white/40 text-[9px] mt-0.5">Real looks, real people</span>
+          <span className="text-ink text-[12px] font-bold opacity-80">Community</span>
+          <span className="text-ink-soft text-[11px] mt-0.5">Real looks, real people</span>
         </div>
 
         <button
           onClick={() => navigate('/create-look')}
           className="h-10 w-10 rounded-full bg-[#0D9488]/80 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 border border-[#0D9488]/40"
         >
-          <span className="material-symbols-outlined text-white text-[20px]"
+          <span className="material-symbols-outlined text-ink text-[20px]"
             style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
         </button>
       </div>
@@ -228,7 +228,7 @@ const CommunityFeed: React.FC = () => {
 
               {/* Creator avatar */}
               <div className="relative">
-                <div className="h-12 w-12 rounded-full bg-white/10 border-2 border-white overflow-hidden">
+                <div className="h-12 w-12 rounded-full bg-surface-2 border-2 border-white overflow-hidden">
                   {look.creatorAvatar ? (
                     <img src={look.creatorAvatar} alt="" className="h-full w-full object-cover" />
                   ) : (
@@ -238,7 +238,7 @@ const CommunityFeed: React.FC = () => {
                   )}
                 </div>
                 <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full bg-[#0D9488] flex items-center justify-center border border-black">
-                  <span className="material-symbols-outlined text-white text-[10px]"
+                  <span className="material-symbols-outlined text-ink text-[12px]"
                     style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
                 </div>
               </div>
@@ -248,7 +248,7 @@ const CommunityFeed: React.FC = () => {
                 onClick={() => toggleLike(look)}
                 className="flex flex-col items-center gap-1 active:scale-90"
               >
-                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-line">
                   <span
                     className="material-symbols-outlined text-[26px]"
                     style={{
@@ -257,7 +257,7 @@ const CommunityFeed: React.FC = () => {
                     }}
                   >favorite</span>
                 </div>
-                <span className="text-white text-[10px] font-bold">
+                <span className="text-ink text-[12px] font-bold">
                   {look.likesCount > 0 ? look.likesCount : 'Like'}
                 </span>
               </button>
@@ -268,12 +268,12 @@ const CommunityFeed: React.FC = () => {
                 className="flex flex-col items-center gap-1 active:scale-90"
               >
                 <div className={`h-12 w-12 rounded-full backdrop-blur-md flex items-center justify-center border ${
-                  productsOpen ? 'bg-[#B5853F] border-[#B5853F]' : 'bg-black/40 border-white/10'
+                  productsOpen ? 'bg-[#6157FF] border-[#6157FF]' : 'bg-black/40 border-line'
                 }`}>
-                  <span className="material-symbols-outlined text-white text-[26px]"
+                  <span className="material-symbols-outlined text-ink text-[26px]"
                     style={{ fontVariationSettings: "'FILL' 1" }}>sell</span>
                 </div>
-                <span className="text-white text-[10px] font-bold">
+                <span className="text-ink text-[12px] font-bold">
                   {look.taggedProducts.length > 0 ? `Shop (${look.taggedProducts.length})` : 'Shop'}
                 </span>
               </button>
@@ -289,18 +289,18 @@ const CommunityFeed: React.FC = () => {
                 }}
                 className="flex flex-col items-center gap-1 active:scale-90"
               >
-                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <span className="material-symbols-outlined text-white text-[26px]">ios_share</span>
+                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-line">
+                  <span className="material-symbols-outlined text-ink text-[26px]">ios_share</span>
                 </div>
-                <span className="text-white text-[10px] font-bold">Share</span>
+                <span className="text-ink text-[12px] font-bold">Share</span>
               </button>
             </div>
 
             {/* BOTTOM INFO — creator + caption */}
             <div className="absolute bottom-20 left-0 right-20 z-40 pl-4">
-              <div className="bg-black/50 backdrop-blur-xl rounded-[1.5rem] px-5 py-4 border border-white/10">
+              <div className="bg-black/50 backdrop-blur-xl rounded-[1.5rem] px-5 py-4 border border-line">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="h-7 w-7 rounded-full bg-white/10 overflow-hidden flex-shrink-0">
+                  <div className="h-7 w-7 rounded-full bg-surface-2 overflow-hidden flex-shrink-0">
                     {look.creatorAvatar ? (
                       <img src={look.creatorAvatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
@@ -309,14 +309,14 @@ const CommunityFeed: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <span className="text-[#0D9488] text-xs font-black">@{look.creatorUsername}</span>
+                  <span className="text-[#0D9488] text-xs font-bold">@{look.creatorUsername}</span>
                   {look.taggedProducts.length > 0 && (
-                    <span className="ml-auto text-[#C9A06C] text-[9px] font-bold uppercase tracking-wider">
+                    <span className="ml-auto text-[#6157FF] text-[11px] font-bold">
                       {look.taggedProducts.length} items · shoppable
                     </span>
                   )}
                 </div>
-                <p className="text-white text-sm leading-snug line-clamp-2">{look.caption}</p>
+                <p className="text-ink text-sm leading-snug line-clamp-2">{look.caption}</p>
               </div>
             </div>
 
@@ -336,26 +336,26 @@ const CommunityFeed: React.FC = () => {
                     animate={{ y: 0 }}
                     exit={{ y: '100%' }}
                     transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-                    className="absolute inset-x-0 bottom-0 z-[60] bg-[#111111] rounded-t-[2.5rem] border-t border-white/10 pb-16"
+                    className="absolute inset-x-0 bottom-0 z-[60] bg-surface-0 rounded-t-[2.5rem] border-t border-line pb-16"
                   >
                     <div className="flex justify-center pt-4 pb-2">
-                      <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+                      <div className="w-12 h-1.5 bg-surface-3 rounded-full" />
                     </div>
                     <div className="px-5 pb-2">
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-white font-bold text-sm">Shop this look</h3>
-                        <span className="text-white/30 text-xs">{look.taggedProducts.length} items</span>
+                        <h3 className="text-ink font-bold text-sm">Shop this look</h3>
+                        <span className="text-ink-faint text-xs">{look.taggedProducts.length} items</span>
                       </div>
 
                       {look.taggedProducts.length === 0 ? (
                         <div className="text-center py-8">
-                          <p className="text-white/30 text-sm">No products tagged in this look</p>
+                          <p className="text-ink-faint text-sm">No products tagged in this look</p>
                         </div>
                       ) : (
                         <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto no-scrollbar">
                           {look.taggedProducts.map(product => (
                             <div key={product.id}
-                              className="flex items-center gap-4 bg-white/5 rounded-2xl p-3 border border-white/5">
+                              className="flex items-center gap-4 bg-surface-2 rounded-2xl p-3 border border-line">
                               <div
                                 className="h-16 w-16 rounded-xl overflow-hidden flex-shrink-0 bg-black/20 cursor-pointer"
                                 onClick={() => window.open(product.affiliateLink || product.url, '_blank')}
@@ -364,9 +364,9 @@ const CommunityFeed: React.FC = () => {
                                   className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-[#C9A06C] text-[9px] font-bold uppercase tracking-wider">{product.brand}</p>
-                                <p className="text-white font-bold text-xs leading-tight truncate">{product.title}</p>
-                                <p className="text-white/70 font-black text-sm mt-0.5">{product.price}</p>
+                                <p className="text-[#6157FF] text-[11px] font-bold">{product.brand}</p>
+                                <p className="text-ink font-bold text-xs leading-tight truncate">{product.title}</p>
+                                <p className="text-ink-soft font-bold text-sm mt-0.5">{product.price}</p>
                               </div>
                               <button
                                 onClick={() => handleCartProduct(product)}

@@ -5,7 +5,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import cv2
-import mediapipe as mp
 import numpy as np
 import requests
 from fastapi import HTTPException, status
@@ -314,25 +313,16 @@ def _decode_product_image(garment_bytes: bytes) -> np.ndarray:
 def _detect_shoulder_points(avatar_image: np.ndarray) -> tuple[int, int, int, int] | None:
     image_height, image_width = avatar_image.shape[:2]
     try:
-        rgb_image = cv2.cvtColor(avatar_image, cv2.COLOR_BGR2RGB)
-        pose = mp.solutions.pose.Pose(
-            static_image_mode=True,
-            model_complexity=1,
-            enable_segmentation=False,
-            min_detection_confidence=0.5,
-        )
+        # mp.solutions is unavailable under the installed mediapipe/protobuf;
+        # _detect_pose falls back to the tasks API with the same interface.
+        from services.measurement_service import _detect_pose
 
-        try:
-            results = pose.process(rgb_image)
-        finally:
-            pose.close()
+        landmarks = _detect_pose(avatar_image)
     except Exception:
         return None
 
-    if not results.pose_landmarks:
+    if not landmarks:
         return None
-
-    landmarks = results.pose_landmarks.landmark
     try:
         left_shoulder = landmarks[POSE_LANDMARK_LEFT_SHOULDER]
         right_shoulder = landmarks[POSE_LANDMARK_RIGHT_SHOULDER]

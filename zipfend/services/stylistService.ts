@@ -1,42 +1,42 @@
-import { getBackendBaseUrl } from './ziprightApi';
+import { authorizedFetch, getBackendBaseUrl } from './ziprightApi';
 
 const API_BASE_URL = getBackendBaseUrl();
+
+// The stylist runs on a local LLM: the first request after idle loads the
+// model into VRAM, which can take ~15-30s before tokens flow.
+const STYLIST_TIMEOUT_MS = 60000;
 
 interface StylistResponse {
   reply: string;
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: number }) {
-  const { timeout = 10000, ...fetchOptions } = options;
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...fetchOptions,
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    return response;
-  } catch (error: any) {
-    clearTimeout(id);
-    if (error?.name === 'AbortError') {
-      throw new Error('Stylist request failed');
-    }
-    throw error;
-  }
-}
-
 export async function getStylistResponse(message: string): Promise<StylistResponse> {
   const userMessage = message.trim();
-  const response = await fetchWithTimeout(`${API_BASE_URL}/stylist`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ message: userMessage }),
-    timeout: 10000,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), STYLIST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    // Authorized so the stylist can use the shopper's Fit Profile as context.
+    response = await authorizedFetch(`${API_BASE_URL}/stylist`, {
+      method: 'POST',
+      body: JSON.stringify({ message: userMessage }),
+      signal: controller.signal,
+    });
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error('The stylist is taking too long — please try again.');
+    }
+    // Auth being unavailable must never block styling advice — retry plain.
+    response = await fetch(`${API_BASE_URL}/stylist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userMessage }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     throw new Error("Stylist request failed");

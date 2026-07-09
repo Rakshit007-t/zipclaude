@@ -4,6 +4,7 @@ import { auth } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { fetchProductAvailability, fetchSizeChart } from '../services/BrandAPI';
 import { demoProducts } from '../services/demoProducts';
+import { Chip, Skeleton, EmptyState, Button, StaggerList, StaggerItem } from '../components/ui';
 
 const DEMO_AUTH_KEY = 'zipright_demo_user';
 
@@ -111,105 +112,153 @@ const Marketplace: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#111111] text-white font-display pb-24">
+    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-6 bg-[#111111] shrink-0">
-        <div className="flex-1 flex justify-start">
-          <button onClick={() => navigate('/home')} className="active:scale-90 p-2 -ml-2 rounded-full transition-transform">
-            <span className="material-symbols-outlined text-[24px] text-[#C9A06C]">arrow_back</span>
-          </button>
+      <div className="sticky top-0 z-50 bg-surface-0/90 backdrop-blur-xl">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
+          <div className="flex-1 flex justify-start">
+            <button
+              onClick={() => navigate('/home')}
+              aria-label="Back to home"
+              className="active:scale-90 p-2 -ml-2 rounded-full transition-transform"
+            >
+              <span className="material-symbols-outlined text-[24px] text-brand" aria-hidden="true">arrow_back</span>
+            </button>
+          </div>
+          <h1 className="text-xs font-bold text-brand shrink-0">Marketplace</h1>
+          <div className="flex-1 flex justify-end gap-2">
+            <button onClick={() => navigate('/wishlist')} aria-label="Wishlist" className="active:scale-90 p-2 rounded-full transition-transform">
+              <span className="material-symbols-outlined text-[24px] text-brand" aria-hidden="true">favorite</span>
+            </button>
+            <button
+              onClick={() => navigate('/cart')}
+              aria-label={`Cart${cartCount > 0 ? `, ${cartCount} items` : ''}`}
+              className="relative active:scale-90 p-2 -mr-2 rounded-full transition-transform"
+            >
+              <span className="material-symbols-outlined text-[24px] text-brand" aria-hidden="true">shopping_cart</span>
+              {cartCount > 0 && (
+                <span className="absolute top-1 right-1 h-4 w-4 bg-success rounded-full text-[12px] font-bold flex items-center justify-center text-ink ring-2 ring-surface-0">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
-        <h1 className="text-xs font-bold tracking-[0.3em] uppercase text-[#C9A06C] shrink-0">Marketplace</h1>
-        <div className="flex-1 flex justify-end gap-2">
-          <button onClick={() => navigate('/wishlist')} className="active:scale-90 p-2 rounded-full transition-transform">
-            <span className="material-symbols-outlined text-[24px] text-[#C9A06C]">favorite</span>
-          </button>
-          <button onClick={() => navigate('/cart')} className="relative active:scale-90 p-2 -mr-2 rounded-full transition-transform">
-            <span className="material-symbols-outlined text-[24px] text-[#C9A06C]">shopping_cart</span>
-            {cartCount > 0 && (
-              <span className="absolute top-1 right-1 h-4 w-4 bg-[#22c55e] rounded-full text-[8px] font-bold flex items-center justify-center text-white ring-2 ring-black/20">
-                {cartCount}
-              </span>
+
+        {/* Search Bar */}
+        <div className="px-4 pb-3">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint text-[20px] pointer-events-none" aria-hidden="true">search</span>
+            <input
+              type="search"
+              aria-label="Search products"
+              placeholder="Search brands, styles, items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-12 bg-surface-2 border border-transparent rounded-full pl-12 pr-10 text-[15px] text-ink placeholder:text-ink-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 transition-[border-color,box-shadow]"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full active:scale-90"
+              >
+                <span className="material-symbols-outlined text-ink-faint text-[18px]" aria-hidden="true">close</span>
+              </button>
             )}
-          </button>
+          </div>
         </div>
-      </div>
 
-      {/* Search Bar */}
-      <div className="px-4 pb-4 sticky top-[88px] z-40 bg-[#111111]">
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-white/50 text-[20px]">search</span>
-          <input
-            type="text"
-            placeholder="Search brands, styles, items..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-full py-3 pl-12 pr-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-[#C9A06C]/50 transition-colors"
-          />
+        {/* Categories */}
+        <div className="flex overflow-x-auto gap-2 px-4 pb-3 no-scrollbar" role="group" aria-label="Filter by category">
+          {CATEGORIES.map(category => (
+            <Chip
+              key={category}
+              selected={selectedCategory === category}
+              onClick={() => setSelectedCategory(category)}
+            >
+              {category}
+            </Chip>
+          ))}
         </div>
-      </div>
-
-      {/* Categories */}
-      <div className="flex overflow-x-auto gap-2 px-4 pb-4 no-scrollbar sticky top-[152px] z-40 bg-[#111111]">
-        {CATEGORIES.map(category => (
-          <button
-            key={category}
-            onClick={() => setSelectedCategory(category)}
-            className={`px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors active:scale-95 ${selectedCategory === category
-                ? 'bg-[#C9A06C] text-black'
-                : 'bg-white/5 text-white/70 border border-white/10'
-              }`}
-          >
-            {category}
-          </button>
-        ))}
       </div>
 
       {/* Product Grid */}
       {isLoading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#C9A06C]"></div>
-        </div>
-      ) : filteredProducts.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center opacity-50">
-          <span className="material-symbols-outlined text-4xl mb-4">search_off</span>
-          <p className="text-sm">{products.length === 0 ? catalogMessage : 'No products found for your search.'}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 px-4">
-          {filteredProducts.map(product => (
-            <div
-              key={product.id}
-              onClick={() => handleProductClick(product)}
-              className="flex flex-col gap-3 cursor-pointer active:scale-[0.98] transition-transform"
-            >
-              <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-white/5 border border-white/5">
-                <img
-                  src={product.image}
-                  alt={product.title}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-                <button
-                  onClick={(e) => toggleLike(e, product)}
-                  className="absolute top-3 right-3 p-2 bg-black/40 rounded-full backdrop-blur-md border border-white/10 active:scale-90 transition-transform"
-                >
-                  <span
-                    className={`material-symbols-outlined text-[18px] ${likedMap[product.id] ? 'text-[#FF4D6D] filled' : 'text-white'}`}
-                    style={{ fontVariationSettings: likedMap[product.id] ? "'FILL' 1" : "'FILL' 0" }}
-                  >
-                    favorite
-                  </span>
-                </button>
-              </div>
-              <div className="px-1">
-                <p className="font-bold text-sm text-white tracking-tight">{product.brand}</p>
-                <p className="text-white/60 text-xs truncate mt-0.5">{product.title}</p>
-                <p className="font-black text-sm text-[#C9A06C] mt-1.5">{product.price}</p>
+        <div className="grid grid-cols-2 gap-4 px-4 pt-2" aria-label="Loading products" role="status">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-3">
+              <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
+              <div className="px-1 flex flex-col gap-2">
+                <Skeleton className="h-3.5 w-20" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3.5 w-14" />
               </div>
             </div>
           ))}
         </div>
+      ) : filteredProducts.length === 0 ? (
+        products.length === 0 ? (
+          <EmptyState
+            icon="inventory_2"
+            title="Catalogue unavailable"
+            description={catalogMessage}
+          />
+        ) : (
+          <EmptyState
+            icon="search_off"
+            title="Nothing matches"
+            description={`No products found for "${searchQuery || selectedCategory}". Try a different search or category.`}
+            action={
+              <Button variant="secondary" onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }}>
+                Clear filters
+              </Button>
+            }
+          />
+        )
+      ) : (
+        <StaggerList className="grid grid-cols-2 gap-4 px-4 pt-2" delay={0.04}>
+          {filteredProducts.map(product => (
+            <StaggerItem key={product.id}>
+              <div
+                onClick={() => handleProductClick(product)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleProductClick(product); }}
+                className="flex flex-col gap-3 cursor-pointer active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-2xl"
+              >
+                <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-surface-2 border border-line">
+                  <img
+                    src={product.image}
+                    alt={product.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover opacity-0 transition-opacity duration-500"
+                    onLoad={(e) => e.currentTarget.classList.remove('opacity-0')}
+                    referrerPolicy="no-referrer"
+                  />
+                  <button
+                    onClick={(e) => toggleLike(e, product)}
+                    aria-label={likedMap[product.id] ? `Remove ${product.title} from wishlist` : `Add ${product.title} to wishlist`}
+                    className="absolute top-3 right-3 p-2 bg-black/40 rounded-full backdrop-blur-md border border-line active:scale-90 transition-transform"
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[18px] ${likedMap[product.id] ? 'text-[#FF4D6D] filled' : 'text-ink'}`}
+                      style={{ fontVariationSettings: likedMap[product.id] ? "'FILL' 1" : "'FILL' 0" }}
+                      aria-hidden="true"
+                    >
+                      favorite
+                    </span>
+                  </button>
+                </div>
+                <div className="px-1">
+                  <p className="font-bold text-sm text-ink tracking-tight">{product.brand}</p>
+                  <p className="text-ink-soft text-xs truncate mt-0.5">{product.title}</p>
+                  <p className="font-bold text-sm text-brand mt-1.5">{product.price}</p>
+                </div>
+              </div>
+            </StaggerItem>
+          ))}
+        </StaggerList>
       )}
     </div>
   );

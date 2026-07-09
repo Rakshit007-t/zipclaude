@@ -114,6 +114,10 @@ export async function authorizedFetch(url: string, options: any = {}) {
     ...(options.headers || {}),
   };
 
+  if (options.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
+
   if (user) {
     const token = await user.getIdToken(true);
     headers['Authorization'] = `Bearer ${token}`;
@@ -491,3 +495,447 @@ export async function submitSizeFeedback(input: {
     return false;
   }
 }
+
+export interface SellerProfile {
+  uid: string;
+  status: 'pending' | 'active' | 'rejected' | 'suspended';
+  store_name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  website?: string | null;
+  gst?: string | null;
+  brand_logo_url?: string | null;
+  brand_description?: string | null;
+  terms_accepted_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SellerMeResponse {
+  is_seller: boolean;
+  status: 'pending' | 'active' | 'rejected' | 'suspended' | null;
+  profile: SellerProfile | null;
+}
+
+export async function getSellerMe(): Promise<SellerMeResponse> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/me`);
+  if (!response.ok) {
+    throw new Error('Failed to retrieve seller status.');
+  }
+  const payload = await parseJsonResponse(response);
+  return payload.data as SellerMeResponse;
+}
+
+export async function onboardSeller(input: {
+  store_name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  website?: string;
+  gst?: string;
+  brand_description?: string;
+  terms_accepted: boolean;
+}): Promise<SellerProfile> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/onboard`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  const payload = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, payload, 'Failed to submit onboarding application.'));
+  }
+  return payload.data as SellerProfile;
+}
+
+export async function getSellerProfile(): Promise<SellerProfile> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/profile`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch seller profile.');
+  }
+  const payload = await parseJsonResponse(response);
+  return payload.data as SellerProfile;
+}
+
+export async function updateSellerProfile(input: {
+  store_name?: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  gst?: string;
+  brand_description?: string;
+}): Promise<SellerProfile> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/profile`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+  const payload = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, payload, 'Failed to update seller profile.'));
+  }
+  return payload.data as SellerProfile;
+}
+
+export async function uploadSellerLogo(file: File): Promise<SellerProfile> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/profile/logo`, {
+    method: 'POST',
+    body: formData,
+  });
+  const payload = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, payload, 'Failed to upload seller logo.'));
+  }
+  return payload.data as SellerProfile;
+}
+
+export async function adminListSellers(status?: string): Promise<SellerProfile[]> {
+  const url = new URL(`${getBackendBaseUrl()}/seller`);
+  if (status) {
+    url.searchParams.append('status', status);
+  }
+  const response = await authorizedFetch(url.toString());
+  if (!response.ok) {
+    throw new Error('Failed to fetch sellers list.');
+  }
+  const payload = await parseJsonResponse(response);
+  return payload.data as SellerProfile[];
+}
+
+export async function adminSetSellerStatus(
+  uid: string,
+  status: 'active' | 'rejected' | 'suspended',
+  reason?: string,
+): Promise<SellerProfile> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/${uid}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, reason }),
+  });
+  const payload = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, payload, 'Failed to update seller status.'));
+  }
+  return payload.data as SellerProfile;
+}
+
+export interface ProductImportRequest {
+  url?: string;
+  images?: string[];
+}
+
+export interface ProductDraft {
+  title: string;
+  description: string;
+  brand: string;
+  category: string;
+  gender: string;
+  fabric: string;
+  colors: string[];
+  images: string[];
+  size_chart?: Record<string, number> | null;
+  fit_type: string;
+  sleeve_type: string;
+  neck_type: string;
+  pattern: string;
+  tags: string[];
+  price?: string | null;
+  source_url?: string | null;
+}
+
+export interface ProductPreview {
+  product: ProductDraft;
+  generated_fields: string[];
+}
+
+export async function importProduct(payload: ProductImportRequest): Promise<ProductPreview> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/import`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to import product details.'));
+  }
+  return data.data as ProductPreview;
+}
+
+export async function createProduct(payload: ProductDraft & { generated_fields: string[]; status?: 'active' | 'draft' }): Promise<any> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to save product.'));
+  }
+  return data.data;
+}
+
+export interface SellerProduct extends ProductDraft {
+  id: string;
+  seller_uid: string;
+  generated_fields: string[];
+  status: 'active' | 'draft' | 'archived';
+  created_at?: string | null;
+  updated_at?: string | null;
+  updated_by?: string | null;
+}
+
+export async function listProducts(params?: {
+  query?: string;
+  category?: string;
+  brand?: string;
+  status_filter?: string;
+}): Promise<SellerProduct[]> {
+  const url = new URL(`${getBackendBaseUrl()}/seller/products`);
+  if (params) {
+    if (params.query) url.searchParams.append('query', params.query);
+    if (params.category) url.searchParams.append('category', params.category);
+    if (params.brand) url.searchParams.append('brand', params.brand);
+    if (params.status_filter) url.searchParams.append('status_filter', params.status_filter);
+  }
+
+  const response = await authorizedFetch(url.toString());
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to retrieve products.'));
+  }
+  return data.data as SellerProduct[];
+}
+
+export async function getProduct(productId: string): Promise<SellerProduct> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/${productId}`);
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to retrieve product details.'));
+  }
+  return data.data as SellerProduct;
+}
+
+export async function updateProduct(
+  productId: string,
+  payload: Partial<ProductDraft> & { expected_updated_at?: string | null; status?: string }
+): Promise<SellerProduct> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/${productId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to update product.'));
+  }
+  return data.data as SellerProduct;
+}
+
+export async function deleteProduct(productId: string): Promise<void> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/${productId}`, {
+    method: 'DELETE',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to delete product.'));
+  }
+}
+
+export async function bulkOperation(
+  ids: string[],
+  operation: 'delete' | 'archive' | 'restore'
+): Promise<number> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/bulk`, {
+    method: 'POST',
+    body: JSON.stringify({ ids, operation }),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, `Failed to perform bulk ${operation}.`));
+  }
+  return (data.data as { count: number }).count;
+}
+
+export async function duplicateProduct(productId: string): Promise<SellerProduct> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/${productId}/duplicate`, {
+    method: 'POST',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to duplicate product.'));
+  }
+  return data.data as SellerProduct;
+}
+
+export async function uploadProductImage(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/upload-image`, {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to upload product image.'));
+  }
+  return data.data as { url: string };
+}
+
+export interface PopularProductMetric {
+  id: string;
+  title: string;
+  tryon_count: number;
+  recommendation_count: number;
+  feedback_count: number;
+  accuracy: number | null;
+}
+
+export interface ActivityEvent {
+  id: string;
+  type: 'product_created' | 'product_edited' | 'product_archived' | 'feedback_received';
+  text: string;
+  timestamp: string;
+}
+
+export interface SellerDashboardResponse {
+  total_products: number;
+  active_products: number;
+  archived_products: number;
+  total_tryons: number;
+  total_recs: number;
+  feedback_count: number;
+  popular_products: PopularProductMetric[];
+  recent_activity: ActivityEvent[];
+}
+
+export async function getSellerDashboard(): Promise<SellerDashboardResponse> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/dashboard`, {
+    method: 'GET',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to retrieve dashboard analytics.'));
+  }
+  return data.data as SellerDashboardResponse;
+}
+
+export interface SellerIntegrationResponse {
+  platform: string;
+  store_url: string;
+  connected_at: string;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+}
+
+export interface SyncHistoryEvent {
+  event_id: string;
+  platform: string;
+  started_at: string;
+  completed_at: string | null;
+  status: string;
+  products_synced_count: number;
+  error_message: string | null;
+}
+
+export async function connectSellerIntegration(payload: {
+  platform: string;
+  store_url: string;
+  credentials: Record<string, string>;
+}): Promise<SellerIntegrationResponse> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/integration/connect`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to connect e-commerce integration.'));
+  }
+  return data.data as SellerIntegrationResponse;
+}
+
+export async function disconnectSellerIntegration(): Promise<void> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/integration/disconnect`, {
+    method: 'POST',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to disconnect integration.'));
+  }
+}
+
+export async function getSellerIntegrationStatus(): Promise<SellerIntegrationResponse | null> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/integration/status`, {
+    method: 'GET',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to retrieve integration status.'));
+  }
+  return data.data as SellerIntegrationResponse | null;
+}
+
+export async function triggerSellerIntegrationSync(): Promise<{ synced_count: number }> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/integration/sync`, {
+    method: 'POST',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Catalog synchronization failed.'));
+  }
+  return data.data as { synced_count: number };
+}
+
+export async function getSellerIntegrationHistory(): Promise<SyncHistoryEvent[]> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/integration/history`, {
+    method: 'GET',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to retrieve synchronization history.'));
+  }
+  return data.data as SyncHistoryEvent[];
+}
+
+export async function getPublicProduct(storeUrl: string, productTitle: string): Promise<SellerProduct> {
+  const response = await fetch(`${getBackendBaseUrl()}/public/integration/product?store_url=${encodeURIComponent(storeUrl)}&product_title=${encodeURIComponent(productTitle)}`, {
+    method: 'GET',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to retrieve storefront product.'));
+  }
+  return data.data as SellerProduct;
+}
+
+export async function getPublicRecommendation(payload: {
+  store_url: string;
+  product_title?: string;
+  product_id?: string;
+  height: number;
+  weight: number;
+  base_size: string;
+  fit_preference: string;
+  chest?: number;
+  waist?: number;
+  shoulders?: number;
+  hips?: number;
+  legs?: number;
+  bust?: number;
+}): Promise<BackendSizeResult> {
+  const response = await fetch(`${getBackendBaseUrl()}/public/integration/recommendation`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to calculate size recommendation.'));
+  }
+  return data.data as BackendSizeResult;
+}
+
+
+
+

@@ -9,27 +9,27 @@ const AvatarView: React.FC = () => {
 
   if (!avatarData) {
     return (
-      <div className="min-h-screen bg-[#111111] text-white font-display flex flex-col overflow-hidden items-center justify-center relative">
-        <button onClick={() => navigate('/home')} className="absolute top-8 left-6 h-10 w-10 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md z-50">
-          <span className="material-symbols-outlined text-[20px] text-[#C9A06C]">arrow_back</span>
+      <div className="min-h-screen bg-surface-0 text-ink font-sans flex flex-col overflow-hidden items-center justify-center relative">
+        <button aria-label="Go back" onClick={() => navigate('/home')} className="absolute top-8 left-6 h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 backdrop-blur-md z-50">
+          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
         </button>
         <div className="flex flex-col items-center text-center gap-5 opacity-60">
-          <span className="material-symbols-outlined text-4xl text-[#C9A06C]">info</span>
-          <p className="text-sm font-bold uppercase tracking-[0.3em] text-[#C9A06C]">No data yet</p>
+          <span className="material-symbols-outlined text-4xl text-[#6157FF]">info</span>
+          <p className="text-sm font-bold text-[#6157FF]">No data yet</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#111111] text-white font-display flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-surface-0 text-ink font-sans flex flex-col overflow-hidden">
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-50 px-6 pt-8 pb-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent">
-        <button onClick={() => navigate('/home')} className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md">
-          <span className="material-symbols-outlined text-[20px] text-[#C9A06C]">arrow_back</span>
+        <button aria-label="Go back" onClick={() => navigate('/home')} className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 backdrop-blur-md">
+          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
         </button>
-        <h1 className="text-xs font-black uppercase tracking-[0.3em] text-[#C9A06C]">Your Digital Twin</h1>
-        <button className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md">
+        <h1 className="text-xs font-bold text-[#6157FF]">Your Digital Twin</h1>
+        <button className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 backdrop-blur-md">
           <span className="material-symbols-outlined text-[20px]">ios_share</span>
         </button>
       </div>
@@ -38,7 +38,7 @@ const AvatarView: React.FC = () => {
       <div className="flex-1 relative flex items-center justify-center">
         {/* Background Glow */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="h-[500px] w-[500px] bg-[#C9A06C]/10 blur-[100px] rounded-full animate-pulse" />
+          <div className="h-[500px] w-[500px] bg-[#6157FF]/10 blur-[100px] rounded-full animate-pulse" />
         </div>
 
         {/* Avatar Display (Simulated) */}
@@ -48,7 +48,7 @@ const AvatarView: React.FC = () => {
           transition={{ duration: 0.8 }}
           className="relative z-10 h-[70vh] aspect-[1/2.2] flex flex-col items-center"
         >
-          <div className="relative h-full w-full rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl">
+          <div className="relative h-full w-full rounded-[3rem] overflow-hidden border border-line shadow-2xl">
             <img 
               src={avatarData.gender === 'Male' 
                 ? "https://images.unsplash.com/photo-1617137968427-85924c800a22?w=800&auto=format&fit=crop" 
@@ -80,19 +80,19 @@ const AvatarView: React.FC = () => {
       {/* Actions */}
       <div className="px-6 pb-12 pt-8 flex flex-col gap-4 z-20">
         <div className="grid grid-cols-2 gap-3">
-          <button className="h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center gap-2 font-bold active:scale-95 transition-all">
+          <button className="h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center gap-2 font-bold active:scale-95 transition-all">
             <span className="material-symbols-outlined text-[20px]">download</span> Save
           </button>
           <button 
             onClick={() => navigate('/tryon-studio')}
-            className="h-14 rounded-2xl bg-[#C9A06C] text-black flex items-center justify-center gap-2 font-bold active:scale-95 transition-all shadow-lg shadow-[#C9A06C]/20"
+            className="h-14 rounded-2xl bg-[#6157FF] text-ink flex items-center justify-center gap-2 font-bold active:scale-95 transition-all shadow-lg shadow-[#6157FF]/20"
           >
             <span className="material-symbols-outlined text-[20px]">auto_awesome</span> Try Outfits
           </button>
         </div>
         <button 
           onClick={() => navigate('/home')}
-          className="text-gray-500 text-xs font-bold uppercase tracking-widest text-center mt-2"
+          className="text-gray-500 text-xs font-bold text-center mt-2"
         >
           Back to Home
         </button>

@@ -31,6 +31,13 @@ from services.size_engine import (
 router = APIRouter(tags=["size"])
 logger = logging.getLogger(__name__)
 INVALID_SCAN_MESSAGE = "Stand straight, full body visible, good lighting"
+ANONYMOUS_UID = "demo-anonymous"
+
+
+def _calibration_user_id(current_user: AuthenticatedUser) -> str:
+    """Anonymous sessions share one uid; never use it for per-user learning."""
+    uid = (current_user.uid or "").strip()
+    return "" if uid == ANONYMOUS_UID else uid
 
 
 def _invalid_scan_response(message: str = INVALID_SCAN_MESSAGE) -> ApiResponse[SmartFitScanResponse]:
@@ -85,7 +92,9 @@ async def size_engine(
             payload.product.id,
             payload.product.source,
         )
-        result = await calculate_size_recommendation(payload)
+        result = await calculate_size_recommendation(
+            payload, user_id=_calibration_user_id(current_user)
+        )
         logger.info(
             "Size recommendation completed: size=%s confidence=%s risk=%s",
             result.size,
@@ -142,7 +151,8 @@ async def predict_size(
         )
 
         result = await calculate_size_recommendation(
-            SizeEngineRequest(product=payload.product, profile=profile)
+            SizeEngineRequest(product=payload.product, profile=profile),
+            user_id=_calibration_user_id(current_user),
         )
 
         return success_response(

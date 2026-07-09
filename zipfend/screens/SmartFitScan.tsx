@@ -546,18 +546,18 @@ const SmartFitScan: React.FC = () => {
 
   if (step === 4) {
     return (
-      <div className="flex flex-col min-h-screen bg-[#111111] text-white font-display">
-        <div className="flex items-center justify-center px-5 py-6 bg-[#1A1A1A] border-b border-white/5 relative">
-          <button onClick={() => setStep(3)} className="absolute left-5 h-10 w-10 flex items-center justify-center rounded-full bg-white/5 active:scale-90 transition-transform">
-            <span className="material-symbols-outlined text-[20px] text-white">close</span>
+      <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans">
+        <div className="flex items-center justify-center px-5 py-6 bg-surface-1 border-b border-line relative">
+          <button onClick={() => setStep(3)} className="absolute left-5 h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 active:scale-90 transition-transform">
+            <span className="material-symbols-outlined text-[20px] text-ink">close</span>
           </button>
           <h1 className="text-lg font-bold">Your Fit Profile</h1>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-6 pb-32">
-          <p className="text-center text-[#C9A06C] text-xs font-black uppercase tracking-widest mb-2">Estimated via AI</p>
+          <p className="text-center text-[#6157FF] text-xs font-bold mb-2">Estimated via AI</p>
           <h2 className="text-2xl font-bold mb-6 text-center">Body Measurements</h2>
           {showApproximateFitBadge && (
-            <div className="mb-6 rounded-2xl border border-[#C9A06C]/25 bg-[#C9A06C]/10 px-4 py-3 text-center text-sm text-[#E7D1AF]">
+            <div className="mb-6 rounded-2xl border border-[#6157FF]/25 bg-[#6157FF]/10 px-4 py-3 text-center text-sm text-[#E7D1AF]">
               ⚠️ Approximate fit — improve posture for better accuracy
             </div>
           )}
@@ -571,31 +571,31 @@ const SmartFitScan: React.FC = () => {
                 Legs: measurements.legs ?? '--',
                 Torso: measurements.torso ?? '--'
               }).map(([label, val]) => (
-                <div key={label} className="bg-[#1A1A1A] border border-white/10 rounded-2xl p-5 flex items-center justify-between">
-                  <span className="text-white/60 font-bold">{label}</span>
-                  <span className="text-2xl font-black text-white">{val} <span className="text-sm font-normal text-white/40">cm</span></span>
+                <div key={label} className="bg-surface-1 border border-line rounded-2xl p-5 flex items-center justify-between">
+                  <span className="text-ink-soft font-bold">{label}</span>
+                  <span className="text-2xl font-bold text-ink">{val} <span className="text-sm font-normal text-ink-soft">cm</span></span>
                 </div>
               ))
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center py-16 opacity-60">
-                <div className="h-10 w-10 border-2 border-white/10 border-t-[#C9A06C] rounded-full animate-spin mb-4"></div>
-                <p className="text-sm font-bold tracking-widest uppercase">Processing...</p>
+                <div className="h-10 w-10 border-2 border-line border-t-[#6157FF] rounded-full animate-spin mb-4"></div>
+                <p className="text-sm font-bold">Processing...</p>
               </div>
             )}
           </div>
-          <p className="text-center text-[11px] text-white/30 mt-6 px-4">
+          <p className="text-center text-[11px] text-ink-faint mt-6 px-4">
             Measurements are estimated based on your input and images. Accuracy may vary depending on clothing and camera angle.
           </p>
         </div>
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full sm:max-w-[430px] px-5 pb-8 pt-5 bg-gradient-to-t from-[#111111] via-[#111111] to-transparent">
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full sm:max-w-[430px] px-5 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0 to-transparent">
           <button 
             onClick={handleUseMeasurements}
             disabled={!hasCompleteScan || savingMeasurements}
-            className={`w-full h-14 rounded-2xl font-bold text-[15px] shadow-xl transition-all flex items-center justify-center gap-2 ${hasCompleteScan && !savingMeasurements ? 'bg-gradient-to-r from-[#B5853F] to-[#C9A06C] text-white shadow-[#B5853F]/20 active:scale-[0.97]' : 'bg-[#1A1A1A] text-white/40 border border-white/10 cursor-not-allowed'}`}
+            className={`w-full h-14 rounded-2xl font-bold text-[15px] shadow-xl transition-all flex items-center justify-center gap-2 ${hasCompleteScan && !savingMeasurements ? 'bg-gradient-to-r from-[#6157FF] to-[#6157FF] text-ink shadow-[#6157FF]/20 active:scale-[0.97]' : 'bg-surface-1 text-ink-soft border border-line cursor-not-allowed'}`}
           >
             {savingMeasurements ? (
               <>
-                <div className="h-5 w-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                <div className="h-5 w-5 border-2 border-line border-t-white rounded-full animate-spin"></div>
                 Saving...
               </>
             ) : (
@@ -608,10 +608,10 @@ const SmartFitScan: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#111111] text-white font-display">
-      <div className="flex items-center justify-between px-5 py-4 bg-[#111111]/95 backdrop-blur-xl border-b border-white/5">
-        <button onClick={handleBack} disabled={loading} className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform disabled:opacity-50 z-10">
-          <span className="material-symbols-outlined text-[22px] text-white">arrow_back</span>
+    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans">
+      <div className="flex items-center justify-between px-5 py-4 bg-surface-0/95 backdrop-blur-xl border-b border-line">
+        <button aria-label="Go back" onClick={handleBack} disabled={loading} className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform disabled:opacity-50 z-10">
+          <span className="material-symbols-outlined text-[22px] text-ink">arrow_back</span>
         </button>
         <h1 className="text-base font-bold absolute w-full text-center left-0">Smart Fit Scan</h1>
         <div className="w-10"></div>
@@ -619,21 +619,21 @@ const SmartFitScan: React.FC = () => {
 
       {loading ? (
         <div className="flex-1 flex flex-col items-center justify-center px-5 py-6">
-          <div className="h-16 w-16 mb-6 rounded-full border-4 border-white/10 border-t-[#C9A06C] animate-spin"></div>
+          <div className="h-16 w-16 mb-6 rounded-full border-4 border-line border-t-[#6157FF] animate-spin"></div>
           <h2 className="text-2xl font-bold mb-2">Analyzing your body...</h2>
-          <p className="text-white/50 text-sm">Extracting keypoints and dimensions</p>
+          <p className="text-ink-soft text-sm">Extracting keypoints and dimensions</p>
         </div>
       ) : (
         <div className="flex-1 flex flex-col px-5 py-6">
           <div className="text-center mb-6">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <p className="text-[#C9A06C] text-xs font-black uppercase tracking-widest">Step {step} of 3</p>
+              <p className="text-[#6157FF] text-xs font-bold">Step {step} of 3</p>
               {step > 1 && <span className="material-symbols-outlined text-[#4ADE80] text-sm">check_circle</span>}
             </div>
             <h2 className="text-2xl font-bold mb-2">
               {step === 1 ? 'What is your height?' : 'Get accurate body measurements'}
             </h2>
-            <p className="text-white/50 text-sm">
+            <p className="text-ink-soft text-sm">
               {step === 1 && 'We use this to scale your measurements accurately.'}
               {step === 2 && 'Stand straight and capture front view'}
               {step === 3 && 'Turn to the side and capture side view'}
@@ -660,16 +660,16 @@ const SmartFitScan: React.FC = () => {
                     updateHeight(Number.isFinite(parsedHeight) && parsedHeight > 0 ? parsedHeight : 0);
                   }} 
                   placeholder="e.g. 175"
-                  className="w-full h-16 bg-[#1A1A1A] border border-white/10 rounded-2xl px-5 pr-16 text-white font-bold text-xl placeholder:text-white/20 focus:outline-none focus:border-[#C9A06C]/50 transition-colors text-center" 
+                  className="w-full h-16 bg-surface-1 border border-line rounded-2xl px-5 pr-16 text-ink font-bold text-xl placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors text-center" 
                 />
-                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 font-bold">cm</span>
+                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint font-bold">cm</span>
               </div>
             </div>
           ) : (
             <div 
               onClick={!isCameraOn && !currentImage ? startCamera : undefined}
-              className={`flex-1 bg-[#1A1A1A] border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center relative overflow-hidden mb-8 transition-all ${
-                !isCameraOn && !currentImage ? 'border-white/20 active:scale-[0.98] cursor-pointer' : 'border-transparent'
+              className={`flex-1 bg-surface-1 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center relative overflow-hidden mb-8 transition-all ${
+                !isCameraOn && !currentImage ? 'border-line active:scale-[0.98] cursor-pointer' : 'border-transparent'
               }`}
             >
               <input
@@ -700,13 +700,13 @@ const SmartFitScan: React.FC = () => {
                     </svg>
                   </div>
                   <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-                    <button onClick={handleCapture} className="h-16 w-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-2 border-white shadow-xl active:scale-90 transition-transform cursor-pointer z-20">
+                    <button onClick={handleCapture} className="h-16 w-16 bg-surface-3 backdrop-blur-md rounded-full flex items-center justify-center border-2 border-white shadow-xl active:scale-90 transition-transform cursor-pointer z-20">
                       <div className="h-12 w-12 rounded-full bg-white shadow-inner"></div>
                     </button>
-                    <span className="text-white text-xs font-bold bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">Capture</span>
-                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-white/10 z-20 cursor-pointer">
-                      <span className="material-symbols-outlined text-white text-sm">upload</span>
-                      <span className="text-[13px] font-bold text-white">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
+                    <span className="text-ink text-xs font-bold bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">Capture</span>
+                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-line z-20 cursor-pointer">
+                      <span className="material-symbols-outlined text-ink text-sm">upload</span>
+                      <span className="text-[13px] font-bold text-ink">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
                     </label>
                   </div>
                 </div>
@@ -715,32 +715,32 @@ const SmartFitScan: React.FC = () => {
                   <img src={currentImage} alt="Preview" className="w-full h-full object-cover transform -scale-x-100" />
                   <div className="absolute inset-0 bg-black/20 pointer-events-none"></div>
                   <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-20">
-                    <button onClick={handleRetake} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-white/10">
-                      <span className="material-symbols-outlined text-white text-sm">refresh</span>
-                      <span className="text-[13px] font-bold text-white">Retake Photo</span>
+                    <button onClick={handleRetake} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-line">
+                      <span className="material-symbols-outlined text-ink text-sm">refresh</span>
+                      <span className="text-[13px] font-bold text-ink">Retake Photo</span>
                     </button>
-                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-white/10 cursor-pointer">
-                      <span className="material-symbols-outlined text-white text-sm">upload</span>
-                      <span className="text-[13px] font-bold text-white">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
+                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-line cursor-pointer">
+                      <span className="material-symbols-outlined text-ink text-sm">upload</span>
+                      <span className="text-[13px] font-bold text-ink">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
                     </label>
                   </div>
                 </div>
               ) : (
                 <>
                   <div className="z-10 flex flex-col items-center">
-                    <div className="h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mb-4 border border-white/10 shadow-lg">
-                      <span className="material-symbols-outlined text-3xl text-[#C9A06C]">videocam</span>
+                    <div className="h-16 w-16 rounded-full bg-surface-2 flex items-center justify-center mb-4 border border-line shadow-lg">
+                      <span className="material-symbols-outlined text-3xl text-[#6157FF]">videocam</span>
                     </div>
-                    <p className="text-white font-bold text-[15px] mb-1">Tap to Open Camera</p>
-                    <p className="text-white/40 text-xs">Allow access when prompted</p>
+                    <p className="text-ink font-bold text-[15px] mb-1">Tap to Open Camera</p>
+                    <p className="text-ink-soft text-xs">Allow access when prompted</p>
                     {cameraError && (
                       <p className="text-[#FF4D6D] text-xs mt-3 bg-[#FF4D6D]/10 px-3 py-1 rounded-full border border-[#FF4D6D]/20">
                         Camera blocked. Tap to upload instead.
                       </p>
                     )}
-                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="mt-4 bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-white/10 cursor-pointer">
-                      <span className="material-symbols-outlined text-white text-sm">upload</span>
-                      <span className="text-[13px] font-bold text-white">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
+                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="mt-4 bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-line cursor-pointer">
+                      <span className="material-symbols-outlined text-ink text-sm">upload</span>
+                      <span className="text-[13px] font-bold text-ink">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
                     </label>
                   </div>
                   <div className="absolute inset-0 flex justify-center items-center pointer-events-none opacity-[0.1]">
@@ -761,10 +761,10 @@ const SmartFitScan: React.FC = () => {
               disabled={isCameraOn || (step === 1 && !heightCm)}
               className={`w-full h-14 rounded-2xl font-bold text-[15px] transition-all flex items-center justify-center gap-2 ${
                 isReadyToProceed
-                  ? 'bg-gradient-to-r from-[#B5853F] to-[#C9A06C] text-white shadow-xl shadow-[#B5853F]/20 active:scale-[0.97]'
+                  ? 'bg-gradient-to-r from-[#6157FF] to-[#6157FF] text-ink shadow-xl shadow-[#6157FF]/20 active:scale-[0.97]'
                   : isCameraOn
                   ? 'bg-transparent text-transparent'
-                  : 'bg-[#1A1A1A] text-white/40 border border-white/10 active:bg-[#222222]'
+                  : 'bg-surface-1 text-ink-soft border border-line active:bg-[#222222]'
               }`}
             >
               {!isCameraOn && (

@@ -142,25 +142,25 @@ const FashionStudio: React.FC = () => {
   const fit = getFitStatus();
 
   return (
-    <div className="relative h-screen w-full bg-gradient-to-b from-[#0E0E0E] to-[#1A1A1A] text-white overflow-hidden font-display select-none">
+    <div className="relative h-screen w-full bg-gradient-to-b from-[#0E0E0E] to-[#1A1A1A] text-white overflow-hidden font-sans select-none">
       
       {/* Top Minimal Navbar */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-[#111111]/40 backdrop-blur-md border-b border-white/5">
-        <button 
+        <button aria-label="Go back" 
           onClick={() => navigate(-1)} 
           className="h-10 w-10 flex items-center justify-center rounded-full bg-[#111111]/40 border border-white/5 active:scale-95 transition-all"
         >
-          <span className="material-symbols-outlined text-[18px] text-[#C9A06C]">arrow_back</span>
+          <span className="material-symbols-outlined text-[18px] text-[#6157FF]">arrow_back</span>
         </button>
         
         <div className="flex flex-col items-center bg-[#111111]/40 px-4 py-1 rounded-full border border-white/5">
-          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{product.brand}</span>
+          <span className="text-[11px] font-bold text-gray-400">{product.brand}</span>
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-black text-white uppercase tracking-tight">
-                <span className="text-white">Zip</span><span className="text-[#C9A06C]">RIGHT</span>
+            <span className="text-[12px] font-bold text-white tracking-tight">
+                <span className="text-white">Zip</span><span className="text-[#6157FF]">RIGHT</span>
             </span>
-            <span className="text-[10px] text-gray-500">/</span>
-            <span className="text-[10px] font-bold text-white">Studio</span>
+            <span className="text-[12px] text-gray-500">/</span>
+            <span className="text-[12px] font-bold text-white">Studio</span>
           </div>
         </div>
 
@@ -169,15 +169,15 @@ const FashionStudio: React.FC = () => {
              onClick={toggleWishlist}
              className="h-10 w-10 flex items-center justify-center rounded-full bg-[#111111]/40 border border-white/5 active:scale-95 transition-all relative"
            >
-              <span className="material-symbols-outlined text-[18px] text-[#C9A06C]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0", color: isLiked ? "#FF4D6D" : "#C9A06C" }}>favorite</span>
+              <span className="material-symbols-outlined text-[18px] text-[#6157FF]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0", color: isLiked ? "#FF4D6D" : "#6157FF" }}>favorite</span>
               {wishlistCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 w-4 bg-[#FF4D6D] rounded-full text-[8px] font-bold flex items-center justify-center text-white ring-2 ring-[#111111]">
+                <span className="absolute -top-1 -right-1 h-4 w-4 bg-[#FF4D6D] rounded-full text-[12px] font-bold flex items-center justify-center text-white ring-2 ring-[#111111]">
                   {wishlistCount}
                 </span>
               )}
            </button>
            <button className="h-10 w-10 flex items-center justify-center rounded-full bg-[#111111]/40 border border-white/5 active:scale-95 transition-all">
-              <span className="material-symbols-outlined text-[18px] text-[#C9A06C]">ios_share</span>
+              <span className="material-symbols-outlined text-[18px] text-[#6157FF]">ios_share</span>
            </button>
         </div>
       </div>
@@ -206,13 +206,13 @@ const FashionStudio: React.FC = () => {
                   />
                   {generating && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
-                      <div className="h-12 w-12 rounded-full border-2 border-[#C9A06C] border-t-transparent animate-spin"></div>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#C9A06C]">Rendering your look</span>
+                      <div className="h-12 w-12 rounded-full border-2 border-[#6157FF] border-t-transparent animate-spin"></div>
+                      <span className="text-[12px] font-bold text-[#6157FF]">Rendering your look</span>
                     </div>
                   )}
                   {tryonEngine && !generating && (
                     <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/10">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-[#C9A06C]">
+                      <span className="text-[11px] font-bold text-[#6157FF]">
                         {tryonEngine === 'overlay' ? 'Preview' : 'AI Render'}
                       </span>
                     </div>
@@ -237,7 +237,7 @@ const FashionStudio: React.FC = () => {
         <div className="absolute top-[10%] right-[15%] z-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className={`px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10 flex items-center gap-2 ${fit.glow} transition-all duration-300`}>
                 <div className={`h-2 w-2 rounded-full ${fit.color.split(' ')[0]}`}></div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white">{fit.text}</span>
+                <span className="text-[12px] font-bold text-white">{fit.text}</span>
             </div>
         </div>
 
@@ -248,33 +248,33 @@ const FashionStudio: React.FC = () => {
           <button
             onClick={() => runTryOn('fast')}
             disabled={generating}
-            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#C9A06C]/50 bg-black/30 text-[#C9A06C] backdrop-blur-md active:scale-95 transition-all disabled:opacity-40"
+            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#6157FF]/50 bg-black/30 text-[#6157FF] backdrop-blur-md active:scale-95 transition-all disabled:opacity-40"
           >
               <span className={`material-symbols-outlined text-[20px] ${generating ? 'animate-spin' : ''}`}>refresh</span>
           </button>
-          <span className="text-[9px] font-bold text-center text-gray-400 uppercase tracking-widest -mt-2">Try Again</span>
+          <span className="text-[11px] font-bold text-center text-gray-400 -mt-2">Try Again</span>
           <button
             onClick={() => runTryOn('2k')}
             disabled={generating}
-            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#C9A06C]/50 bg-black/30 text-[#C9A06C] backdrop-blur-md active:scale-95 transition-all disabled:opacity-40"
+            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#6157FF]/50 bg-black/30 text-[#6157FF] backdrop-blur-md active:scale-95 transition-all disabled:opacity-40"
           >
-              <span className="text-[10px] font-black">MAX</span>
+              <span className="text-[12px] font-bold">MAX</span>
           </button>
-          <span className="text-[9px] font-bold text-center text-gray-400 uppercase tracking-widest -mt-2">Best Quality</span>
+          <span className="text-[11px] font-bold text-center text-gray-400 -mt-2">Best Quality</span>
           <button
             onClick={() => navigate('/live-tryon', { state: { product: incomingProduct || product } })}
-            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#C9A06C]/50 bg-black/30 text-[#C9A06C] backdrop-blur-md active:scale-95 transition-all"
+            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#6157FF]/50 bg-black/30 text-[#6157FF] backdrop-blur-md active:scale-95 transition-all"
           >
               <span className="material-symbols-outlined text-[20px]">videocam</span>
           </button>
-          <span className="text-[9px] font-bold text-center text-gray-400 uppercase tracking-widest -mt-2">Live</span>
+          <span className="text-[11px] font-bold text-center text-gray-400 -mt-2">Live</span>
           <button
             onClick={() => setShowHeatmap(!showHeatmap)}
             className={`h-12 w-12 rounded-full flex items-center justify-center border transition-all duration-300 backdrop-blur-md ${showHeatmap ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'bg-black/30 border-white/10 text-white'}`}
           >
               <span className="material-symbols-outlined text-[20px]">layers</span>
           </button>
-          <span className="text-[9px] font-bold text-center text-gray-400 uppercase tracking-widest -mt-2">Heatmap</span>
+          <span className="text-[11px] font-bold text-center text-gray-400 -mt-2">Heatmap</span>
       </div>
 
       {/* View Controls (Right Float) */}
@@ -285,7 +285,7 @@ const FashionStudio: React.FC = () => {
                 onClick={() => setView(v as any)}
                 className={`h-10 w-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md ${view === v ? 'bg-white text-black border-white' : 'bg-black/30 border-white/10 text-gray-400 hover:text-white'}`}
               >
-                  <span className="text-[9px] font-black uppercase">{v[0]}</span>
+                  <span className="text-[11px] font-bold">{v[0]}</span>
               </button>
           ))}
           <div className="h-[1px] w-6 bg-white/10 mx-auto my-1"></div>
@@ -309,8 +309,8 @@ const FashionStudio: React.FC = () => {
           
           {/* Fabric Drape Indicator */}
           <div className="flex items-center gap-2 opacity-80 mb-1">
-              <span className="material-symbols-outlined text-[14px] text-[#C9A06C] animate-bounce">accessibility</span>
-              <span className="text-[10px] font-bold text-gray-300 tracking-wider uppercase">
+              <span className="material-symbols-outlined text-[14px] text-[#6157FF] animate-bounce">accessibility</span>
+              <span className="text-[12px] font-bold text-gray-300">
                   {size === 'XS' || size === 'S' ? 'Structured Fit' : size === 'XL' ? 'Flowy Drape' : 'Natural Fall'}
               </span>
           </div>
@@ -328,11 +328,11 @@ const FashionStudio: React.FC = () => {
                             isSelected 
                             ? 'bg-white text-black scale-110 shadow-[0_0_15px_rgba(255,255,255,0.3)]' 
                             : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        } ${isRecommended && !isSelected ? 'border border-[#C9A06C]/50 text-[#C9A06C]' : ''}`}
+                        } ${isRecommended && !isSelected ? 'border border-[#6157FF]/50 text-[#6157FF]' : ''}`}
                     >
                         {s}
                         {isRecommended && !isSelected && (
-                            <div className="absolute -top-1 -right-1 h-2 w-2 bg-[#C9A06C] rounded-full shadow-[0_0_5px_rgba(201,160,108,0.8)]"></div>
+                            <div className="absolute -top-1 -right-1 h-2 w-2 bg-[#6157FF] rounded-full shadow-[0_0_5px_rgba(97,87,255,0.8)]"></div>
                         )}
                     </button>
                   );
@@ -345,14 +345,14 @@ const FashionStudio: React.FC = () => {
         <div className="flex flex-col gap-3 max-w-md mx-auto">
           <button 
             onClick={toggleWishlist}
-            className="w-full h-14 rounded-2xl bg-[#C9A06C] text-black font-bold text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="w-full h-14 rounded-2xl bg-[#6157FF] text-white font-bold text-xs shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             {isLiked ? 'Saved to Wishlist' : 'Add to Wishlist'}
             <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0", color: isLiked ? "black" : "inherit" }}>favorite</span>
           </button>
           <button 
             onClick={() => navigate('/home')}
-            className="w-full h-12 rounded-2xl bg-white/5 border border-white/10 text-white/60 font-bold text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all"
+            className="w-full h-12 rounded-2xl bg-white/5 border border-white/10 text-white/60 font-bold text-[12px] active:scale-95 transition-all"
           >
             Explore More Outfits
           </button>

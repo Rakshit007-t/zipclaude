@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThreadCo — Example ZipRIGHT Integration</title>
+  <meta name="description" content="Example merchant storefront showing how to integrate the ZipRIGHT Widget SDK for AI-powered size recommendations." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --merchant-bg: #f8f5f0;
+      --merchant-surface: #ffffff;
+      --merchant-border: #e8e0d8;
+      --merchant-text: #1a1610;
+      --merchant-muted: #7a7060;
+      --merchant-accent: #8b6914;
+      --merchant-price: #1a1610;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--merchant-bg);
+      color: var(--merchant-text);
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    nav {
+      background: var(--merchant-surface);
+      border-bottom: 1px solid var(--merchant-border);
+      padding: 0 40px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-links a { font-size: 13px; font-weight: 600; color: var(--merchant-muted); text-decoration: none; }
+    .nav-links a:hover { color: var(--merchant-text); }
+
+    /* ── Product grid ── */
+    main { max-width: 1100px; margin: 48px auto; padding: 0 24px; }
+    h1 { font-size: 28px; font-weight: 800; margin-bottom: 6px; }
+    .subtitle { font-size: 14px; color: var(--merchant-muted); margin-bottom: 32px; }
+
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 28px;
+    }
+
+    /* ── Product card ── */
+    .product-card {
+      background: var(--merchant-surface);
+      border: 1px solid var(--merchant-border);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: box-shadow .2s;
+    }
+    .product-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,.08); }
+
+    .product-image {
+      width: 100%;
+      aspect-ratio: 3/4;
+      object-fit: cover;
+      background: #e8e0d8;
+      display: block;
+    }
+
+    .product-image-placeholder {
+      width: 100%;
+      aspect-ratio: 3/4;
+      background: linear-gradient(135deg, #ede8e0 0%, #d4c9b8 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 56px;
+    }
+
+    .product-body { padding: 20px; }
+    .product-brand { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--merchant-muted); margin-bottom: 4px; }
+    .product-name { font-size: 16px; font-weight: 700; margin-bottom: 8px; line-height: 1.25; }
+    .product-price { font-size: 18px; font-weight: 800; color: var(--merchant-price); margin-bottom: 16px; }
+
+    /* Size pills */
+    .size-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
+    .size-pill {
+      width: 36px; height: 36px; border-radius: 10px;
+      border: 1.5px solid var(--merchant-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      color: var(--merchant-muted);
+      cursor: pointer; transition: border-color .15s, color .15s;
+    }
+    .size-pill:hover { border-color: var(--merchant-accent); color: var(--merchant-accent); }
+
+    /* CTA row */
+    .card-cta { display: flex; flex-direction: column; gap: 8px; }
+    .add-to-cart {
+      width: 100%; height: 44px;
+      background: var(--merchant-text);
+      color: #fff;
+      border: none; border-radius: 12px;
+      font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .add-to-cart:hover { opacity: .85; }
+
+    /* ── ZipRIGHT button mount zone ── */
+    .zr-mount { /* ZipRIGHT SDK injects the button here */ }
+
+    /* ── Integration info banner ── */
+    .integration-banner {
+      margin-top: 60px;
+      padding: 28px 32px;
+      background: #fff8f0;
+      border: 1.5px solid #f0d9b5;
+      border-radius: 20px;
+    }
+    .integration-banner h2 { font-size: 17px; font-weight: 800; margin-bottom: 8px; color: #7a4400; }
+    .integration-banner p { font-size: 13px; line-height: 1.6; color: #7a5022; margin-bottom: 12px; }
+    .integration-banner code {
+      display: block;
+      background: #fff3e0;
+      border: 1px solid #f0d9b5;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 12px;
+      line-height: 1.7;
+      color: #5a3000;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation ─────────────────────────────────────── -->
+  <nav>
+    <span class="nav-logo">ThreadCo</span>
+    <ul class="nav-links">
+      <li><a href="#">Women</a></li>
+      <li><a href="#">Men</a></li>
+      <li><a href="#">Collections</a></li>
+      <li><a href="#">About</a></li>
+    </ul>
+  </nav>
+
+  <!-- ── Product listing ────────────────────────────────── -->
+  <main>
+    <h1>New Arrivals</h1>
+    <p class="subtitle">AI-powered size recommendations — click "Find My Size" on any product.</p>
+
+    <div class="product-grid">
+
+      <!-- Product 1 -->
+      <article class="product-card" id="product-relaxed-tee">
+        <div class="product-image-placeholder">👕</div>
+        <div class="product-body">
+          <div class="product-brand">ThreadCo Studio</div>
+          <div class="product-name">Relaxed Everyday Tee</div>
+          <div class="product-price">₹1,299</div>
+          <div class="size-row">
+            <div class="size-pill">XS</div>
+            <div class="size-pill">S</div>
+            <div class="size-pill">M</div>
+            <div class="size-pill">L</div>
+            <div class="size-pill">XL</div>
+          </div>
+          <div class="card-cta">
+            <button class="add-to-cart">Add to Cart</button>
+            <!--
+              ZipRIGHT widget is injected below by the SDK.
+              Replace data-product-id with the Firestore document ID from
+              your ZipRIGHT seller dashboard.
+            -->
+            <div class="zr-mount" id="zr-mount-tee"></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Product 2 -->
+      <article class="product-card" id="product-slim-chinos">
+        <div class="product-image-placeholder">👖</div>
+        <div class="product-body">
+          <div class="product-brand">ThreadCo Studio</div>
+          <div class="product-name">Slim Fit Chino Trousers</div>
+          <div class="product-price">₹2,499</div>
+          <div class="size-row">
+            <div class="size-pill">S</div>
+            <div class="size-pill">M</div>
+            <div class="size-pill">L</div>
+            <div class="size-pill">XL</div>
+          </div>
+          <div class="card-cta">
+            <button class="add-to-cart">Add to Cart</button>
+            <div class="zr-mount" id="zr-mount-chinos"></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Product 3 -->
+      <article class="product-card" id="product-linen-shirt">
+        <div class="product-image-placeholder">👔</div>
+        <div class="product-body">
+          <div class="product-brand">ThreadCo Essentials</div>
+          <div class="product-name">Washed Linen Shirt</div>
+          <div class="product-price">₹1,899</div>
+          <div class="size-row">
+            <div class="size-pill">S</div>
+            <div class="size-pill">M</div>
+            <div class="size-pill">L</div>
+            <div class="size-pill">XL</div>
+            <div class="size-pill">XXL</div>
+          </div>
+          <div class="card-cta">
+            <button class="add-to-cart">Add to Cart</button>
+            <div class="zr-mount" id="zr-mount-shirt"></div>
+          </div>
+        </div>
+      </article>
+
+    </div><!-- /.product-grid -->
+
+    <!-- ── How to integrate ──────────────────────────────── -->
+    <div class="integration-banner">
+      <h2>🛠 How this ZipRIGHT integration works</h2>
+      <p>
+        This page demonstrates the ZipRIGHT Widget SDK. Each product card has a
+        <strong>Find My Size</strong> button injected by the SDK. The button opens
+        a slide-up modal where the shopper enters their measurements, receives an
+        AI size recommendation, and can launch the full ZipRIGHT Virtual Try-On
+        experience in a new tab.
+      </p>
+      <p>
+        To add ZipRIGHT to your own store, paste the script tag below (once per page)
+        and mount per-product buttons using <code>ZipRightWidget.init()</code>:
+      </p>
+      <code>&lt;!-- 1. Load the SDK (once, before &lt;/body&gt;) --&gt;
+&lt;script src="https://sdk.zipright.ai/zipright-widget.js"&gt;&lt;/script&gt;
+
+&lt;!-- 2. Mount a button for each product --&gt;
+&lt;script&gt;
+ZipRightWidget.init({
+  storeUrl:   "https://your-store.myshopify.com",
+  apiBase:    "https://api.zipright.ai",
+  productId:  "FIRESTORE_PRODUCT_DOC_ID",   // preferred (stable)
+  buttonTarget: "#zr-mount-container",
+});
+&lt;/script&gt;</code>
+    </div>
+
+  </main><!-- /main -->
+
+  <!-- ─────────────────────────────────────────────────────
+       ZipRIGHT Widget SDK
+       In production, replace the src with the CDN URL.
+  ──────────────────────────────────────────────────────── -->
+  <script src="../ui/zipright-widget.js"></script>
+
+  <script>
+    /*
+     * Per-product widget initialisation.
+     *
+     * Replace:
+     *   apiBase    → your deployed ZipRIGHT backend URL
+     *   storeUrl   → the URL registered in your ZipRIGHT seller dashboard
+     *   productId  → the Firestore document ID from your product list
+     *                (visible in the ZipRIGHT Seller Dashboard → Products)
+     */
+    var API_BASE  = 'http://localhost:8000';
+    var STORE_URL = 'https://threadco.example.com';
+
+    ZipRightWidget.init({
+      apiBase:      API_BASE,
+      storeUrl:     STORE_URL,
+      productId:    'PRODUCT_ID_TEE',      // replace with real Firestore doc ID
+      buttonTarget: '#zr-mount-tee',
+    });
+
+    ZipRightWidget.init({
+      apiBase:      API_BASE,
+      storeUrl:     STORE_URL,
+      productId:    'PRODUCT_ID_CHINOS',   // replace with real Firestore doc ID
+      buttonTarget: '#zr-mount-chinos',
+    });
+
+    ZipRightWidget.init({
+      apiBase:      API_BASE,
+      storeUrl:     STORE_URL,
+      productId:    'PRODUCT_ID_SHIRT',    // replace with real Firestore doc ID
+      buttonTarget: '#zr-mount-shirt',
+    });
+  </script>
+
+</body>
+</html>

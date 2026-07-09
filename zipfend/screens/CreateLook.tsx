@@ -155,27 +155,27 @@ const CreateLook: React.FC = () => {
   const canPublish = !!selectedFile && !!caption.trim();
 
   return (
-    <div className="min-h-screen bg-[#111111] text-white font-body flex flex-col">
+    <div className="min-h-screen bg-surface-0 text-ink font-body flex flex-col">
 
       {/* HEADER */}
       <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5
-        bg-[#111111]/90 backdrop-blur-xl border-b border-white/5">
-        <button
+        bg-surface-0/90 backdrop-blur-xl border-b border-line">
+        <button aria-label="Go back"
           onClick={() => step > 1 ? setStep((step - 1) as 1 | 2 | 3) : navigate(-1)}
-          className="h-10 w-10 flex items-center justify-center rounded-full bg-white/5 active:scale-90"
+          className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 active:scale-90"
         >
-          <span className="material-symbols-outlined text-[20px] text-[#C9A06C]">arrow_back</span>
+          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
         </button>
 
         <div className="flex flex-col items-center">
-          <h1 className="text-xs font-bold tracking-[0.35em] uppercase text-[#C9A06C]">
+          <h1 className="text-xs font-bold text-[#6157FF]">
             {step === 1 ? 'Choose Photo' : step === 2 ? 'Tag Products' : 'Add Caption'}
           </h1>
           {/* Step dots */}
           <div className="flex items-center gap-1.5 mt-2">
             {[1, 2, 3].map(s => (
               <div key={s} className={`h-1 rounded-full transition-all ${
-                s === step ? 'w-6 bg-[#C9A06C]' : s < step ? 'w-3 bg-[#C9A06C]/50' : 'w-3 bg-white/10'
+                s === step ? 'w-6 bg-[#6157FF]' : s < step ? 'w-3 bg-[#6157FF]/50' : 'w-3 bg-surface-2'
               }`} />
             ))}
           </div>
@@ -184,8 +184,8 @@ const CreateLook: React.FC = () => {
         {step < 3 ? (
           <button
             onClick={() => step === 1 && canProceedStep1 ? setStep(2) : step === 2 && canProceedStep2 ? setStep(3) : null}
-            className={`text-xs font-black uppercase tracking-wider ${
-              (step === 1 && canProceedStep1) || step === 2 ? 'text-[#C9A06C] active:opacity-70' : 'text-white/20'
+            className={`text-xs font-bold ${
+              (step === 1 && canProceedStep1) || step === 2 ? 'text-[#6157FF] active:opacity-70' : 'text-ink-faint'
             }`}
           >
             Next
@@ -194,8 +194,8 @@ const CreateLook: React.FC = () => {
           <button
             onClick={handlePublish}
             disabled={!canPublish || publishing}
-            className={`text-xs font-black uppercase tracking-wider ${
-              canPublish && !publishing ? 'text-[#C9A06C] active:opacity-70' : 'text-white/20'
+            className={`text-xs font-bold ${
+              canPublish && !publishing ? 'text-[#6157FF] active:opacity-70' : 'text-ink-faint'
             }`}
           >
             {publishing ? '...' : 'Post'}
@@ -225,20 +225,20 @@ const CreateLook: React.FC = () => {
                     onClick={() => { setSelectedFile(null); setPreviewUrl(null); }}
                     className="absolute top-4 right-4 h-9 w-9 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center active:scale-90"
                   >
-                    <span className="material-symbols-outlined text-white text-lg">close</span>
+                    <span className="material-symbols-outlined text-ink text-lg">close</span>
                   </button>
                 </div>
                 <div className="p-5 flex flex-col gap-4">
-                  <p className="text-white/40 text-xs text-center">Looking good! Tap Next to tag products.</p>
+                  <p className="text-ink-soft text-xs text-center">Looking good! Tap Next to tag products.</p>
                   <button
                     onClick={() => setStep(2)}
-                    className="w-full bg-[#B5853F] text-white py-4 rounded-2xl font-black text-sm uppercase tracking-[0.2em] active:scale-95"
+                    className="w-full bg-[#6157FF] text-ink py-4 rounded-2xl font-bold text-sm active:scale-95"
                   >
                     Next — Tag Products
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full border border-white/10 text-white/50 py-3.5 rounded-2xl text-xs font-bold active:scale-95"
+                    className="w-full border border-line text-ink-soft py-3.5 rounded-2xl text-xs font-bold active:scale-95"
                   >
                     Change Photo
                   </button>
@@ -252,8 +252,8 @@ const CreateLook: React.FC = () => {
                     style={{ fontVariationSettings: "'FILL' 1" }}>add_a_photo</span>
                 </div>
                 <div className="text-center mb-4">
-                  <h2 className="text-white font-display text-2xl font-bold mb-2">Share your look</h2>
-                  <p className="text-white/40 text-sm leading-relaxed max-w-[240px]">
+                  <h2 className="text-ink font-sans text-2xl font-bold mb-2">Share your look</h2>
+                  <p className="text-ink-soft text-sm leading-relaxed max-w-[240px]">
                     Post your outfit and let others shop your exact style
                   </p>
                 </div>
@@ -261,7 +261,7 @@ const CreateLook: React.FC = () => {
                 {/* Camera — opens rear camera directly */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full bg-[#0D9488] text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest active:scale-95 flex items-center justify-center gap-3"
+                  className="w-full bg-[#0D9488] text-ink py-4 rounded-2xl font-bold text-sm active:scale-95 flex items-center justify-center gap-3"
                 >
                   <span className="material-symbols-outlined text-xl"
                     style={{ fontVariationSettings: "'FILL' 1" }}>camera_alt</span>
@@ -276,14 +276,14 @@ const CreateLook: React.FC = () => {
                       fileInputRef.current.click();
                     }
                   }}
-                  className="w-full border border-white/10 bg-white/5 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest active:scale-95 flex items-center justify-center gap-3"
+                  className="w-full border border-line bg-surface-2 text-ink py-4 rounded-2xl font-bold text-sm active:scale-95 flex items-center justify-center gap-3"
                 >
                   <span className="material-symbols-outlined text-xl"
                     style={{ fontVariationSettings: "'FILL' 1" }}>photo_library</span>
                   Upload from Gallery
                 </button>
 
-                <p className="text-white/20 text-[10px] text-center mt-2">
+                <p className="text-ink-faint text-[12px] text-center mt-2">
                   JPG, PNG up to 10MB · Your look, your style
                 </p>
               </div>
@@ -316,33 +316,33 @@ const CreateLook: React.FC = () => {
                 <img src={previewUrl} alt="Look" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#111111]/80" />
                 <div className="absolute bottom-3 left-4">
-                  <p className="text-white text-xs font-bold opacity-70">Your look</p>
+                  <p className="text-ink text-xs font-bold opacity-70">Your look</p>
                 </div>
               </div>
             )}
 
             <div className="px-5 pt-5">
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.25em] mb-3">
+              <p className="text-ink-soft text-[12px] font-bold mb-3">
                 Tag products in this look
-                <span className="text-white/20 normal-case tracking-normal font-normal ml-1">(optional, max 5)</span>
+                <span className="text-ink-faint normal-case tracking-normal font-normal ml-1">(optional, max 5)</span>
               </p>
 
               {catalogUnavailable && (
                 <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-200 mb-1">Tagging Unavailable</p>
+                  <p className="text-[12px] font-bold text-amber-200 mb-1">Tagging Unavailable</p>
                   <p className="text-xs text-amber-50/80 leading-relaxed">Product search is unavailable right now, so look posts can be published without tagged items.</p>
                 </div>
               )}
 
               {/* Search bar */}
-              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5 mb-3">
-                <span className="material-symbols-outlined text-white/30 text-xl">search</span>
+              <div className="flex items-center gap-3 bg-surface-2 border border-line rounded-2xl px-4 py-3.5 mb-3">
+                <span className="material-symbols-outlined text-ink-faint text-xl">search</span>
                 <input
                   type="text"
                   placeholder="Search brand or product name..."
                   value={productSearch}
                   onChange={(e) => handleProductSearch(e.target.value)}
-                  className="flex-1 bg-transparent text-white text-sm placeholder-white/20 outline-none"
+                  className="flex-1 bg-transparent text-ink text-sm placeholder-white/20 outline-none"
                 />
                 {searching && (
                   <div className="h-4 w-4 rounded-full border-2 border-[#0D9488] border-t-transparent animate-spin" />
@@ -356,14 +356,14 @@ const CreateLook: React.FC = () => {
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-5"
+                    className="bg-surface-2 border border-line rounded-2xl overflow-hidden mb-5"
                   >
                     {searchResults.map((p, i) => (
                       <button
                         key={p.id}
                         onClick={() => addProduct(p)}
-                        className={`w-full flex items-center gap-3 p-3 active:bg-white/10 text-left ${
-                          i < searchResults.length - 1 ? 'border-b border-white/5' : ''
+                        className={`w-full flex items-center gap-3 p-3 active:bg-surface-2 text-left ${
+                          i < searchResults.length - 1 ? 'border-b border-line' : ''
                         }`}
                       >
                         <div className="h-12 w-12 rounded-xl overflow-hidden flex-shrink-0 bg-black/30">
@@ -371,9 +371,9 @@ const CreateLook: React.FC = () => {
                             className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[#C9A06C] text-[9px] font-bold uppercase tracking-wider">{p.brand}</p>
-                          <p className="text-white text-xs font-bold truncate">{p.title}</p>
-                          <p className="text-white/50 text-xs">{p.price}</p>
+                          <p className="text-[#6157FF] text-[11px] font-bold">{p.brand}</p>
+                          <p className="text-ink text-xs font-bold truncate">{p.title}</p>
+                          <p className="text-ink-soft text-xs">{p.price}</p>
                         </div>
                         <span className="material-symbols-outlined text-[#0D9488] text-xl">add_circle</span>
                       </button>
@@ -385,7 +385,7 @@ const CreateLook: React.FC = () => {
               {/* Tagged products */}
               {taggedProducts.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-white/30 text-[10px] font-bold uppercase tracking-wider mb-3">
+                  <p className="text-ink-faint text-[12px] font-bold mb-3">
                     Tagged ({taggedProducts.length}/5)
                   </p>
                   <div className="flex flex-col gap-2">
@@ -396,11 +396,11 @@ const CreateLook: React.FC = () => {
                             className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[#C9A06C] text-[9px] font-bold uppercase tracking-wider">{p.brand}</p>
-                          <p className="text-white text-xs font-bold truncate">{p.title}</p>
+                          <p className="text-[#6157FF] text-[11px] font-bold">{p.brand}</p>
+                          <p className="text-ink text-xs font-bold truncate">{p.title}</p>
                         </div>
                         <button onClick={() => removeProduct(p.id)} className="active:scale-90">
-                          <span className="material-symbols-outlined text-white/30 text-xl">remove_circle</span>
+                          <span className="material-symbols-outlined text-ink-faint text-xl">remove_circle</span>
                         </button>
                       </div>
                     ))}
@@ -410,14 +410,14 @@ const CreateLook: React.FC = () => {
 
               {taggedProducts.length === 0 && !productSearch && (
                 <div className="text-center py-8 opacity-40">
-                  <span className="material-symbols-outlined text-4xl text-white/20 mb-2">sell</span>
-                  <p className="text-white/30 text-xs">Tag products so others can shop your exact look</p>
+                  <span className="material-symbols-outlined text-4xl text-ink-faint mb-2">sell</span>
+                  <p className="text-ink-faint text-xs">Tag products so others can shop your exact look</p>
                 </div>
               )}
 
               <button
                 onClick={() => setStep(3)}
-                className="w-full mt-6 bg-[#B5853F] text-white py-4 rounded-2xl font-black text-sm uppercase tracking-[0.2em] active:scale-95"
+                className="w-full mt-6 bg-[#6157FF] text-ink py-4 rounded-2xl font-bold text-sm active:scale-95"
               >
                 Next — Write Caption
               </button>
@@ -442,34 +442,34 @@ const CreateLook: React.FC = () => {
                 </div>
               )}
               <div className="flex flex-col justify-center">
-                <p className="text-white font-bold text-sm">Your look is ready</p>
-                <p className="text-white/40 text-xs mt-1">
+                <p className="text-ink font-bold text-sm">Your look is ready</p>
+                <p className="text-ink-soft text-xs mt-1">
                   {taggedProducts.length > 0
                     ? `${taggedProducts.length} product${taggedProducts.length > 1 ? 's' : ''} tagged`
                     : 'No products tagged'}
                 </p>
                 <div className="flex items-center gap-1.5 mt-2">
-                  <span className="material-symbols-outlined text-[#C9A06C] text-sm"
+                  <span className="material-symbols-outlined text-[#6157FF] text-sm"
                     style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                  <span className="text-[#C9A06C] text-xs font-bold">+20 ZipCoins on publish</span>
+                  <span className="text-[#6157FF] text-xs font-bold">+20 ZipCoins on publish</span>
                 </div>
               </div>
             </div>
 
             <div className="px-5">
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.25em] mb-3">Caption</p>
+              <p className="text-ink-soft text-[12px] font-bold mb-3">Caption</p>
               <textarea
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 placeholder="Describe your look, the occasion, where you're wearing it..."
                 rows={4}
                 maxLength={200}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5 text-white text-sm placeholder-white/20 outline-none resize-none"
+                className="w-full bg-surface-2 border border-line rounded-2xl px-4 py-3.5 text-ink text-sm placeholder-white/20 outline-none resize-none"
               />
-              <p className="text-right text-white/20 text-[10px] mt-1">{caption.length}/200</p>
+              <p className="text-right text-ink-faint text-[12px] mt-1">{caption.length}/200</p>
 
               {/* Quick caption suggestions */}
-              <p className="text-white/30 text-[10px] font-bold uppercase tracking-wider mt-4 mb-2">Quick captions</p>
+              <p className="text-ink-faint text-[12px] font-bold mt-4 mb-2">Quick captions</p>
               <div className="flex flex-wrap gap-2 mb-6">
                 {[
                   'Date night look 🌙',
@@ -484,8 +484,8 @@ const CreateLook: React.FC = () => {
                     onClick={() => setCaption(s)}
                     className={`text-xs px-4 py-2 rounded-full border active:scale-95 ${
                       caption === s
-                        ? 'bg-[#B5853F] border-[#B5853F] text-white font-bold'
-                        : 'border-white/10 text-white/40 bg-white/5'
+                        ? 'bg-[#6157FF] border-[#6157FF] text-ink font-bold'
+                        : 'border-line text-ink-soft bg-surface-2'
                     }`}
                   >
                     {s}
@@ -497,15 +497,15 @@ const CreateLook: React.FC = () => {
               <button
                 onClick={handlePublish}
                 disabled={!canPublish || publishing}
-                className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-3 ${
+                className={`w-full py-5 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 ${
                   canPublish && !publishing
-                    ? 'bg-[#0D9488] text-white active:scale-95 shadow-lg shadow-[#0D9488]/20'
-                    : 'bg-white/5 text-white/20'
+                    ? 'bg-[#0D9488] text-ink active:scale-95 shadow-lg shadow-[#0D9488]/20'
+                    : 'bg-surface-2 text-ink-faint'
                 }`}
               >
                 {publishing ? (
                   <>
-                    <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    <div className="h-5 w-5 rounded-full border-2 border-line border-t-white animate-spin" />
                     Publishing...
                   </>
                 ) : (

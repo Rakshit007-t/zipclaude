@@ -123,30 +123,30 @@ const PrivacyPolicy: React.FC = () => {
   const [expanded, setExpanded] = useState<number | null>(0);
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#111111] text-white" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+    <div className="flex flex-col min-h-screen bg-surface-0 text-ink" style={{ fontFamily: 'DM Sans, sans-serif' }}>
       {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5 bg-[#111111]/90 backdrop-blur-xl border-b border-white/5">
-        <button onClick={() => navigate(-1)} className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform bg-white/5">
-          <span className="material-symbols-outlined text-[20px] text-[#C9A06C]">arrow_back</span>
+      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5 bg-surface-0/90 backdrop-blur-xl border-b border-line">
+        <button aria-label="Go back" onClick={() => navigate(-1)} className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform bg-surface-2">
+          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
         </button>
         <div className="text-center">
-          <h1 className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#C9A06C]">Privacy Policy</h1>
-          <p className="text-[9px] text-white/30 mt-0.5">Effective: April 2026</p>
+          <h1 className="text-[12px] font-bold text-[#6157FF]">Privacy Policy</h1>
+          <p className="text-[11px] text-ink-faint mt-0.5">Effective: April 2026</p>
         </div>
         <div className="w-10" />
       </div>
 
       {/* Hero */}
-      <div className="px-6 pt-8 pb-6 border-b border-white/5">
+      <div className="px-6 pt-8 pb-6 border-b border-line">
         <div className="flex items-center gap-4 mb-4">
-          <div className="h-14 w-14 rounded-2xl bg-[#C9A06C]/10 border border-[#C9A06C]/20 flex items-center justify-center flex-shrink-0">
-            <span className="material-symbols-outlined text-2xl text-[#C9A06C]">shield</span>
+          <div className="h-14 w-14 rounded-2xl bg-[#6157FF]/10 border border-[#6157FF]/20 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-2xl text-[#6157FF]">shield</span>
           </div>
           <div>
-            <h2 className="text-xl font-black tracking-tight" style={{ fontFamily: 'Cormorant Garamond, serif' }}>
-              <span className="text-white">Your</span> <span className="text-[#C9A06C]">Privacy</span>
+            <h2 className="text-xl font-bold tracking-tight" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+              <span className="text-ink">Your</span> <span className="text-[#6157FF]">Privacy</span>
             </h2>
-            <p className="text-[10px] text-white/40 mt-0.5 uppercase tracking-widest">DPDP Act, 2023 Compliant</p>
+            <p className="text-[12px] text-ink-soft mt-0.5">DPDP Act, 2023 Compliant</p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 mb-4">
@@ -155,13 +155,13 @@ const PrivacyPolicy: React.FC = () => {
             { icon: 'lock', label: 'AES-256 Encrypted' },
             { icon: 'verified_user', label: 'DPDP Compliant' },
           ].map(item => (
-            <div key={item.label} className="bg-white/3 border border-white/5 rounded-xl p-3 flex flex-col items-center gap-1">
-              <span className="material-symbols-outlined text-[16px] text-[#C9A06C]">{item.icon}</span>
-              <span className="text-[9px] text-white/50 text-center font-bold uppercase tracking-wide leading-tight">{item.label}</span>
+            <div key={item.label} className="bg-white/3 border border-line rounded-xl p-3 flex flex-col items-center gap-1">
+              <span className="material-symbols-outlined text-[16px] text-[#6157FF]">{item.icon}</span>
+              <span className="text-[11px] text-ink-soft text-center font-bold tracking-wide leading-tight">{item.label}</span>
             </div>
           ))}
         </div>
-        <p className="text-[11px] text-white/50 leading-relaxed">
+        <p className="text-[11px] text-ink-soft leading-relaxed">
           ZipRIGHT is committed to protecting your personal data. This Policy explains what data we collect, why, and how you can control it — in compliance with India's Digital Personal Data Protection Act, 2023.
         </p>
       </div>
@@ -169,23 +169,23 @@ const PrivacyPolicy: React.FC = () => {
       {/* Sections Accordion */}
       <div className="flex-1 px-4 py-4 pb-24">
         {sections.map((section, idx) => (
-          <div key={idx} className="mb-2 border border-white/5 rounded-2xl overflow-hidden">
+          <div key={idx} className="mb-2 border border-line rounded-2xl overflow-hidden">
             <button
               className="w-full flex items-center justify-between px-5 py-4 text-left active:scale-[0.99] transition-transform"
               onClick={() => setExpanded(expanded === idx ? null : idx)}
             >
               <div className="flex items-center gap-3 flex-1 pr-2">
-                <span className="material-symbols-outlined text-[16px] text-[#C9A06C] flex-shrink-0">{section.icon}</span>
-                <span className="text-[12px] font-black text-white/90 leading-tight">{section.title}</span>
+                <span className="material-symbols-outlined text-[16px] text-[#6157FF] flex-shrink-0">{section.icon}</span>
+                <span className="text-[12px] font-bold text-ink-soft leading-tight">{section.title}</span>
               </div>
-              <span className="material-symbols-outlined text-[18px] text-[#C9A06C] flex-shrink-0 transition-transform duration-200" style={{ transform: expanded === idx ? 'rotate(180deg)' : 'none' }}>
+              <span className="material-symbols-outlined text-[18px] text-[#6157FF] flex-shrink-0 transition-transform duration-200" style={{ transform: expanded === idx ? 'rotate(180deg)' : 'none' }}>
                 expand_more
               </span>
             </button>
             {expanded === idx && (
-              <div className="px-5 pb-5 border-t border-white/5 pt-4">
+              <div className="px-5 pb-5 border-t border-line pt-4">
                 {section.content.map((para, pIdx) => (
-                  <p key={pIdx} className="text-[11px] text-white/60 leading-relaxed mb-3 last:mb-0">
+                  <p key={pIdx} className="text-[11px] text-ink-soft leading-relaxed mb-3 last:mb-0">
                     {para}
                   </p>
                 ))}
@@ -195,10 +195,10 @@ const PrivacyPolicy: React.FC = () => {
         ))}
 
         {/* Contact */}
-        <div className="mt-6 p-5 bg-[#C9A06C]/5 border border-[#C9A06C]/20 rounded-2xl">
-          <p className="text-[10px] font-black text-[#C9A06C] uppercase tracking-widest mb-2">Contact Our Privacy Team</p>
-          <p className="text-[11px] text-white/50 leading-relaxed">
-            For any data protection requests, grievances, or concerns, email us at <span className="text-[#C9A06C]">privacy@zipright.in</span>. We respond within 30 days as required by the DPDP Act, 2023.
+        <div className="mt-6 p-5 bg-[#6157FF]/5 border border-[#6157FF]/20 rounded-2xl">
+          <p className="text-[12px] font-bold text-[#6157FF] mb-2">Contact Our Privacy Team</p>
+          <p className="text-[11px] text-ink-soft leading-relaxed">
+            For any data protection requests, grievances, or concerns, email us at <span className="text-[#6157FF]">privacy@zipright.in</span>. We respond within 30 days as required by the DPDP Act, 2023.
           </p>
         </div>
       </div>

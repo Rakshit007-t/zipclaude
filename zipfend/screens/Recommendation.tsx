@@ -6,6 +6,7 @@ import { auth } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { predictSize } from '../services/ziprightApi';
+import { recordJourneyEvent } from '../services/styleJourney';
 import { buildMeasurementsForSizing, type SizeEngineBaseSize } from '../utils/sizeProfile';
 import {
   extractAvailableProductSizes,
@@ -830,6 +831,8 @@ const Recommendation: React.FC = () => {
       [recommendationId]: feedbackType,
     }));
 
+    recordJourneyEvent('fit_feedback_given');
+
     void trackRecommendationFeedback({
       recommendationId,
       userId: auth.currentUser?.uid,
@@ -972,19 +975,19 @@ const Recommendation: React.FC = () => {
     : false;
 
   return (
-    <div className="bg-[#111111] text-white font-sans min-h-screen flex flex-col antialiased relative overflow-x-hidden">
+    <div className="bg-surface-0 text-ink font-sans min-h-screen flex flex-col antialiased relative overflow-x-hidden">
       
       {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#111111]/60 backdrop-blur-xl border-b border-white/5">
-        <button onClick={handleBack} className="h-10 w-10 flex items-center justify-center rounded-full bg-[#111111]/40 border border-white/5 active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[20px] text-[#C9A06C]">arrow_back</span>
+      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-surface-0/60 backdrop-blur-xl border-b border-line">
+        <button aria-label="Go back" onClick={handleBack} className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-0/40 border border-line active:scale-90 transition-transform">
+          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
         </button>
-        <h1 className="text-[10px] font-bold tracking-[0.4em] uppercase text-[#C9A06C] bg-[#111111]/40 px-4 py-1.5 rounded-full border border-white/5">Recommendation</h1>
-        <button onClick={() => navigate('/wishlist')} className="relative h-10 w-10 flex items-center justify-center rounded-full bg-[#111111]/40 border border-white/5 active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[20px] text-[#C9A06C]">{wishlistCount > 0 ? 'favorite' : 'favorite'}</span>
-          <span className={`material-symbols-outlined text-[20px] text-[#C9A06C] ${wishlistCount > 0 ? 'filled' : ''}`} style={{ fontVariationSettings: wishlistCount > 0 ? "'FILL' 1" : "'FILL' 0" }}>favorite</span>
+        <h1 className="text-[12px] font-bold text-[#6157FF] bg-surface-0/40 px-4 py-1.5 rounded-full border border-line">Recommendation</h1>
+        <button onClick={() => navigate('/wishlist')} className="relative h-10 w-10 flex items-center justify-center rounded-full bg-surface-0/40 border border-line active:scale-90 transition-transform">
+          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">{wishlistCount > 0 ? 'favorite' : 'favorite'}</span>
+          <span className={`material-symbols-outlined text-[20px] text-[#6157FF] ${wishlistCount > 0 ? 'filled' : ''}`} style={{ fontVariationSettings: wishlistCount > 0 ? "'FILL' 1" : "'FILL' 0" }}>favorite</span>
           {wishlistCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF4D6D] text-[8px] font-bold text-white ring-2 ring-[#111111]">
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF4D6D] text-[12px] font-bold text-ink ring-2 ring-[#111111]">
                     {wishlistCount}
                 </span>
             )}
@@ -1000,18 +1003,18 @@ const Recommendation: React.FC = () => {
                     setShowMemberSelector(!showMemberSelector);
                   }
                 }}
-                className="flex items-center gap-3 px-6 py-3 rounded-full bg-white/5 border border-[#C9A06C]/20 shadow-xl active:scale-95 transition-all"
+                className="flex items-center gap-3 px-6 py-3 rounded-full bg-surface-2 border border-[#6157FF]/20 shadow-xl active:scale-95 transition-all"
               >
-                  <div className="h-6 w-6 rounded-full bg-[#C9A06C] flex items-center justify-center">
+                  <div className="h-6 w-6 rounded-full bg-[#6157FF] flex items-center justify-center">
                       <span className="material-symbols-outlined text-[14px] text-[#111111]">person</span>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">
+                  <span className="text-[12px] font-bold text-ink">
                       Fit for: {fitTargetLabel}
                   </span>
                   {members.length > 0 && (
                     <motion.span 
                       animate={{ rotate: showMemberSelector ? 180 : 0 }}
-                      className="material-symbols-outlined text-sm text-[#C9A06C]"
+                      className="material-symbols-outlined text-sm text-[#6157FF]"
                     >
                       expand_more
                     </motion.span>
@@ -1028,7 +1031,7 @@ const Recommendation: React.FC = () => {
                 exit={{ opacity: 0, y: -20 }}
                 className="absolute top-32 left-0 right-0 z-[60] px-6"
             >
-                <div className="bg-[#1A1A1A] rounded-[2rem] shadow-2xl border border-[#C9A06C]/20 p-3 flex flex-col gap-1">
+                <div className="bg-surface-1 rounded-[2rem] shadow-2xl border border-[#6157FF]/20 p-3 flex flex-col gap-1">
                     {members.map(member => (
                         <button 
                             key={member.id}
@@ -1036,21 +1039,21 @@ const Recommendation: React.FC = () => {
                                 handleProfileChange(member);
                                 setShowMemberSelector(false);
                             }}
-                            className={`flex items-center justify-between p-4 rounded-2xl active:scale-95 transition-all ${selectedMemberId === member.id ? 'bg-[#C9A06C]/10' : ''}`}
+                            className={`flex items-center justify-between p-4 rounded-2xl active:scale-95 transition-all ${selectedMemberId === member.id ? 'bg-[#6157FF]/10' : ''}`}
                         >
                             <div className="flex items-center gap-4">
-                                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${member.isPrimary ? 'bg-[#C9A06C] text-[#111111]' : 'bg-white/5 text-white'}`}>
+                                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${member.isPrimary ? 'bg-[#6157FF] text-[#111111]' : 'bg-surface-2 text-ink'}`}>
                                     <span className="material-symbols-outlined text-lg">{member.isPrimary ? 'person' : 'group'}</span>
                                 </div>
-                                <span className="font-bold text-base text-white">{member.name}</span>
+                                <span className="font-bold text-base text-ink">{member.name}</span>
                             </div>
-                            {selectedMemberId === member.id && <span className="material-symbols-outlined text-[#C9A06C] text-lg">check</span>}
+                            {selectedMemberId === member.id && <span className="material-symbols-outlined text-[#6157FF] text-lg">check</span>}
                         </button>
                     ))}
-                    <div className="h-[1px] bg-white/5 my-2"></div>
+                    <div className="h-[1px] bg-surface-2 my-2"></div>
                     <button 
                         onClick={() => navigate('/settings')}
-                        className="flex items-center justify-center p-4 text-[#C9A06C] font-bold text-sm uppercase tracking-widest active:scale-95"
+                        className="flex items-center justify-center p-4 text-[#6157FF] font-bold text-sm active:scale-95"
                     >
                         Manage Profiles
                     </button>
@@ -1076,8 +1079,8 @@ const Recommendation: React.FC = () => {
             >
                 {/* Editorial Product Header */}
                 <div className="p-6">
-                    <div className="flex flex-col gap-4 rounded-[2.5rem] bg-gradient-to-br from-[#1A1A1A] to-[#111111] p-8 border border-white/5 shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#C9A06C]/10 blur-[60px] rounded-full -mr-16 -mt-16"></div>
+                    <div className="flex flex-col gap-4 rounded-[2.5rem] bg-gradient-to-br from-[#1A1A1A] to-[#111111] p-8 border border-line shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#6157FF]/10 blur-[60px] rounded-full -mr-16 -mt-16"></div>
                         
                         <div className="flex gap-6 items-center">
                             <motion.img 
@@ -1085,13 +1088,13 @@ const Recommendation: React.FC = () => {
                                 animate={{ scale: 1, opacity: 1 }}
                                 src={displayProduct.image}
                                 alt={displayProduct.title}
-                                className="w-24 h-32 object-cover rounded-2xl flex-shrink-0 border border-white/10 shadow-2xl"
+                                className="w-24 h-32 object-cover rounded-2xl flex-shrink-0 border border-line shadow-2xl"
                             />
                             <div className="flex flex-col flex-1">
-                                <h3 className="text-[10px] font-bold text-[#C9A06C] uppercase tracking-[0.3em] mb-2">{displayProduct.brand}</h3>
-                                <p className="text-2xl font-serif font-medium text-white leading-tight line-clamp-2 italic">{displayProduct.title}</p>
+                                <h3 className="text-[12px] font-bold text-[#6157FF] mb-2">{displayProduct.brand}</h3>
+                                <p className="text-2xl font-sans font-medium text-ink leading-tight line-clamp-2">{displayProduct.title}</p>
                                 <div className="flex items-center gap-3 mt-4">
-                                    <span className="text-xl font-bold text-white">{displayProduct.price}</span>
+                                    <span className="text-xl font-bold text-ink">{displayProduct.price}</span>
                                 </div>
                             </div>
                         </div>
@@ -1104,8 +1107,8 @@ const Recommendation: React.FC = () => {
                         <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20">
                             <span className="material-symbols-outlined text-red-400 text-lg mt-0.5">error</span>
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-1">Engine Error</p>
-                                <p className="text-sm text-red-300/80 break-words">{engineError}</p>
+                                <p className="text-xs font-bold text-red-400 mb-1">Engine Error</p>
+                                <p className="text-sm text-red-600/80 break-words">{engineError}</p>
                             </div>
                             <button onClick={() => setEngineError(null)} className="text-red-400/50 hover:text-red-400 transition-colors flex-shrink-0">
                                 <span className="material-symbols-outlined text-base">close</span>
@@ -1116,36 +1119,36 @@ const Recommendation: React.FC = () => {
 
                 {/* Main Recommendation Panel */}
                 <div className="px-6 pb-6">
-                    <div className="flex flex-col gap-8 rounded-[3rem] bg-[#1A1A1A] p-10 shadow-2xl border border-[#C9A06C]/30 relative overflow-hidden">
+                    <div className="flex flex-col gap-8 rounded-[3rem] bg-surface-1 p-10 shadow-2xl border border-[#6157FF]/30 relative overflow-hidden">
                         
                         {loadingStage > 0 && !visibleAiResult ? (
                             <div className="flex flex-col gap-6 py-16 animate-pulse">
                                 <div className="flex flex-col items-center text-center gap-5">
-                                    <div className="w-14 h-14 rounded-full border-2 border-[#C9A06C]/20 border-t-[#C9A06C] animate-spin"></div>
-                                    <p className="text-sm font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Analyzing product…</p>
+                                    <div className="w-14 h-14 rounded-full border-2 border-[#6157FF]/20 border-t-[#6157FF] animate-spin"></div>
+                                    <p className="text-sm font-bold text-[#6157FF]">Analyzing product…</p>
                                 </div>
 
                                 {/* Skeleton: size badge */}
                                 <div className="flex flex-col items-center gap-4 mt-4">
-                                    <div className="h-4 w-32 rounded-full bg-white/5"></div>
-                                    <div className="h-28 w-28 rounded-3xl bg-white/5"></div>
-                                    <div className="h-4 w-24 rounded-full bg-white/5"></div>
+                                    <div className="h-4 w-32 rounded-full bg-surface-2"></div>
+                                    <div className="h-28 w-28 rounded-3xl bg-surface-2"></div>
+                                    <div className="h-4 w-24 rounded-full bg-surface-2"></div>
                                 </div>
 
                                 {/* Skeleton: confidence bar */}
                                 <div className="flex flex-col gap-3 mt-4">
                                     <div className="flex justify-between">
-                                        <div className="h-3 w-28 rounded-full bg-white/5"></div>
-                                        <div className="h-3 w-10 rounded-full bg-white/5"></div>
+                                        <div className="h-3 w-28 rounded-full bg-surface-2"></div>
+                                        <div className="h-3 w-10 rounded-full bg-surface-2"></div>
                                     </div>
-                                    <div className="h-3 w-full rounded-full bg-white/5"></div>
+                                    <div className="h-3 w-full rounded-full bg-surface-2"></div>
                                 </div>
 
                                 {/* Skeleton: detail block */}
-                                <div className="rounded-[2rem] bg-white/[0.02] border border-white/5 p-8 mt-2 flex flex-col gap-3">
-                                    <div className="h-4 w-full rounded-full bg-white/5"></div>
-                                    <div className="h-4 w-3/4 rounded-full bg-white/5"></div>
-                                    <div className="h-4 w-1/2 rounded-full bg-white/5 mt-2"></div>
+                                <div className="rounded-[2rem] bg-surface-2 border border-line p-8 mt-2 flex flex-col gap-3">
+                                    <div className="h-4 w-full rounded-full bg-surface-2"></div>
+                                    <div className="h-4 w-3/4 rounded-full bg-surface-2"></div>
+                                    <div className="h-4 w-1/2 rounded-full bg-surface-2 mt-2"></div>
                                 </div>
                             </div>
                         ) : visibleAiResult ? (
@@ -1157,18 +1160,18 @@ const Recommendation: React.FC = () => {
                                 
                                 {/* Size Badge */}
                                 <div className="flex flex-col items-center">
-                                    <span className="text-[10px] font-bold uppercase tracking-[0.5em] text-[#C9A06C] mb-4">Recommended Size</span>
+                                    <span className="text-[12px] font-bold text-[#6157FF] mb-4">Recommended Size</span>
                                     <div className="relative">
                                         <motion.h2 
                                             initial={{ scale: 0.5, opacity: 0 }}
                                             animate={{ scale: 1, opacity: 1 }}
                                             transition={{ type: "spring", damping: 12 }}
-                                            className="text-[12rem] font-serif font-light text-white leading-none tracking-tighter"
+                                            className="text-[12rem] font-sans font-light text-ink leading-none tracking-tighter"
                                         >
                                             {visibleAiResult.recommendedSize}
                                         </motion.h2>
                                         <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                                            <div className={`px-6 py-2 rounded-full border bg-[#111111] text-[10px] font-bold uppercase tracking-[0.3em] ${getDirectionColor(visibleAiResult.sizeDirection)}`}>
+                                            <div className={`px-6 py-2 rounded-full border bg-surface-0 text-[12px] font-bold ${getDirectionColor(visibleAiResult.sizeDirection)}`}>
                                                 {visibleAiResult.sizeDirection.replace(/-/g, ' ')}
                                             </div>
                                         </div>
@@ -1178,50 +1181,62 @@ const Recommendation: React.FC = () => {
                                 {/* Confidence Bar */}
                                 <div className="w-full flex flex-col gap-3 mt-8">
                                     <div className="flex justify-between items-center px-2">
-                                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">Confidence Level</span>
-                                        <span className="text-sm font-bold text-[#C9A06C]">{visibleAiResult.confidence}%</span>
+                                        <span className="text-[12px] font-bold text-ink-soft">Confidence Level</span>
+                                        <span className="text-sm font-bold text-[#6157FF]">{visibleAiResult.confidence}%</span>
                                     </div>
-                                    <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden p-[2px] border border-white/10">
+                                    <div className="h-3 w-full bg-surface-2 rounded-full overflow-hidden p-[2px] border border-line">
                                         <motion.div 
                                             initial={{ width: 0 }}
                                             animate={{ width: `${visibleAiResult.confidence}%` }}
                                             transition={{ duration: 1.5, ease: "easeOut" }}
-                                            className="h-full rounded-full bg-gradient-to-r from-[#B5853F] to-[#C9A06C]"
+                                            className="h-full rounded-full bg-gradient-to-r from-[#6157FF] to-[#6157FF]"
                                         ></motion.div>
                                     </div>
                                 </div>
 
                                 {/* Details from API */}
-                                <div className="w-full bg-white/5 rounded-[2rem] p-8 text-left border border-white/10 mt-4">
-                                    <p className="text-sm text-white/70 leading-relaxed mb-5">
+                                <div className="w-full bg-surface-2 rounded-[2rem] p-8 text-left border border-line mt-4">
+                                    <p className="text-sm text-ink-soft leading-relaxed mb-5">
                                         {visibleAiResult.reasoning}
                                     </p>
                                     <div className="flex flex-wrap gap-3">
-                                        <div className="flex items-center gap-2 px-4 py-2 bg-[#FF4D6D]/10 rounded-full border border-[#FF4D6D]/20">
-                                            <span className="text-[10px] font-bold text-[#FF4D6D] uppercase tracking-widest">Return Risk:</span>
-                                            <span className="text-xs font-bold text-white">{visibleAiResult.fitNotes}</span>
-                                        </div>
+                                        {(() => {
+                                            // Risk chip color matches the actual risk — a low risk
+                                            // should reassure, not alarm.
+                                            const riskText = String(visibleAiResult.fitNotes || '').toLowerCase();
+                                            const riskTone = riskText.includes('low')
+                                                ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-600'
+                                                : riskText.includes('medium')
+                                                    ? 'bg-amber-400/10 border-amber-400/20 text-amber-600'
+                                                    : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]';
+                                            return (
+                                                <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${riskTone}`}>
+                                                    <span className="text-[12px] font-bold">Return Risk:</span>
+                                                    <span className="text-xs font-bold text-ink">{visibleAiResult.fitNotes}</span>
+                                                </div>
+                                            );
+                                        })()}
                                         {visibleAiResult.alternativeSize && (
-                                            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
-                                                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Engine:</span>
-                                                <span className="text-xs font-bold text-white">{visibleAiResult.alternativeSize}</span>
+                                            <div className="flex items-center gap-2 px-4 py-2 bg-surface-2 rounded-full border border-line">
+                                                <span className="text-[12px] font-bold text-ink-soft">Engine:</span>
+                                                <span className="text-xs font-bold text-ink">{visibleAiResult.alternativeSize}</span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
                                 {visibleAiResult.isOffline && (
-                                    <p className="text-xs font-medium text-amber-400/70 tracking-wide max-w-[80%] flex items-center gap-2">
+                                    <p className="text-xs font-medium text-amber-600/70 tracking-wide max-w-[80%] flex items-center gap-2">
                                         <span className="material-symbols-outlined text-sm">cloud_off</span>
                                         Offline estimate — results may be less accurate
                                     </p>
                                 )}
 
-                                <div className="w-full rounded-[2rem] bg-white/[0.03] border border-white/10 p-6 text-left">
+                                <div className="w-full rounded-[2rem] bg-surface-2 border border-line p-6 text-left">
                                     <div className="flex items-center justify-between gap-4 mb-4">
-                                        <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Fit Feedback</span>
+                                        <span className="text-[12px] font-bold text-[#6157FF]">Fit Feedback</span>
                                         {hasSubmittedFeedback && (
-                                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400">Saved</span>
+                                            <span className="text-[12px] font-bold text-emerald-600">Saved</span>
                                         )}
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -1233,12 +1248,12 @@ const Recommendation: React.FC = () => {
                                                     type="button"
                                                     onClick={() => handleRecommendationFeedback(option.type)}
                                                     disabled={hasSubmittedFeedback}
-                                                    className={`min-h-12 rounded-2xl border px-3 text-[10px] font-bold uppercase tracking-widest transition-all active:scale-95 ${
+                                                    className={`min-h-12 rounded-2xl border px-3 text-[12px] font-bold transition-all active:scale-95 ${
                                                         isSelected
-                                                            ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
+                                                            ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600'
                                                             : hasSubmittedFeedback
-                                                                ? 'border-white/5 bg-white/[0.02] text-white/25 cursor-not-allowed'
-                                                                : 'border-white/10 bg-white/5 text-white/70 hover:border-[#C9A06C]/30 hover:text-white'
+                                                                ? 'border-line bg-surface-2 text-ink-faint cursor-not-allowed'
+                                                                : 'border-line bg-surface-2 text-ink-soft hover:border-[#6157FF]/30 hover:text-ink'
                                                     }`}
                                                 >
                                                     {option.label}
@@ -1248,11 +1263,11 @@ const Recommendation: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="w-full rounded-[2rem] bg-white/[0.03] border border-white/10 p-6 text-left">
+                                <div className="w-full rounded-[2rem] bg-surface-2 border border-line p-6 text-left">
                                     <div className="flex items-center justify-between gap-4 mb-4">
-                                        <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C]">Outcome</span>
+                                        <span className="text-[12px] font-bold text-[#6157FF]">Outcome</span>
                                         {(hasPurchasedOutcome || hasExchangedOutcome || hasReturnedOutcome) && (
-                                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400">Tracked</span>
+                                            <span className="text-[12px] font-bold text-emerald-600">Tracked</span>
                                         )}
                                     </div>
 
@@ -1261,10 +1276,10 @@ const Recommendation: React.FC = () => {
                                             type="button"
                                             onClick={handleProductPurchased}
                                             disabled={hasPurchasedOutcome}
-                                            className={`min-h-12 rounded-2xl border px-2 text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 ${
+                                            className={`min-h-12 rounded-2xl border px-2 text-[11px] font-bold transition-all active:scale-95 ${
                                                 hasPurchasedOutcome
-                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300 cursor-not-allowed'
-                                                    : 'border-white/10 bg-white/5 text-white/70 hover:border-[#C9A06C]/30 hover:text-white'
+                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600 cursor-not-allowed'
+                                                    : 'border-line bg-surface-2 text-ink-soft hover:border-[#6157FF]/30 hover:text-ink'
                                             }`}
                                         >
                                             Purchased
@@ -1273,12 +1288,12 @@ const Recommendation: React.FC = () => {
                                             type="button"
                                             onClick={() => setActiveOutcomeForm(activeOutcomeForm === 'exchange' ? null : 'exchange')}
                                             disabled={hasExchangedOutcome}
-                                            className={`min-h-12 rounded-2xl border px-2 text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 ${
+                                            className={`min-h-12 rounded-2xl border px-2 text-[11px] font-bold transition-all active:scale-95 ${
                                                 hasExchangedOutcome
-                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300 cursor-not-allowed'
+                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600 cursor-not-allowed'
                                                     : activeOutcomeForm === 'exchange'
-                                                        ? 'border-[#C9A06C]/40 bg-[#C9A06C]/10 text-[#C9A06C]'
-                                                        : 'border-white/10 bg-white/5 text-white/70 hover:border-[#C9A06C]/30 hover:text-white'
+                                                        ? 'border-[#6157FF]/40 bg-[#6157FF]/10 text-[#6157FF]'
+                                                        : 'border-line bg-surface-2 text-ink-soft hover:border-[#6157FF]/30 hover:text-ink'
                                             }`}
                                         >
                                             Exchanged
@@ -1287,12 +1302,12 @@ const Recommendation: React.FC = () => {
                                             type="button"
                                             onClick={() => setActiveOutcomeForm(activeOutcomeForm === 'return' ? null : 'return')}
                                             disabled={hasReturnedOutcome}
-                                            className={`min-h-12 rounded-2xl border px-2 text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 ${
+                                            className={`min-h-12 rounded-2xl border px-2 text-[11px] font-bold transition-all active:scale-95 ${
                                                 hasReturnedOutcome
-                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300 cursor-not-allowed'
+                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600 cursor-not-allowed'
                                                     : activeOutcomeForm === 'return'
-                                                        ? 'border-[#C9A06C]/40 bg-[#C9A06C]/10 text-[#C9A06C]'
-                                                        : 'border-white/10 bg-white/5 text-white/70 hover:border-[#C9A06C]/30 hover:text-white'
+                                                        ? 'border-[#6157FF]/40 bg-[#6157FF]/10 text-[#6157FF]'
+                                                        : 'border-line bg-surface-2 text-ink-soft hover:border-[#6157FF]/30 hover:text-ink'
                                             }`}
                                         >
                                             Returned
@@ -1305,18 +1320,18 @@ const Recommendation: React.FC = () => {
                                                 value={exchangeOriginalSize}
                                                 onChange={(event) => setExchangeOriginalSize(event.target.value)}
                                                 placeholder={`Original ${visibleAiResult.recommendedSize}`}
-                                                className="h-12 rounded-2xl border border-white/10 bg-[#111111] px-4 text-xs font-bold text-white outline-none placeholder:text-white/25 focus:border-[#C9A06C]/40"
+                                                className="h-12 rounded-2xl border border-line bg-surface-0 px-4 text-xs font-bold text-ink outline-none placeholder:text-ink-faint focus:border-[#6157FF]/40"
                                             />
                                             <input
                                                 value={exchangeNewSize}
                                                 onChange={(event) => setExchangeNewSize(event.target.value)}
                                                 placeholder="New size"
-                                                className="h-12 rounded-2xl border border-white/10 bg-[#111111] px-4 text-xs font-bold text-white outline-none placeholder:text-white/25 focus:border-[#C9A06C]/40"
+                                                className="h-12 rounded-2xl border border-line bg-surface-0 px-4 text-xs font-bold text-ink outline-none placeholder:text-ink-faint focus:border-[#6157FF]/40"
                                             />
                                             <button
                                                 type="button"
                                                 onClick={handleSizeExchanged}
-                                                className="col-span-2 h-12 rounded-2xl bg-[#C9A06C] text-[#111111] text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                                                className="col-span-2 h-12 rounded-2xl bg-[#6157FF] text-[#111111] text-[12px] font-bold active:scale-95 transition-all"
                                             >
                                                 Save Exchange
                                             </button>
@@ -1329,12 +1344,12 @@ const Recommendation: React.FC = () => {
                                                 value={returnedSize}
                                                 onChange={(event) => setReturnedSize(event.target.value)}
                                                 placeholder={`Returned ${visibleAiResult.recommendedSize}`}
-                                                className="h-12 rounded-2xl border border-white/10 bg-[#111111] px-4 text-xs font-bold text-white outline-none placeholder:text-white/25 focus:border-[#C9A06C]/40"
+                                                className="h-12 rounded-2xl border border-line bg-surface-0 px-4 text-xs font-bold text-ink outline-none placeholder:text-ink-faint focus:border-[#6157FF]/40"
                                             />
                                             <select
                                                 value={returnReason}
                                                 onChange={(event) => setReturnReason(event.target.value)}
-                                                className="h-12 rounded-2xl border border-white/10 bg-[#111111] px-4 text-xs font-bold text-white outline-none focus:border-[#C9A06C]/40"
+                                                className="h-12 rounded-2xl border border-line bg-surface-0 px-4 text-xs font-bold text-ink outline-none focus:border-[#6157FF]/40"
                                             >
                                                 <option value="">Reason</option>
                                                 <option value="too_tight">Too tight</option>
@@ -1345,7 +1360,7 @@ const Recommendation: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={handleSizeReturned}
-                                                className="col-span-2 h-12 rounded-2xl bg-[#C9A06C] text-[#111111] text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                                                className="col-span-2 h-12 rounded-2xl bg-[#6157FF] text-[#111111] text-[12px] font-bold active:scale-95 transition-all"
                                             >
                                                 Save Return
                                             </button>
@@ -1356,8 +1371,8 @@ const Recommendation: React.FC = () => {
                             </motion.div>
                         ) : (
                             <div className="flex flex-col items-center text-center gap-5 py-16 opacity-60">
-                                <span className="material-symbols-outlined text-4xl text-[#C9A06C]">info</span>
-                                <p className="text-sm font-bold uppercase tracking-[0.3em] text-[#C9A06C]">No data yet</p>
+                                <span className="material-symbols-outlined text-4xl text-[#6157FF]">info</span>
+                                <p className="text-sm font-bold text-[#6157FF]">No data yet</p>
                             </div>
                         )}
                     </div>
@@ -1366,31 +1381,31 @@ const Recommendation: React.FC = () => {
         ) : (
              /* --- LAYOUT 2: Standard E-Commerce (Accessories, etc) --- */
              <div className="flex flex-col">
-                 <div className="w-full aspect-[4/5] bg-[#1A1A1A] relative overflow-hidden">
+                 <div className="w-full aspect-[4/5] bg-surface-1 relative overflow-hidden">
                      <motion.div 
                         initial={{ scale: 1.1 }}
                         animate={{ scale: 1 }}
                         className="absolute inset-0 bg-center bg-cover"
                         style={{ backgroundImage: `url("${displayProduct.image}")` }}
                      ></motion.div>
-                     <div className="absolute inset-0 bg-gradient-to-t from-[#111111] to-transparent"></div>
+                     <div className="absolute inset-0 bg-gradient-to-t from-surface-0 to-transparent"></div>
                  </div>
 
                  <div className="flex flex-col p-8 gap-8 -mt-20 relative z-10">
-                     <div className="bg-[#1A1A1A] p-8 rounded-[3rem] border border-white/5 shadow-2xl">
+                     <div className="bg-surface-1 p-8 rounded-[3rem] border border-line shadow-2xl">
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex-1 pr-4">
-                                <h3 className="text-[10px] font-bold text-[#C9A06C] uppercase tracking-[0.3em] mb-3">{displayProduct.brand}</h3>
-                                <h1 className="text-4xl font-serif text-white leading-tight italic">{displayProduct.title}</h1>
+                                <h3 className="text-[12px] font-bold text-[#6157FF] mb-3">{displayProduct.brand}</h3>
+                                <h1 className="text-4xl font-sans text-ink leading-tight">{displayProduct.title}</h1>
                             </div>
                              <div className="flex flex-col items-end">
-                                <span className="text-3xl font-bold text-white">{displayProduct.price}</span>
+                                <span className="text-3xl font-bold text-ink">{displayProduct.price}</span>
                              </div>
                         </div>
-                        <div className="h-[1px] w-full bg-white/5 mb-6"></div>
+                        <div className="h-[1px] w-full bg-surface-2 mb-6"></div>
                         <div>
-                            <h4 className="text-xs font-bold text-[#C9A06C] uppercase tracking-[0.2em] mb-4">The Details</h4>
-                            <p className="text-white/60 leading-relaxed text-sm font-light">
+                            <h4 className="text-xs font-bold text-[#6157FF] mb-4">The Details</h4>
+                            <p className="text-ink-soft leading-relaxed text-sm font-light">
                                 This {displayProduct.title.toLowerCase()} from {displayProduct.brand} combines timeless elegance with modern durability. Crafted from high-quality materials, it is designed to last and elevate your style for any occasion.
                             </p>
                         </div>
@@ -1401,21 +1416,21 @@ const Recommendation: React.FC = () => {
       </div>
 
       {/* Bottom Actions */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 p-8 bg-gradient-to-t from-[#111111] via-[#111111]/90 to-transparent">
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-8 bg-gradient-to-t from-surface-0 via-surface-0/90 to-transparent">
         <div className="max-w-md mx-auto flex flex-col gap-4">
           <motion.button 
             whileTap={{ scale: 0.95 }}
             onClick={source === 'marketplace' ? handleBuyNow : handleExternalBuy}
             disabled={loadingStage > 0}
-            className={`w-full h-18 rounded-[2rem] font-bold text-sm uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all ${
+            className={`w-full h-18 rounded-[2rem] font-bold text-sm flex items-center justify-center gap-3 transition-all ${
               loadingStage > 0
-                ? 'bg-white/10 text-white/30 cursor-not-allowed'
-                : 'bg-[#FF4D6D] text-white shadow-[0_10px_30px_rgba(255,77,109,0.3)] active:scale-95'
+                ? 'bg-surface-2 text-ink-faint cursor-not-allowed'
+                : 'bg-[#FF4D6D] text-ink shadow-[0_10px_30px_rgba(255,77,109,0.3)] active:scale-95'
             }`}
           >
             {loadingStage > 0 ? (
               <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white/70 rounded-full animate-spin"></div>
+                <div className="w-4 h-4 border-2 border-line border-t-white/70 rounded-full animate-spin"></div>
                 Analyzing…
               </>
             ) : (
@@ -1429,14 +1444,14 @@ const Recommendation: React.FC = () => {
           <div className="flex gap-4">
             <button 
                 onClick={toggleWishlist} 
-                className="flex-1 h-14 rounded-2xl bg-white/5 border border-white/10 text-white font-bold uppercase tracking-widest text-[10px] active:scale-95 transition-all flex items-center justify-center gap-2"
+                className="flex-1 h-14 rounded-2xl bg-surface-2 border border-line text-ink font-bold text-[12px] active:scale-95 transition-all flex items-center justify-center gap-2"
             >
                 <span className={`material-symbols-outlined text-sm ${likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? 'text-[#FF4D6D] filled' : ''}`} style={{ fontVariationSettings: likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? "'FILL' 1" : "'FILL' 0" }}>favorite</span>
                 {likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? 'In Wishlist' : 'Add to Wishlist'}
             </button>
             <button 
                 onClick={handleExploreMore} 
-                className="flex-1 h-14 rounded-2xl bg-white/5 border border-white/10 text-white/50 font-bold uppercase tracking-widest text-[10px] active:scale-95 transition-all"
+                className="flex-1 h-14 rounded-2xl bg-surface-2 border border-line text-ink-soft font-bold text-[12px] active:scale-95 transition-all"
             >
                 Explore More
             </button>

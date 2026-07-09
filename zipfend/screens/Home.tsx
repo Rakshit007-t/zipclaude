@@ -9,6 +9,7 @@ import { buildSizeEngineProfileFromUserProfile } from '../utils/sizeProfile';
 import { demoProducts } from '../services/demoProducts';
 import ProductCard from '../components/ProductCard';
 import BottomSheet from '../components/BottomSheet';
+import { Sheet, Button, EmptyState } from '../components/ui';
 
 const DEMO_AUTH_KEY = 'zipright_demo_user';
 
@@ -394,26 +395,26 @@ const Home: React.FC = () => {
       {showHint && (
         <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 backdrop-blur-xl rounded-[2rem] px-8 py-7 border border-white/10 text-center mx-8">
-            <p className="text-white/40 text-[9px] font-bold uppercase tracking-[0.3em] mb-4">Swipe to interact</p>
+            <p className="text-white/40 text-[11px] font-bold mb-4">Swipe to interact</p>
             <div className="flex items-center justify-center gap-8 mb-4">
               <div className="flex flex-col items-center gap-2">
-                <div className="bg-[#8B5CF6]/20 rounded-full px-3 py-1.5 border border-[#8B5CF6]/30">
-                  <span className="material-symbols-outlined text-[#8B5CF6] text-sm">send</span>
+                <div className="bg-[#6157FF]/20 rounded-full px-3 py-1.5 border border-[#6157FF]/30">
+                  <span className="material-symbols-outlined text-[#6157FF] text-sm">send</span>
                 </div>
-                <span className="text-[#8B5CF6] text-[10px] font-bold">Send to Friend</span>
+                <span className="text-[#6157FF] text-[12px] font-bold">Send to Friend</span>
               </div>
               <div className="flex flex-col items-center gap-1">
                 <span className="material-symbols-outlined text-white/20 text-2xl">swipe</span>
-                <span className="text-white/30 text-[9px]">or double tap ♥</span>
+                <span className="text-white/30 text-[11px]">or double tap ♥</span>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="bg-[#22c55e]/20 rounded-full px-3 py-1.5 border border-[#22c55e]/30">
                   <span className="material-symbols-outlined text-[#22c55e] text-sm">arrow_forward</span>
                 </div>
-                <span className="text-[#22c55e] text-[10px] font-bold">Cart</span>
+                <span className="text-[#22c55e] text-[12px] font-bold">Cart</span>
               </div>
             </div>
-            <p className="text-white/30 text-[9px]">Hold to check your size</p>
+            <p className="text-white/30 text-[11px]">Hold to check your size</p>
           </div>
         </div>
       )}
@@ -421,33 +422,32 @@ const Home: React.FC = () => {
       {/* TOP HEADER */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 pt-[22px] pb-12 pointer-events-none bg-gradient-to-b from-black via-black/60 to-transparent">
 
-        <span className="text-[#C9A06C] text-[23px] font-bold tracking-tight pointer-events-auto"
-          style={{ fontFamily: 'system-ui', fontStyle: 'normal' }}>
+        <span className="text-[#6157FF] text-[23px] font-bold tracking-tighter pointer-events-auto select-none">
           <span className="text-white">Zip</span>RIGHT
         </span>
 
         <div className="flex items-center gap-3 pointer-events-auto">
-          <button onClick={() => navigate('/wishlist')} className="relative active:scale-90 p-2 rounded-full">
-            <span className="material-symbols-outlined text-[#C9A06C] text-[22px]">favorite</span>
+          <button onClick={() => navigate('/wishlist')} aria-label={`Wishlist${wishlistCount > 0 ? `, ${wishlistCount} items` : ''}`} className="relative active:scale-90 p-2 rounded-full transition-transform">
+            <span className="material-symbols-outlined text-[#6157FF] text-[22px]" aria-hidden="true">favorite</span>
             {wishlistCount > 0 && (
-              <span className="absolute top-1 right-1 h-4 w-4 bg-[#FF4D6D] rounded-full text-[8px] font-bold flex items-center justify-center text-white ring-2 ring-black/20">
+              <span className="absolute top-1 right-1 h-4 w-4 bg-[#FF4D6D] rounded-full text-[12px] font-bold flex items-center justify-center text-white ring-2 ring-black/20">
                 {wishlistCount}
               </span>
             )}
           </button>
-          <button onClick={() => navigate('/cart')} className="relative active:scale-90 p-2 rounded-full">
-            <span className="material-symbols-outlined text-[#C9A06C] text-[22px]">shopping_cart</span>
+          <button onClick={() => navigate('/cart')} aria-label={`Cart${cartCount > 0 ? `, ${cartCount} items` : ''}`} className="relative active:scale-90 p-2 rounded-full transition-transform">
+            <span className="material-symbols-outlined text-[#6157FF] text-[22px]" aria-hidden="true">shopping_cart</span>
             {cartCount > 0 && (
-              <span className="absolute top-1 right-1 h-4 w-4 bg-[#22c55e] rounded-full text-[8px] font-bold flex items-center justify-center text-white ring-2 ring-black/20">
+              <span className="absolute top-1 right-1 h-4 w-4 bg-[#22c55e] rounded-full text-[12px] font-bold flex items-center justify-center text-white ring-2 ring-black/20">
                 {cartCount}
               </span>
             )}
           </button>
-          <button onClick={() => navigate('/stylist')} className="active:scale-90 p-2 rounded-full">
-            <span className="material-symbols-outlined text-[#C9A06C] text-[22px]">chat_bubble</span>
+          <button onClick={() => navigate('/stylist')} aria-label="AI Stylist chat" className="active:scale-90 p-2 rounded-full transition-transform">
+            <span className="material-symbols-outlined text-[#6157FF] text-[22px]" aria-hidden="true">chat_bubble</span>
           </button>
-          <button onClick={() => navigate('/gift-inbox')} className="relative active:scale-90 p-2 rounded-full">
-            <span className="material-symbols-outlined text-[#C9A06C] text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>card_giftcard</span>
+          <button onClick={() => navigate('/gift-inbox')} aria-label="Gift inbox" className="relative active:scale-90 p-2 rounded-full transition-transform">
+            <span className="material-symbols-outlined text-[#6157FF] text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">card_giftcard</span>
           </button>
         </div>
       </div>
@@ -461,8 +461,8 @@ const Home: React.FC = () => {
         {products.length === 0 ? (
           <div className="h-full w-full flex items-center justify-center px-8">
             <div className="max-w-sm rounded-[2rem] border border-white/10 bg-black/40 p-8 text-center backdrop-blur-xl">
-              <span className="material-symbols-outlined text-[#C9A06C] text-4xl mb-4">inventory_2</span>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#C9A06C] mb-3">Feed Unavailable</p>
+              <span className="material-symbols-outlined text-[#6157FF] text-4xl mb-4">inventory_2</span>
+              <p className="text-[12px] font-bold text-[#6157FF] mb-3">Feed Unavailable</p>
               <p className="text-sm text-white/60 leading-relaxed">{catalogMessage || 'Data unavailable'}</p>
             </div>
           </div>
@@ -488,7 +488,7 @@ const Home: React.FC = () => {
               <div className="bg-[#22c55e] px-5 py-2.5 rounded-2xl border-2 border-white/30 flex items-center gap-2 shadow-2xl">
                 <span className="material-symbols-outlined text-white text-xl"
                   style={{ fontVariationSettings: "'FILL' 1" }}>shopping_cart</span>
-                <span className="text-white font-black text-sm tracking-widest uppercase">Add to Cart</span>
+                <span className="text-white font-bold text-sm">Add to Cart</span>
               </div>
             </div>
 
@@ -497,8 +497,8 @@ const Home: React.FC = () => {
               className="absolute top-28 right-5 z-50 pointer-events-none"
               style={{ opacity: 0, transform: 'rotate(12deg)' }}
             >
-              <div className="bg-[#8B5CF6] px-5 py-2.5 rounded-2xl border-2 border-white/30 flex items-center gap-2 shadow-2xl">
-                <span className="text-white font-black text-sm tracking-widest uppercase">Send</span>
+              <div className="bg-[#6157FF] px-5 py-2.5 rounded-2xl border-2 border-white/30 flex items-center gap-2 shadow-2xl">
+                <span className="text-white font-bold text-sm">Send</span>
                 <span className="material-symbols-outlined text-white text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
               </div>
             </div>
@@ -523,7 +523,7 @@ const Home: React.FC = () => {
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#B5853F] text-lg">straighten</span>
+                    <span className="material-symbols-outlined text-[#6157FF] text-lg">straighten</span>
                     <span className="text-white font-bold text-sm">Quick Fit Check</span>
                   </div>
                   <button onClick={() => setSizePeek(null)} className="active:scale-90">
@@ -536,7 +536,7 @@ const Home: React.FC = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => { setSizePeek(null); navigate('/add-product', { state: { prefill: product } }); }}
-                    className="flex-1 bg-[#B5853F] text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest active:scale-95"
+                    className="flex-1 bg-[#6157FF] text-white py-3 rounded-xl text-xs font-bold active:scale-95"
                   >
                     Get My Size
                   </button>
@@ -550,11 +550,13 @@ const Home: React.FC = () => {
               </div>
             )}
 
-            {/* Product Image */}
+            {/* Product Image — fades in on decode to avoid pop-in */}
             <img
               src={product.image}
               alt={product.title}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-cover opacity-0 transition-opacity duration-500"
+              onLoad={(e) => e.currentTarget.classList.remove('opacity-0')}
+              loading={index > 1 ? 'lazy' : 'eager'}
               referrerPolicy="no-referrer"
             />
             {/* Subtle Obsidian Overlay for Contrast */}
@@ -580,7 +582,7 @@ const Home: React.FC = () => {
                     favorite
                   </span>
                 </div>
-                <span className="text-white text-[10px] font-bold">Like</span>
+                <span className="text-white text-[12px] font-bold">Like</span>
               </button>
 
               {/* Try-On */}
@@ -591,7 +593,7 @@ const Home: React.FC = () => {
                 <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
                   <span className="material-symbols-outlined text-white text-[26px]">view_in_ar</span>
                 </div>
-                <span className="text-white text-[10px] font-bold">Try-On</span>
+                <span className="text-white text-[12px] font-bold">Try-On</span>
               </button>
 
               {/* Gift */}
@@ -601,11 +603,11 @@ const Home: React.FC = () => {
               >
                 <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
                   <span className="material-symbols-outlined text-[26px]"
-                    style={{ color: '#8B5CF6', fontVariationSettings: "'FILL' 1" }}>
+                    style={{ color: '#6157FF', fontVariationSettings: "'FILL' 1" }}>
                     card_giftcard
                   </span>
                 </div>
-                <span className="text-white text-[10px] font-bold">Gift</span>
+                <span className="text-white text-[12px] font-bold">Gift</span>
               </button>
 
               {/* Share */}
@@ -616,7 +618,7 @@ const Home: React.FC = () => {
                 <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
                   <span className="material-symbols-outlined text-white text-[26px]">ios_share</span>
                 </div>
-                <span className="text-white text-[10px] font-bold">Share</span>
+                <span className="text-white text-[12px] font-bold">Share</span>
               </button>
             </div>
 
@@ -653,69 +655,61 @@ const Home: React.FC = () => {
       )}
 
       {/* FRIEND SHARE SHEET */}
-      {friendShareProduct && (
-        <>
-          <div
-            className="fixed inset-0 z-[55] bg-black/60 backdrop-blur-sm"
-            onClick={() => setFriendShareProduct(null)}
-          />
-          <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#111111] rounded-t-[2.5rem] border-t border-white/10">
-            <div className="flex justify-center pt-4 pb-2">
-              <div className="w-12 h-1.5 bg-white/20 rounded-full" />
-            </div>
-            <div className="px-6 pb-10 pt-2">
-              {/* Product preview row */}
-              <div className="flex items-center gap-3 mb-6 bg-white/5 rounded-2xl p-3 border border-white/5">
-                <img src={friendShareProduct.image} alt="" className="h-12 w-12 rounded-xl object-cover" />
-                <div>
-                  <p className="text-white font-bold text-sm">{friendShareProduct.brand}</p>
-                  <p className="text-white/50 text-xs">{friendShareProduct.title} · {friendShareProduct.price}</p>
-                </div>
-                <span className="material-symbols-outlined text-[#8B5CF6] ml-auto" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
+      <Sheet
+        open={!!friendShareProduct}
+        onClose={() => setFriendShareProduct(null)}
+        title="Send to your Style Circle"
+      >
+        {friendShareProduct && (
+          <>
+            {/* Product preview row */}
+            <div className="flex items-center gap-3 mb-6 bg-white/5 rounded-2xl p-3 border border-white/5">
+              <img src={friendShareProduct.image} alt="" className="h-12 w-12 rounded-xl object-cover" />
+              <div className="min-w-0">
+                <p className="text-ink font-bold text-sm">{friendShareProduct.brand}</p>
+                <p className="text-ink-soft text-xs truncate">{friendShareProduct.title} · {friendShareProduct.price}</p>
               </div>
-
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.25em] mb-4">Send to your Style Circle</p>
-
-              {/* Friends list */}
-              {friendsList.length === 0 ? (
-                <div className="text-center py-8">
-                  <span className="material-symbols-outlined text-white/20 text-5xl mb-3 block">group_add</span>
-                  <p className="text-white/60 text-sm font-bold mb-1">No friends yet</p>
-                  <p className="text-white/30 text-xs mb-5">Add friends to share fits with them</p>
-                  <button
-                    onClick={() => { setFriendShareProduct(null); navigate('/friends'); }}
-                    className="bg-[#B5853F] text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest active:scale-95"
-                  >
-                    Find Friends
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3 max-h-[40vh] overflow-y-auto no-scrollbar">
-                  {friendsList.map((friend) => (
-                    <button
-                      key={friend.uid}
-                      onClick={async () => {
-                        const user = auth.currentUser;
-                        if (!user && !hasDemoSession()) return;
-                        void user;
-                        showToast('Friend sharing is unavailable right now.', 'error');
-                        setFriendShareProduct(null);
-                      }}
-                      className="flex items-center gap-4 p-3 bg-white/5 rounded-2xl border border-white/5 active:scale-95"
-                    >
-                      <div className="h-11 w-11 rounded-full bg-[#B5853F]/20 flex items-center justify-center shrink-0">
-                        <span className="text-[#B5853F] font-black text-base">{friend.name.charAt(0).toUpperCase()}</span>
-                      </div>
-                      <span className="text-white font-bold text-sm">{friend.name}</span>
-                      <span className="material-symbols-outlined text-white/30 ml-auto">chevron_right</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <span className="material-symbols-outlined text-[#6157FF] ml-auto shrink-0" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">send</span>
             </div>
-          </div>
-        </>
-      )}
+
+            {/* Friends list */}
+            {friendsList.length === 0 ? (
+              <EmptyState
+                icon="group_add"
+                title="No friends yet"
+                description="Add friends to share fits with them."
+                action={
+                  <Button onClick={() => { setFriendShareProduct(null); navigate('/friends'); }}>
+                    Find Friends
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {friendsList.map((friend) => (
+                  <button
+                    key={friend.uid}
+                    onClick={async () => {
+                      const user = auth.currentUser;
+                      if (!user && !hasDemoSession()) return;
+                      void user;
+                      showToast('Friend sharing is unavailable right now.', 'error');
+                      setFriendShareProduct(null);
+                    }}
+                    className="flex items-center gap-4 p-3 bg-white/5 rounded-2xl border border-white/5 active:scale-[0.97] transition-transform"
+                  >
+                    <div className="h-11 w-11 rounded-full bg-brand-soft flex items-center justify-center shrink-0">
+                      <span className="text-brand font-bold text-base">{friend.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <span className="text-ink font-bold text-sm">{friend.name}</span>
+                    <span className="material-symbols-outlined text-ink-faint ml-auto" aria-hidden="true">chevron_right</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </Sheet>
     </div>
   );
 };
