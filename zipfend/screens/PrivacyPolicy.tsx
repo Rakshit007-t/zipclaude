@@ -186,7 +186,7 @@ const PrivacyPolicy: React.FC = () => {
         <div className="mt-8 p-5 rounded-card bg-surface-1 border border-line">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand mb-2">Contact our privacy team</p>
           <p className="text-[12.5px] text-ink-soft leading-relaxed">
-            For any data protection requests, grievances, or concerns, email us at <span className="text-brand">privacy@zipright.in</span>. We respond within 30 days as required by the DPDP Act, 2023.
+            For any data protection requests, grievances, or concerns, email us at <a href="mailto:privacy@zipright.in" className="text-brand">privacy@zipright.in</a>. We respond within 30 days as required by the DPDP Act, 2023.
           </p>
         </div>
       </div>

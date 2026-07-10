@@ -1053,10 +1053,7 @@ const FitProfile: React.FC = () => {
               Scan yourself with AI and auto-fill your measurements.
             </p>
             <button
-              onClick={() => {
-                console.log('Measure clicked');
-                navigate('/smart-fit-scan');
-              }}
+              onClick={() => navigate('/smart-fit-scan')}
               className="border border-ink-invert/40 text-ink-invert font-semibold text-[11px] uppercase tracking-[0.12em] h-10 px-5 rounded-full inline-flex items-center gap-2 active:scale-95 transition-transform"
             >
               Measure now

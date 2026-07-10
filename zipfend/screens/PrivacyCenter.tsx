@@ -21,7 +21,7 @@ const PrivacyCenter: React.FC = () => {
         <div className="rounded-card border border-line bg-surface-1 px-4 divide-y divide-line">
           <ListRow icon="description" title="Privacy Policy" subtitle="How we store and use your data" onClick={() => navigate('/privacy-policy')} />
           <ListRow icon="gavel" title="Terms of Use" subtitle="The agreement you accepted" onClick={() => navigate('/terms-of-use')} />
-          <ListRow icon="tune" title="App permissions" subtitle="Camera, location, photos" onClick={() => navigate('/settings')} />
+          <ListRow icon="tune" title="App permissions" subtitle="Camera, location, photos" onClick={() => navigate('/settings', { state: { view: 'permissions' } })} />
         </div>
       </div>
     </div>

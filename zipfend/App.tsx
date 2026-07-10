@@ -3,6 +3,8 @@ import { HashRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'r
 import { motion, AnimatePresence } from 'motion/react';
 import { springs } from './components/ui/motion';
 import { getJourneySnapshot } from './services/styleJourney';
+import { ensureUserDoc, startPresence } from './services/social';
+import { onConversations, unreadConversations } from './services/messages';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from './firebase';
 import { ToastProvider } from './contexts/ToastContext';
@@ -39,6 +41,8 @@ const CommunityFeed = React.lazy(() => import('./screens/CommunityFeed'));
 const CreateLook = React.lazy(() => import('./screens/CreateLook'));
 const StylistChat = React.lazy(() => import('./screens/StylistChat'));
 const FriendsScreen = React.lazy(() => import('./screens/FriendsScreen'));
+const UserProfile = React.lazy(() => import('./screens/UserProfile'));
+const ChatScreen = React.lazy(() => import('./screens/ChatScreen'));
 const ProductFeed = React.lazy(() => import('./screens/ProductFeed'));
 const AdminAnalytics = React.lazy(() => import('./screens/AdminAnalytics'));
 const SellerAddProduct = React.lazy(() => import('./screens/SellerAddProduct'));
@@ -213,7 +217,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
           viewport on any phone width; safe-area handled by pb-safe below. */}
       <nav
         aria-label="Main navigation"
-        className="fixed z-50 w-full bg-ink text-ink-invert dark:bg-surface-1 dark:text-ink dark:border-t dark:border-line phone-fixed-bottom"
+        className="fixed z-50 w-full max-w-[430px] inset-x-0 mx-auto bg-ink text-ink-invert dark:bg-surface-1 dark:text-ink dark:border-t dark:border-line phone-fixed-bottom"
         style={{ bottom: 0 }}
       >
         <div className="grid grid-cols-5 h-[64px] items-center px-2">
@@ -336,7 +340,9 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
       // Style Journey points power the profile-tab badge (client-side progression)
       setZipPoints(getJourneySnapshot().points);
       setUnreadFriends(0);
-      return;
+      // Social layer: public profile fields + online-presence heartbeat
+      void ensureUserDoc();
+      return startPresence();
     }
     setProfileImage(null);
     setZipPoints(0);
@@ -347,6 +353,12 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
   useEffect(() => {
     if (user) setZipPoints(getJourneySnapshot().points);
   }, [location.pathname, user]);
+
+  // Friends-tab badge = unread DM conversations
+  useEffect(() => {
+    if (!user) return;
+    return onConversations(convs => setUnreadFriends(unreadConversations(convs)));
+  }, [user]);
 
   if (loading) {
     // Animated brand splash during the (real) Firebase auth-state wait.
@@ -407,6 +419,8 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="/community" element={isAuthenticated ? <CommunityFeed /> : <Navigate to="/login" />} />
           <Route path="/create-look" element={isAuthenticated ? <CreateLook /> : <Navigate to="/login" />} />
           <Route path="/friends" element={isAuthenticated ? <FriendsScreen /> : <Navigate to="/login" />} />
+          <Route path="/profile/:uid" element={isAuthenticated ? <UserProfile /> : <Navigate to="/login" />} />
+          <Route path="/chat/:uid" element={isAuthenticated ? <ChatScreen /> : <Navigate to="/login" />} />
           <Route path="/recent-scans" element={isAuthenticated ? <RecentScans /> : <Navigate to="/login" />} />
           <Route path="/feed" element={isAuthenticated ? <ProductFeed /> : <Navigate to="/login" />} />
           <Route path="/admin/analytics" element={isAuthenticated ? <AdminAnalytics /> : <Navigate to="/login" />} />

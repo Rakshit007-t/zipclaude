@@ -6,18 +6,21 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   onSnapshot,
   query,
+  setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
+import { PublicProfile, searchUsers } from '../services/social';
+import { Conversation, onConversations, unreadConversations } from '../services/messages';
 import { Eyebrow, Wordmark, Badge, Button, EmptyState } from '../components/ui';
 
-type Tab = 'circle' | 'inbox' | 'requests';
+type Tab = 'circle' | 'chats' | 'inbox' | 'requests';
 
 interface Friend {
   uid: string;
@@ -34,6 +37,7 @@ interface InboxItem {
   price: string;
   image: string;
   url: string;
+  category?: string;
   sentAt: any;
   seen: boolean;
   reaction?: 'cop' | 'skip' | 'maybe';
@@ -54,10 +58,11 @@ const FriendsScreen: React.FC = () => {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
-  const [searchEmail, setSearchEmail] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState<{ uid: string; name: string; email: string } | null>(null);
+  const [searchResults, setSearchResults] = useState<PublicProfile[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -87,22 +92,42 @@ const FriendsScreen: React.FC = () => {
       }
     );
 
-    return () => { friendsUnsub(); inboxUnsub(); reqUnsub(); };
+    // Chat list
+    const convUnsub = onConversations(setConversations);
+
+    // Complete the two-way friendship loop: when someone accepted MY request,
+    // add them to my own friends list (I own that write) and mark it processed.
+    (async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'accepted_friend_requests'),
+          where('originalFromUid', '==', user.uid),
+          where('processed', '==', false),
+        ));
+        for (const d of snap.docs) {
+          const a = d.data();
+          if (!a.acceptedByUid) continue;
+          await setDoc(doc(db, 'users', user.uid, 'friends', a.acceptedByUid), {
+            uid: a.acceptedByUid,
+            name: a.acceptedByName || 'Friend',
+            email: a.acceptedByEmail || '',
+            addedAt: new Date(),
+          });
+          await updateDoc(doc(db, 'accepted_friend_requests', d.id), { processed: true });
+        }
+      } catch {}
+    })();
+
+    return () => { friendsUnsub(); inboxUnsub(); reqUnsub(); convUnsub(); };
   }, []);
 
   const handleSearchUser = async () => {
-    if (!searchEmail.trim()) return;
+    if (searchTerm.trim().length < 2) return;
     setIsSearching(true);
-    setSearchResult(null);
     try {
-      const q = query(collection(db, 'users'), where('email', '==', searchEmail.trim().toLowerCase()));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const d = snap.docs[0];
-        setSearchResult({ uid: d.id, name: d.data().displayName || d.data().email, email: d.data().email });
-      } else {
-        showToast('No user found with that email', 'error');
-      }
+      const results = await searchUsers(searchTerm);
+      setSearchResults(results);
+      if (results.length === 0) showToast('No members found', 'error');
     } catch {
       showToast('Search failed. Try again.', 'error');
     }
@@ -124,8 +149,7 @@ const FriendsScreen: React.FC = () => {
         sentAt: new Date(),
       });
       showToast('Friend request sent ✦', 'success');
-      setSearchResult(null);
-      setSearchEmail('');
+      setSearchResults(prev => prev.filter(r => r.uid !== toUser.uid));
     } catch {
       showToast('Could not send request', 'error');
     }
@@ -135,18 +159,17 @@ const FriendsScreen: React.FC = () => {
     const user = auth.currentUser;
     if (!user) return;
     try {
-      // Add sender to current user's friends (allowed — current user owns this)
-      await addDoc(collection(db, 'users', user.uid, 'friends'), {
+      // Add sender to current user's friends. Doc ID = friend uid so
+      // handleRemoveFriend's delete-by-uid actually finds the doc.
+      await setDoc(doc(db, 'users', user.uid, 'friends', req.fromUid), {
         uid: req.fromUid,
         name: req.fromName,
         email: req.fromEmail,
         addedAt: new Date(),
       });
 
-      // Write a cross_friend_add document — the sender will be added
-      // to their own friends list via a Cloud Function or next login.
-      // For now, write to a shared accepted_friend_requests collection
-      // which has permissive write rules for authenticated users.
+      // Tell the sender their request was accepted — their FriendsScreen
+      // processes this on next visit and adds me to their own friends list.
       await addDoc(collection(db, 'accepted_friend_requests'), {
         acceptedByUid: user.uid,
         acceptedByName: user.displayName || user.email || 'Your friend',
@@ -194,19 +217,28 @@ const FriendsScreen: React.FC = () => {
     } catch {}
   };
 
-  const markSeen = async (itemId: string) => {
+  // Opening the inbox tab clears "new" state for everything visible — one batch,
+  // one snapshot re-fire. (Keyboard/screen-reader safe: no click target needed.)
+  useEffect(() => {
+    if (activeTab !== 'inbox') return;
     const user = auth.currentUser;
     if (!user) return;
-    try {
-      await updateDoc(doc(db, 'users', user.uid, 'friend_inbox', itemId), { seen: true });
-    } catch {}
-  };
+    const unseen = inboxItems.filter(i => !i.seen);
+    if (unseen.length === 0) return;
+    const batch = writeBatch(db);
+    unseen.forEach(i => batch.update(doc(db, 'users', user.uid, 'friend_inbox', i.id), { seen: true }));
+    batch.commit().catch(() => {});
+  }, [activeTab, inboxItems]);
 
+  const chatUnread = unreadConversations(conversations);
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'circle', label: 'Circle' },
+    { key: 'chats', label: 'Chats', count: chatUnread },
     { key: 'inbox', label: 'Inbox', count: unreadCount },
     { key: 'requests', label: 'Requests', count: requests.length },
   ];
+
+  const me = auth.currentUser?.uid;
 
   const reactionTone = (active: boolean) =>
     active ? 'bg-ink border-ink text-ink-invert' : 'border-line text-ink-soft hover:border-line-strong';
@@ -226,7 +258,7 @@ const FriendsScreen: React.FC = () => {
         </div>
 
         {/* Tabs — sliding underline */}
-        <div className="flex gap-7" role="tablist">
+        <div className="flex gap-6" role="tablist">
           {tabs.map(t => (
             <button
               key={t.key}
@@ -250,16 +282,17 @@ const FriendsScreen: React.FC = () => {
         {/* ---- CIRCLE TAB ---- */}
         {activeTab === 'circle' && (
           <div>
-            {/* Search to add */}
+            {/* Search members — name, @username, or email */}
             <div className="mb-7">
-              <Eyebrow className="mb-3">Add by email</Eyebrow>
+              <Eyebrow className="mb-3">Find people</Eyebrow>
               <div className="flex gap-2">
                 <input
-                  type="email"
-                  value={searchEmail}
-                  onChange={e => setSearchEmail(e.target.value)}
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => { setSearchTerm(e.target.value); if (!e.target.value) setSearchResults([]); }}
                   onKeyDown={e => e.key === 'Enter' && handleSearchUser()}
-                  placeholder="friend@email.com"
+                  placeholder="Name, @username, or email"
+                  aria-label="Search members"
                   className="flex-1 bg-surface-1 border border-line rounded-full px-4 h-12 text-ink text-[14px] placeholder:text-ink-faint outline-none focus:border-ink transition-colors"
                 />
                 <button
@@ -274,38 +307,70 @@ const FriendsScreen: React.FC = () => {
                 </button>
               </div>
 
-              {/* Search result */}
-              {searchResult && (
-                <div className="mt-3 flex items-center justify-between bg-surface-1 rounded-card p-4 border border-line">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-full border border-line flex items-center justify-center shrink-0">
-                      <span className="text-ink font-display font-medium">{searchResult.name.charAt(0).toUpperCase()}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-ink font-semibold text-[14px] truncate">{searchResult.name}</p>
-                      <p className="text-ink-faint text-[12px] truncate">{searchResult.email}</p>
-                    </div>
-                  </div>
-                  <Button size="sm" onClick={() => handleSendRequest(searchResult)}>Add</Button>
+              {/* Search results */}
+              {searchResults.length > 0 && (
+                <div className="mt-3 bg-surface-1 rounded-card border border-line divide-y divide-line overflow-hidden">
+                  {searchResults.map(result => {
+                    const alreadyFriend = friends.some(f => f.uid === result.uid);
+                    return (
+                      <div key={result.uid} className="flex items-center justify-between p-4">
+                        <button
+                          onClick={() => navigate(`/profile/${result.uid}`)}
+                          className="flex items-center gap-3 min-w-0 flex-1 text-left active:opacity-70"
+                          aria-label={`View @${result.username}'s profile`}
+                        >
+                          <div className="h-10 w-10 rounded-full border border-line flex items-center justify-center shrink-0 overflow-hidden">
+                            {result.photoURL ? (
+                              <img src={result.photoURL} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              <span className="text-ink font-display font-medium">{result.displayName.charAt(0).toUpperCase()}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-ink font-semibold text-[14px] truncate">{result.displayName}</p>
+                            <p className="text-ink-faint text-[12px] truncate">@{result.username}</p>
+                          </div>
+                        </button>
+                        {alreadyFriend ? (
+                          <Button size="sm" variant="outline" icon="chat_bubble" onClick={() => navigate(`/chat/${result.uid}`)}>Chat</Button>
+                        ) : (
+                          <Button size="sm" onClick={() => handleSendRequest({ uid: result.uid, name: result.displayName, email: '' })}>Add</Button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
             {/* Friends list */}
             {friends.length === 0 ? (
-              <EmptyState icon="group" title="Your circle is empty" description="Add friends by email above to start sharing fits." />
+              <EmptyState icon="group" title="Your circle is empty" description="Search by name, @username, or email above to start sharing fits." />
             ) : (
               <div className="flex flex-col">
                 <Eyebrow className="mb-3">{friends.length} in your circle</Eyebrow>
                 {friends.map(friend => (
-                  <div key={friend.uid} className="flex items-center gap-4 py-3.5 border-b border-line last:border-none">
-                    <div className="h-11 w-11 rounded-full border border-line flex items-center justify-center shrink-0">
-                      <span className="text-ink font-display font-medium text-[16px]">{friend.name.charAt(0).toUpperCase()}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-ink font-medium text-[14px] truncate">{friend.name}</p>
-                      <p className="text-ink-faint text-[12px] truncate">{friend.email}</p>
-                    </div>
+                  <div key={friend.uid} className="flex items-center gap-3 py-3.5 border-b border-line last:border-none">
+                    <button
+                      onClick={() => navigate(`/profile/${friend.uid}`)}
+                      className="flex items-center gap-4 flex-1 min-w-0 text-left active:opacity-70"
+                      aria-label={`View ${friend.name}'s profile`}
+                    >
+                      <div className="h-11 w-11 rounded-full border border-line flex items-center justify-center shrink-0">
+                        <span className="text-ink font-display font-medium text-[16px]">{friend.name.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-ink font-medium text-[14px] truncate">{friend.name}</p>
+                        <p className="text-ink-faint text-[12px] truncate">{friend.email}</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => navigate(`/chat/${friend.uid}`)}
+                      aria-label={`Message ${friend.name}`}
+                      className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform"
+                    >
+                      <span className="material-symbols-outlined text-[17px]" aria-hidden="true">chat_bubble</span>
+                    </button>
                     <button
                       onClick={() => handleRemoveFriend(friend.uid)}
                       aria-label={`Remove ${friend.name}`}
@@ -315,6 +380,62 @@ const FriendsScreen: React.FC = () => {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ---- CHATS TAB ---- */}
+        {activeTab === 'chats' && (
+          <div>
+            {conversations.length === 0 ? (
+              <EmptyState
+                icon="chat_bubble"
+                title="No conversations yet"
+                description="Message a friend from your circle — share fits, looks, and voice notes."
+                action={<Button icon="group" onClick={() => setActiveTab('circle')}>Open your circle</Button>}
+              />
+            ) : (
+              <div className="flex flex-col">
+                {conversations.map(conv => {
+                  const otherUid = conv.members.find(u => u !== me);
+                  if (!otherUid) return null;
+                  const info = conv.memberInfo?.[otherUid];
+                  const lastAt = conv.lastMessage?.at?.toMillis?.();
+                  const myRead = conv.lastRead?.[me || '']?.toMillis?.();
+                  const unread = !!lastAt && conv.lastMessage?.from !== me && (!myRead || lastAt > myRead);
+                  return (
+                    <button
+                      key={conv.id}
+                      onClick={() => navigate(`/chat/${otherUid}`)}
+                      className="flex items-center gap-4 py-3.5 border-b border-line last:border-none text-left active:opacity-70"
+                    >
+                      <div className="h-12 w-12 rounded-full border border-line flex items-center justify-center shrink-0 overflow-hidden">
+                        {info?.photoURL ? (
+                          <img src={info.photoURL} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="text-ink font-display font-medium text-[17px]">{(info?.displayName || '?').charAt(0).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className={`text-[14px] truncate ${unread ? 'text-ink font-semibold' : 'text-ink font-medium'}`}>{info?.displayName || 'Member'}</p>
+                          {lastAt ? (
+                            <span className="text-ink-faint text-[10.5px] shrink-0">
+                              {new Date(lastAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) === new Date().toLocaleDateString([], { day: 'numeric', month: 'short' })
+                                ? new Date(lastAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                                : new Date(lastAt).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className={`text-[12.5px] truncate mt-0.5 ${unread ? 'text-ink font-medium' : 'text-ink-faint'}`}>
+                          {conv.lastMessage?.from === me ? 'You: ' : ''}{conv.lastMessage?.text || 'Say hello'}
+                        </p>
+                      </div>
+                      {unread && <span className="h-2.5 w-2.5 rounded-full bg-brand shrink-0" aria-label="Unread" />}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -330,7 +451,6 @@ const FriendsScreen: React.FC = () => {
                 {inboxItems.map(item => (
                   <div
                     key={item.id}
-                    onClick={() => markSeen(item.id)}
                     className={`rounded-card overflow-hidden border ${item.seen ? 'border-line' : 'border-brand/40'} bg-surface-1`}
                   >
                     {/* Product image */}
@@ -362,7 +482,7 @@ const FriendsScreen: React.FC = () => {
                         fullWidth
                         icon="straighten"
                         className="mt-3"
-                        onClick={() => navigate('/add-product', { state: { prefill: { id: item.id, brand: item.brand, title: item.title, image: item.image, url: item.url, category: 'Tops' } } })}
+                        onClick={() => navigate('/add-product', { state: { prefill: { id: item.id, brand: item.brand, title: item.title, image: item.image, url: item.url, ...(item.category ? { category: item.category } : {}) } } })}
                       >
                         Check if this fits me
                       </Button>

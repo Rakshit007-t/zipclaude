@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import { PLANS, getUserRole, setUserRole, getSellerStatus, setSellerStatus, getUserPlan } from '../utils/subscription';
-import { auth, db } from '../firebase';
+import { compressImage } from '../utils/media';
+import app, { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import {
@@ -41,6 +44,28 @@ function readDemoUser() {
   } catch {
     return null;
   }
+}
+
+// Addresses persist locally per account (no backend orders API yet)
+function addressStoreKey() {
+  const owner = auth.currentUser?.uid || readDemoUser()?.uid;
+  return owner ? `zipright_addresses:${owner}` : null;
+}
+
+function readStoredAddresses(): Address[] {
+  try {
+    const key = addressStoreKey();
+    const raw = key ? localStorage.getItem(key) : null;
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function writeStoredAddresses(list: Address[]) {
+  try {
+    const key = addressStoreKey();
+    if (key) localStorage.setItem(key, JSON.stringify(list));
+  } catch {}
 }
 
 function fitPreferenceToSlider(value?: string) {
@@ -145,10 +170,12 @@ const MenuGroup: React.FC<{ children: React.ReactNode; className?: string }> = (
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { userProfile, isHydrated, refreshProfile } = useUserProfile();
 
-  const [view, setView] = useState<ViewState>('main');
+  // Deep link: other screens can open a specific view via navigate('/settings', { state: { view } })
+  const [view, setView] = useState<ViewState>((location.state as { view?: ViewState } | null)?.view || 'main');
   const [addressStep, setAddressStep] = useState<'map' | 'form'>('map');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -187,7 +214,8 @@ const Settings: React.FC = () => {
   const [profileImage, setProfileImage] = useState(
     auth.currentUser?.photoURL ||
     ((auth.currentUser as typeof auth.currentUser & { photoUrl?: string })?.photoUrl ?? '') ||
-    'https://picsum.photos/seed/profile/200/200'
+    localStorage.getItem('zipright_profile_photo') ||
+    ''
   );
 
   const [userData, setUserData] = useState({
@@ -378,7 +406,7 @@ const Settings: React.FC = () => {
                 const savedMembers = buildMembersFromProfile(savedProfile);
                 setMembers(savedMembers.length ? savedMembers : membersList);
 
-                setAddresses([]);
+                setAddresses(readStoredAddresses());
 
             } catch (error) {
                 console.error("Error loading settings data:", error);
@@ -398,7 +426,7 @@ const Settings: React.FC = () => {
             setUserData(u);
             setEditUserData(u);
             setMembers(buildMembersFromProfile(savedProfile));
-            setAddresses([]);
+            setAddresses(readStoredAddresses());
             setSellerStatusState('none');
         }
 
@@ -454,16 +482,34 @@ const Settings: React.FC = () => {
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        if (e.target?.result) {
-          const base64 = e.target.result as string;
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const blob = await compressImage(file, 512, 0.85);
+      const user = auth.currentUser;
+      if (user && !user.isAnonymous) {
+        // Real account: upload to Storage, persist on auth + users doc so the
+        // photo shows everywhere (nav, chat, profile, feed).
+        const storageRef = ref(getStorage(app), `profiles/${user.uid}.jpg`);
+        await uploadBytes(storageRef, blob);
+        const url = await getDownloadURL(storageRef);
+        updateAuthProfile(user, { photoURL: url }).catch(() => {});
+        await setDoc(doc(db, 'users', user.uid), { photoURL: url }, { merge: true });
+        setProfileImage(url);
+        showToast('Profile photo updated', 'success');
+      } else {
+        // Demo session: keep locally so it survives reloads
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const base64 = e.target?.result as string;
           setProfileImage(base64);
-          showToast('Profile image preview updated for this session.', 'success');
-        }
-      };
-      reader.readAsDataURL(event.target.files[0]);
+          try { localStorage.setItem('zipright_profile_photo', base64); } catch {}
+        };
+        reader.readAsDataURL(blob);
+      }
+    } catch {
+      showToast('Could not update photo. Try again.', 'error');
     }
   };
 
@@ -473,8 +519,11 @@ const Settings: React.FC = () => {
 
       try {
           const profileName = [editUserData.firstName.trim(), editUserData.lastName.trim()].filter(Boolean).join(' ');
+          const displayName = profileName || user.displayName || '';
           await setDoc(doc(db, 'users', user.uid), {
               profileName,
+              // Keep the social-search fields in step with the edited name
+              ...(displayName ? { displayName, displayNameLower: displayName.toLowerCase() } : {}),
               gender: editUserData.gender,
           }, { merge: true });
           setUserData(editUserData);
@@ -520,7 +569,9 @@ const Settings: React.FC = () => {
                 ? prev.map(address => ({ ...address, isDefault: false }))
                 : [...prev];
               const withoutCurrent = baseAddresses.filter(address => address.id !== nextAddress.id);
-              return [...withoutCurrent, nextAddress];
+              const next = [...withoutCurrent, nextAddress];
+              writeStoredAddresses(next);
+              return next;
           });
           showToast('Address Saved', 'success');
           setView('addresses');
@@ -532,7 +583,9 @@ const Settings: React.FC = () => {
 
   const deleteAddress = async (id: string) => {
       try {
-          setAddresses(addresses.filter(a => a.id !== id));
+          const next = addresses.filter(a => a.id !== id);
+          setAddresses(next);
+          writeStoredAddresses(next);
           setShowDeleteAddressConfirm(null);
           showToast('Address Deleted', 'success');
       } catch (error) {
@@ -584,7 +637,6 @@ const Settings: React.FC = () => {
     const nextVal = !permissionsState[id as keyof typeof permissionsState];
     setPermissionsState(prev => ({ ...prev, [id]: nextVal }));
     localStorage.setItem(`zipright_${id}`, nextVal ? 'granted' : 'denied');
-    showToast('Permission Updated.', 'success');
   };
 
   const handleSellerApply = async () => {
@@ -814,8 +866,12 @@ const Settings: React.FC = () => {
                         className="relative group"
                         onClick={() => fileInputRef.current?.click()}
                     >
-                        <div className="h-24 w-24 rounded-full overflow-hidden border border-line">
-                            <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
+                        <div className="h-24 w-24 rounded-full overflow-hidden border border-line bg-surface-1 flex items-center justify-center">
+                            {profileImage ? (
+                              <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
+                            ) : (
+                              <span className="font-display text-[32px] font-medium text-ink">{(editUserData.firstName || 'Z').charAt(0).toUpperCase()}</span>
+                            )}
                         </div>
                         <div className="absolute bottom-0 right-0 bg-ink text-ink-invert h-8 w-8 rounded-full flex items-center justify-center border-2 border-surface-0">
                             <span className="material-symbols-outlined text-[15px]" aria-hidden="true">photo_camera</span>
@@ -1431,8 +1487,12 @@ const Settings: React.FC = () => {
               className="relative shrink-0"
               onClick={() => fileInputRef.current?.click()}
             >
-              <div className="h-20 w-20 rounded-full overflow-hidden border border-line">
-                <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
+              <div className="h-20 w-20 rounded-full overflow-hidden border border-line bg-surface-1 flex items-center justify-center">
+                {profileImage ? (
+                  <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
+                ) : (
+                  <span className="font-display text-[28px] font-medium text-ink">{(userData.firstName || 'Z').charAt(0).toUpperCase()}</span>
+                )}
               </div>
               <div className="absolute bottom-0 right-0 bg-ink text-ink-invert h-7 w-7 rounded-full flex items-center justify-center border-2 border-surface-0">
                 <span className="material-symbols-outlined text-[14px]" aria-hidden="true">edit</span>
@@ -1712,6 +1772,9 @@ const Settings: React.FC = () => {
           <div className="px-6 mb-8">
             <Eyebrow className="mb-4 ml-1">My Account</Eyebrow>
             <MenuGroup>
+              {auth.currentUser && !auth.currentUser.isAnonymous && (
+                <ListRow icon="account_circle" title="My Style Profile" subtitle="Your public looks, followers & following" onClick={() => navigate(`/profile/${auth.currentUser!.uid}`)} />
+              )}
               <ListRow icon="shopping_bag" title="My Orders" onClick={() => navigate('/order-history')} />
               <ListRow icon="favorite" title="Wishlist" onClick={() => navigate('/wishlist')} />
               <ListRow icon="location_on" title="Addresses" onClick={() => setView('addresses')} />
@@ -1750,10 +1813,10 @@ const Settings: React.FC = () => {
         <div className="px-6 mb-8">
           <Eyebrow className="mb-4 ml-1">Preferences</Eyebrow>
           <MenuGroup>
+            {/* No row onClick — the Toggle is the interactive element (a button can't nest a button) */}
             <ListRow
               icon="dark_mode"
               title="Dark Mode"
-              onClick={toggleDarkMode}
               trailing={<Toggle label="Dark Mode" on={isDarkMode} onClick={toggleDarkMode} />}
             />
             <ListRow icon="settings" title="App Settings" onClick={() => setView('app-settings')} />
@@ -1778,8 +1841,11 @@ const Settings: React.FC = () => {
             fullWidth
             className="!text-danger !border-danger/30"
             onClick={async () => {
-              await auth.signOut();
-              navigate('/welcome');
+              // Real Firebase session AND demo session both end here
+              try { await auth.signOut(); } catch {}
+              localStorage.removeItem(DEMO_AUTH_KEY);
+              window.dispatchEvent(new Event('zipright-demo-auth-changed'));
+              navigate('/welcome', { replace: true });
             }}
           >
             Log out

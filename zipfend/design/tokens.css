@@ -90,6 +90,8 @@
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
+  /* Copper for photo/video overlays — fixed, never theme-flips (media is always dark) */
+  --color-brand-on-media: #e89b6b;
   --color-on-brand: var(--on-brand);
   --color-brass: var(--brass);
   --color-brass-soft: var(--brass-soft);

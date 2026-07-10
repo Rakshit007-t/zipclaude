@@ -23,7 +23,7 @@ function pickRandomSuggestions(source: string[], count = 2) {
   return [...source].sort(() => 0.5 - Math.random()).slice(0, count);
 }
 
-/** Ultraviolet spark in a hairline ring — the stylist's mark. */
+/** Copper spark in a hairline ring — the stylist's mark. */
 const StylistAvatar: React.FC = () => (
   <div className="h-8 w-8 rounded-full border border-brand/40 flex items-center justify-center shrink-0 mt-1" aria-hidden="true">
     <span className="material-symbols-outlined text-brand text-[15px]">auto_awesome</span>

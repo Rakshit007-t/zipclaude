@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -7,6 +7,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
   updateDoc,
   where,
@@ -49,10 +50,17 @@ const GiftLook: React.FC = () => {
   const [sent, setSent] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  if (!product) {
-    navigate('/home');
-    return null;
-  }
+  // Arrived without a product (direct URL) — redirect from an effect, not mid-render
+  useEffect(() => {
+    if (!product) navigate('/home', { replace: true });
+  }, [product, navigate]);
+
+  // Cancel a pending search debounce on unmount
+  useEffect(() => () => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+  }, []);
+
+  if (!product) return null;
 
   // Debounced username search
   const handleUsernameChange = (val: string) => {
@@ -133,13 +141,10 @@ const GiftLook: React.FC = () => {
         senderZipCoinsAwarded: true,
       });
 
-      // Award ZipCoins to sender
-      const currentPoints = senderData.zipPoints || 0;
-      await updateDoc(doc(db, 'users', user.uid), {
-        zipPoints: currentPoints + 15,
-      });
-
+      // The gift is delivered — show success now. Coins are a bonus, never
+      // block or fail the send (a retry here would duplicate the gift).
       setSent(true);
+      updateDoc(doc(db, 'users', user.uid), { zipPoints: increment(15) }).catch(() => {});
     } catch (err) {
       showToast('Failed to send gift. Try again.', 'error');
     } finally {
@@ -225,6 +230,7 @@ const GiftLook: React.FC = () => {
             <input
               type="text"
               placeholder="username"
+              aria-label="Friend's username"
               value={usernameQuery}
               onChange={(e) => handleUsernameChange(e.target.value)}
               className="flex-1 bg-transparent text-ink text-[15px] placeholder:text-ink-faint outline-none"
@@ -298,6 +304,7 @@ const GiftLook: React.FC = () => {
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
+            aria-label="Gift note"
             placeholder="Write your own note…"
             rows={3}
             maxLength={120}

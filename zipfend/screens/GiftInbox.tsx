@@ -5,12 +5,13 @@ import {
   addDoc,
   collection,
   doc,
-  getDoc,
+  increment,
   onSnapshot,
   orderBy,
   query,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
@@ -48,23 +49,19 @@ const GiftInbox: React.FC = () => {
       orderBy('sentAt', 'desc')
     );
 
-    const unsub = onSnapshot(q, async (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Gift[];
       setGifts(fetched);
       setLoading(false);
 
-      // Mark unseen gifts as seen + award recipient coins
+      // Mark unseen gifts as seen in one batch (single snapshot re-fire) and
+      // award +5 coins each — both best-effort, never blocking the render.
       const unseenGifts = snap.docs.filter(d => !d.data().seen);
-      for (const giftDoc of unseenGifts) {
-        await updateDoc(doc(db, 'gifts', giftDoc.id), { seen: true });
-        // Award 5 ZipCoins to recipient for opening
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const currentPoints = userSnap.data().zipPoints || 0;
-          await updateDoc(userRef, { zipPoints: currentPoints + 5 });
-        }
-      }
+      if (unseenGifts.length === 0) return;
+      const batch = writeBatch(db);
+      unseenGifts.forEach(g => batch.update(doc(db, 'gifts', g.id), { seen: true }));
+      batch.commit().catch(() => {});
+      updateDoc(doc(db, 'users', user.uid), { zipPoints: increment(5 * unseenGifts.length) }).catch(() => {});
     });
 
     return () => unsub();
@@ -77,55 +74,42 @@ const GiftInbox: React.FC = () => {
     const user = auth.currentUser;
     if (!user) return;
 
-    // Update gift action
-    await updateDoc(doc(db, 'gifts', gift.id), {
-      action,
-      actionAt: new Date(),
-    });
-
-    // Mirror into the local closet so the item shows up in Bag/Wardrobe/Wishlist immediately
     const closetKind = action === 'carted' ? 'cart' : action === 'wardrobed' ? 'wardrobe' : 'likes';
-    addToCloset(closetKind, {
-      id: gift.product.id,
-      title: gift.product.title,
-      brand: gift.product.brand,
-      price: gift.product.price,
-      image: gift.product.image,
-      url: gift.product.url,
-      affiliateLink: gift.product.affiliateLink,
-    });
+    const dateField = action === 'carted' ? 'addedAt' : action === 'wardrobed' ? 'savedAt' : 'timestamp';
 
-    // Write to appropriate user subcollection
-    if (action === 'carted') {
-      await addDoc(collection(db, 'users', user.uid, 'cart'), {
+    try {
+      await updateDoc(doc(db, 'gifts', gift.id), {
+        action,
+        actionAt: new Date(),
+      });
+
+      await addDoc(collection(db, 'users', user.uid, closetKind), {
         productRefId: gift.product.id,
         productUrl: gift.product.affiliateLink || gift.product.url,
-        addedAt: new Date(),
+        [dateField]: new Date(),
         source: 'gift',
       });
-      // Award extra ZipCoins for carting a gifted item
-      const userSnap = await getDoc(doc(db, 'users', user.uid));
-      if (userSnap.exists()) {
-        const currentPoints = userSnap.data().zipPoints || 0;
-        await updateDoc(doc(db, 'users', user.uid), { zipPoints: currentPoints + 10 });
+
+      // Firestore writes succeeded — now mirror into the local closet so the
+      // item shows up in Bag/Wardrobe/Wishlist immediately.
+      addToCloset(closetKind, {
+        id: gift.product.id,
+        title: gift.product.title,
+        brand: gift.product.brand,
+        price: gift.product.price,
+        image: gift.product.image,
+        url: gift.product.url,
+        affiliateLink: gift.product.affiliateLink,
+      });
+
+      // The card collapsing to "Added to cart / Saved / Liked" is the feedback;
+      // only the cart action gets a toast because it carries the coin reward.
+      if (action === 'carted') {
+        updateDoc(doc(db, 'users', user.uid), { zipPoints: increment(10) }).catch(() => {});
+        showToast('Added to cart! +10 ZipCoins', 'success');
       }
-      showToast(`Added to cart! +10 ZipCoins 🛒`, 'success');
-    } else if (action === 'wardrobed') {
-      await addDoc(collection(db, 'users', user.uid, 'wardrobe'), {
-        productRefId: gift.product.id,
-        productUrl: gift.product.affiliateLink || gift.product.url,
-        savedAt: new Date(),
-        source: 'gift',
-      });
-      showToast('Saved to your wardrobe ✦', 'success');
-    } else if (action === 'liked') {
-      await addDoc(collection(db, 'users', user.uid, 'likes'), {
-        productRefId: gift.product.id,
-        productUrl: gift.product.affiliateLink || gift.product.url,
-        timestamp: new Date(),
-        source: 'gift',
-      });
-      showToast('Added to wishlist ♥', 'success');
+    } catch {
+      showToast('Could not save that. Try again.', 'error');
     }
   };
 

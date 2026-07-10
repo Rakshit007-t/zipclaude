@@ -510,6 +510,7 @@ const Home: React.FC = () => {
                             price: p.price,
                             image: p.image,
                             url: p.affiliateLink || p.url,
+                            ...(p.category ? { category: p.category } : {}),
                             sentAt: new Date(),
                             seen: false,
                           });

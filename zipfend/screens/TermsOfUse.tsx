@@ -168,7 +168,7 @@ const TermsOfUse: React.FC = () => {
           <p className="text-[12px] text-ink-faint text-center leading-relaxed">
             ZipRIGHT reserves the right to take legal action against any user violating these Terms under the Information Technology Act, 2000, Consumer Protection Act, 2019, and other applicable Indian laws.
           </p>
-          <p className="text-[12px] text-brand text-center mt-2">legal@zipright.in</p>
+          <p className="text-[12px] text-center mt-2"><a href="mailto:legal@zipright.in" className="text-brand">legal@zipright.in</a></p>
         </div>
       </div>
     </div>

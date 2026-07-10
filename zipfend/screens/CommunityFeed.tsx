@@ -2,11 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   increment,
   limit,
@@ -19,7 +17,9 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
-import { Spinner } from '../components/ui';
+import { addToCloset, inCloset } from '../services/closet';
+import { follow, unfollow, onFollowing, onBlocked, searchUsers } from '../services/social';
+import { Spinner, Sheet, Button } from '../components/ui';
 
 interface Look {
   id: string;
@@ -28,6 +28,9 @@ interface Look {
   creatorUsername: string;
   creatorAvatar: string | null;
   mediaUrl: string;
+  mediaUrls?: string[];
+  mediaType?: 'image' | 'video';
+  audience?: 'public' | 'followers';
   caption: string;
   taggedProducts: {
     id: string; title: string; brand: string;
@@ -37,6 +40,61 @@ interface Look {
   viewsCount: number;
   createdAt: any;
 }
+
+/** A look's media: video reel, multi-photo carousel, or single photo. */
+const LookMedia: React.FC<{ look: Look; active: boolean }> = ({ look, active }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [slide, setSlide] = useState(0);
+  const urls = look.mediaUrls?.length ? look.mediaUrls : [look.mediaUrl];
+
+  // Play only the on-screen reel; pause the rest
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (active) void v.play().catch(() => {});
+    else v.pause();
+  }, [active]);
+
+  if (look.mediaType === 'video') {
+    return (
+      <video
+        ref={videoRef}
+        src={urls[0]}
+        className="h-full w-full object-cover"
+        muted
+        loop
+        playsInline
+        preload="metadata"
+      />
+    );
+  }
+
+  if (urls.length === 1) {
+    return <img src={urls[0]} alt={look.caption} className="h-full w-full object-cover" referrerPolicy="no-referrer" />;
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      <div
+        className="h-full w-full overflow-x-auto no-scrollbar snap-x snap-mandatory flex"
+        onScroll={e => {
+          const el = e.currentTarget;
+          setSlide(Math.round(el.scrollLeft / el.clientWidth));
+        }}
+      >
+        {urls.map((u, i) => (
+          <img key={i} src={u} alt={`${look.caption} — photo ${i + 1}`} className="h-full w-full object-cover flex-shrink-0 snap-start" referrerPolicy="no-referrer" loading={i > 0 ? 'lazy' : undefined} />
+        ))}
+      </div>
+      {/* Dots */}
+      <div className="absolute top-20 left-1/2 -translate-x-1/2 flex gap-1.5 z-40" aria-label={`Photo ${slide + 1} of ${urls.length}`}>
+        {urls.map((_, i) => (
+          <span key={i} className={`h-1.5 rounded-full transition-all ${i === slide ? 'w-4 bg-white' : 'w-1.5 bg-white/40'}`} />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const CommunityFeed: React.FC = () => {
   const navigate = useNavigate();
@@ -49,6 +107,13 @@ const CommunityFeed: React.FC = () => {
   const [activeLookIndex, setActiveLookIndex] = useState(0);
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
   const [productsOpen, setProductsOpen] = useState(false);
+  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
+  const [blockedSet, setBlockedSet] = useState<Set<string>>(new Set());
+  const [baggedIds, setBaggedIds] = useState<Set<string>>(new Set());
+  const [ownMenuLook, setOwnMenuLook] = useState<Look | null>(null);
+  const [editingLook, setEditingLook] = useState<Look | null>(null);
+  const [editCaption, setEditCaption] = useState('');
+  const viewedRef = useRef<Set<string>>(new Set());
 
   // Fetch looks
   useEffect(() => {
@@ -71,16 +136,21 @@ const CommunityFeed: React.FC = () => {
     };
     fetchLooks();
 
-    // Liked map listener
+    // Live listeners: my likes, who I follow, who I've blocked
     const user = auth.currentUser;
+    const unsubs: (() => void)[] = [
+      onFollowing(setFollowingSet),
+      onBlocked(setBlockedSet),
+    ];
     if (user) {
       const likesRef = collection(db, 'users', user.uid, 'lookLikes');
-      return onSnapshot(likesRef, snap => {
+      unsubs.push(onSnapshot(likesRef, snap => {
         const map: Record<string, boolean> = {};
         snap.docs.forEach(d => { map[d.id] = true; });
         setLikedMap(map);
-      });
+      }));
     }
+    return () => unsubs.forEach(u => u());
   }, []);
 
   // Intersection observer for active look
@@ -92,9 +162,10 @@ const CommunityFeed: React.FC = () => {
             const index = Number(entry.target.getAttribute('data-index'));
             setActiveLookIndex(index);
             setProductsOpen(false);
-            // Increment view count
+            // Count each look's view once per session (no scroll-farming)
             const look = looks[index];
-            if (look) {
+            if (look && !viewedRef.current.has(look.id)) {
+              viewedRef.current.add(look.id);
               updateDoc(doc(db, 'looks', look.id), { viewsCount: increment(1) }).catch(() => {});
             }
           }
@@ -111,6 +182,9 @@ const CommunityFeed: React.FC = () => {
     if (!user) return;
     const likeRef = doc(db, 'users', user.uid, 'lookLikes', look.id);
     const isLiked = likedMap[look.id];
+    const delta = isLiked ? -1 : 1;
+    // Optimistic: the visible count moves with the tap
+    setLooks(prev => prev.map(l => l.id === look.id ? { ...l, likesCount: Math.max(0, l.likesCount + delta) } : l));
     try {
       if (isLiked) {
         await deleteDoc(likeRef);
@@ -119,28 +193,107 @@ const CommunityFeed: React.FC = () => {
         await setDoc(likeRef, { createdAt: new Date() });
         await updateDoc(doc(db, 'looks', look.id), { likesCount: increment(1) });
       }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleCartProduct = async (product: Look['taggedProducts'][0]) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-      await addDoc(collection(db, 'users', user.uid, 'cart'), {
-        productRefId: product.id,
-        productUrl: product.affiliateLink || product.url,
-        addedAt: new Date(),
-        source: 'community_look',
-      });
-      showToast(`${product.brand} added to cart 🛒`, 'success');
     } catch {
-      showToast('Failed to add to cart', 'error');
+      // Roll back the optimistic count
+      setLooks(prev => prev.map(l => l.id === look.id ? { ...l, likesCount: Math.max(0, l.likesCount - delta) } : l));
     }
   };
 
-  const currentLook = looks[activeLookIndex];
+  const toggleFollow = async (look: Look) => {
+    const isFollowing = followingSet.has(look.creatorId);
+    try {
+      if (isFollowing) {
+        await unfollow(look.creatorId);
+      } else {
+        await follow({
+          uid: look.creatorId,
+          displayName: look.creatorName,
+          username: look.creatorUsername,
+          photoURL: look.creatorAvatar,
+        });
+      }
+    } catch {}
+  };
+
+  // Through the closet so the item appears in the Cart screen instantly
+  // (closet mirrors to Firestore users/{uid}/cart itself).
+  const handleCartProduct = (product: Look['taggedProducts'][0]) => {
+    addToCloset('cart', {
+      id: product.id,
+      title: product.title,
+      brand: product.brand,
+      price: product.price,
+      image: product.image,
+      url: product.url,
+      affiliateLink: product.affiliateLink,
+    });
+    setBaggedIds(prev => new Set(prev).add(product.id));
+  };
+
+  // Caption with live #hashtags and tappable @mentions
+  const renderCaption = (text: string) => text.split(/(\s+)/).map((w, i) => {
+    if (/^#[\p{L}\p{N}_]+$/u.test(w)) return <span key={i} className="text-brand-on-media font-medium">{w}</span>;
+    if (/^@[\w.]+$/.test(w)) {
+      return (
+        <button
+          key={i}
+          className="text-brand-on-media font-medium"
+          onClick={async () => {
+            const found = await searchUsers(w).catch(() => []);
+            if (found[0]) navigate(`/profile/${found[0].uid}`);
+          }}
+        >
+          {w}
+        </button>
+      );
+    }
+    return w;
+  });
+
+  const handleDeleteLook = async (look: Look) => {
+    setOwnMenuLook(null);
+    try {
+      await updateDoc(doc(db, 'looks', look.id), { status: 'deleted' });
+      setLooks(prev => prev.filter(l => l.id !== look.id));
+      updateDoc(doc(db, 'users', look.creatorId), { postsCount: increment(-1) }).catch(() => {});
+    } catch {
+      showToast('Could not delete. Try again.', 'error');
+    }
+  };
+
+  const handleSaveCaption = async () => {
+    if (!editingLook) return;
+    const caption = editCaption.trim();
+    try {
+      await updateDoc(doc(db, 'looks', editingLook.id), {
+        caption,
+        hashtags: [...new Set((caption.match(/#[\p{L}\p{N}_]+/gu) || []).map(t => t.slice(1).toLowerCase()))],
+      });
+      setLooks(prev => prev.map(l => l.id === editingLook.id ? { ...l, caption } : l));
+      setEditingLook(null);
+    } catch {
+      showToast('Could not save. Try again.', 'error');
+    }
+  };
+
+  const handleShare = async (look: Look) => {
+    const shareUrl = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: look.caption || 'ZipRIGHT look', text: `${look.caption} — @${look.creatorUsername} on ZipRIGHT`, url: shareUrl });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        showToast('Link copied', 'success');
+      }
+    } catch {}
+  };
+
+  const me = auth.currentUser?.uid;
+  // Hide blocked creators; honor followers-only audience
+  const visibleLooks = looks.filter(l =>
+    !blockedSet.has(l.creatorId) &&
+    (l.audience !== 'followers' || l.creatorId === me || followingSet.has(l.creatorId))
+  );
 
   if (loading) {
     return (
@@ -150,7 +303,7 @@ const CommunityFeed: React.FC = () => {
     );
   }
 
-  if (looks.length === 0) {
+  if (visibleLooks.length === 0) {
     return (
       <div className="h-dvh bg-surface-0 flex flex-col items-center justify-center px-8 text-center">
         <div className="h-16 w-16 rounded-full border border-line-strong flex items-center justify-center mb-6">
@@ -188,7 +341,7 @@ const CommunityFeed: React.FC = () => {
         <button
           onClick={() => navigate('/create-look')}
           aria-label="Post a look"
-          className="h-10 w-10 rounded-full bg-[#e89b6b] backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90"
+          className="h-10 w-10 rounded-full bg-brand-on-media backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90"
         >
           <span className="material-symbols-outlined text-black text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">add</span>
         </button>
@@ -200,7 +353,7 @@ const CommunityFeed: React.FC = () => {
         className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        {looks.map((look, index) => (
+        {visibleLooks.map((look, index) => (
           <div
             key={look.id}
             data-index={index}
@@ -209,13 +362,8 @@ const CommunityFeed: React.FC = () => {
             }}
             className="h-dvh w-full flex-shrink-0 relative bg-black snap-start snap-always"
           >
-            {/* Look photo */}
-            <img
-              src={look.mediaUrl}
-              alt={look.caption}
-              className="h-full w-full object-cover"
-              referrerPolicy="no-referrer"
-            />
+            {/* Look media — photo, carousel, or reel */}
+            <LookMedia look={look} active={activeLookIndex === index} />
 
             {/* Gradient overlays */}
             <div className="absolute inset-0 pointer-events-none"
@@ -224,9 +372,13 @@ const CommunityFeed: React.FC = () => {
             {/* RIGHT ACTION BAR */}
             <div className="absolute right-4 bottom-44 z-40 flex flex-col items-center gap-5">
 
-              {/* Creator avatar */}
+              {/* Creator avatar → profile; badge → follow/unfollow */}
               <div className="relative">
-                <div className="h-12 w-12 rounded-full border-2 border-white overflow-hidden">
+                <button
+                  onClick={() => navigate(`/profile/${look.creatorId}`)}
+                  aria-label={`View @${look.creatorUsername}'s profile`}
+                  className="h-12 w-12 rounded-full border-2 border-white overflow-hidden block active:scale-90 transition-transform"
+                >
                   {look.creatorAvatar ? (
                     <img src={look.creatorAvatar} alt="" className="h-full w-full object-cover" />
                   ) : (
@@ -234,18 +386,32 @@ const CommunityFeed: React.FC = () => {
                       <span className="material-symbols-outlined text-white text-xl" aria-hidden="true">person</span>
                     </div>
                   )}
-                </div>
-                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full bg-[#e89b6b] flex items-center justify-center border border-black">
-                  <span className="material-symbols-outlined text-black text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">add</span>
-                </div>
+                </button>
+                {look.creatorId !== auth.currentUser?.uid && (
+                  <button
+                    onClick={() => toggleFollow(look)}
+                    aria-label={followingSet.has(look.creatorId) ? `Unfollow @${look.creatorUsername}` : `Follow @${look.creatorUsername}`}
+                    aria-pressed={followingSet.has(look.creatorId)}
+                    className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full flex items-center justify-center border border-black active:scale-90 transition-[transform,background-color] ${followingSet.has(look.creatorId) ? 'bg-white' : 'bg-brand-on-media'}`}
+                  >
+                    <span className="material-symbols-outlined text-black text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
+                      {followingSet.has(look.creatorId) ? 'check' : 'add'}
+                    </span>
+                  </button>
+                )}
               </div>
 
               {/* Like */}
-              <button onClick={() => toggleLike(look)} className="flex flex-col items-center gap-1 active:scale-90">
+              <button
+                onClick={() => toggleLike(look)}
+                aria-label={likedMap[look.id] ? 'Unlike this look' : 'Like this look'}
+                aria-pressed={!!likedMap[look.id]}
+                className="flex flex-col items-center gap-1 active:scale-90"
+              >
                 <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
                   <span
-                    className="material-symbols-outlined text-[24px]"
-                    style={{ color: likedMap[look.id] ? '#e89b6b' : 'white', fontVariationSettings: likedMap[look.id] ? "'FILL' 1" : "'FILL' 0" }}
+                    className={`material-symbols-outlined text-[24px] ${likedMap[look.id] ? 'text-brand-on-media' : 'text-white'}`}
+                    style={{ fontVariationSettings: likedMap[look.id] ? "'FILL' 1" : "'FILL' 0" }}
                     aria-hidden="true"
                   >favorite</span>
                 </div>
@@ -256,7 +422,7 @@ const CommunityFeed: React.FC = () => {
 
               {/* Products sheet toggle */}
               <button onClick={() => setProductsOpen(o => !o)} className="flex flex-col items-center gap-1 active:scale-90">
-                <div className={`h-12 w-12 rounded-full backdrop-blur-md flex items-center justify-center border ${productsOpen ? 'bg-[#e89b6b] border-[#e89b6b]' : 'bg-black/40 border-white/15'}`}>
+                <div className={`h-12 w-12 rounded-full backdrop-blur-md flex items-center justify-center border ${productsOpen ? 'bg-brand-on-media border-brand-on-media' : 'bg-black/40 border-white/15'}`}>
                   <span className={`material-symbols-outlined text-[24px] ${productsOpen ? 'text-black' : 'text-white'}`} style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">sell</span>
                 </div>
                 <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">
@@ -266,13 +432,8 @@ const CommunityFeed: React.FC = () => {
 
               {/* Share */}
               <button
-                onClick={async () => {
-                  try {
-                    if (navigator.share) {
-                      await navigator.share({ title: look.caption, url: window.location.href });
-                    }
-                  } catch {}
-                }}
+                onClick={() => handleShare(look)}
+                aria-label="Share this look"
                 className="flex flex-col items-center gap-1 active:scale-90"
               >
                 <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
@@ -280,6 +441,20 @@ const CommunityFeed: React.FC = () => {
                 </div>
                 <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">Share</span>
               </button>
+
+              {/* Own post — manage */}
+              {look.creatorId === me && (
+                <button
+                  onClick={() => setOwnMenuLook(look)}
+                  aria-label="Manage this post"
+                  className="flex flex-col items-center gap-1 active:scale-90"
+                >
+                  <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
+                    <span className="material-symbols-outlined text-white text-[24px]" aria-hidden="true">more_horiz</span>
+                  </div>
+                  <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">You</span>
+                </button>
+              )}
             </div>
 
             {/* BOTTOM INFO — creator + caption */}
@@ -295,14 +470,14 @@ const CommunityFeed: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <span className="text-white text-[12px] font-medium">@{look.creatorUsername}</span>
+                  <button onClick={() => navigate(`/profile/${look.creatorId}`)} className="text-white text-[12px] font-medium active:opacity-70">@{look.creatorUsername}</button>
                   {look.taggedProducts.length > 0 && (
-                    <span className="ml-auto text-[#e89b6b] text-[9px] font-semibold uppercase tracking-[0.1em]">
+                    <span className="ml-auto text-brand-on-media text-[9px] font-semibold uppercase tracking-[0.1em]">
                       {look.taggedProducts.length} shoppable
                     </span>
                   )}
                 </div>
-                <p className="text-white text-[13.5px] leading-snug line-clamp-2">{look.caption}</p>
+                <p className="text-white text-[13.5px] leading-snug line-clamp-2">{renderCaption(look.caption)}</p>
               </div>
             </div>
 
@@ -355,10 +530,12 @@ const CommunityFeed: React.FC = () => {
                               </div>
                               <button
                                 onClick={() => handleCartProduct(product)}
-                                aria-label={`Add ${product.brand} to cart`}
-                                className="h-10 w-10 rounded-full border border-line flex items-center justify-center text-ink active:scale-90 flex-shrink-0"
+                                aria-label={baggedIds.has(product.id) || inCloset('cart', product.id) ? `${product.brand} is in your bag` : `Add ${product.brand} to cart`}
+                                className={`h-10 w-10 rounded-full border flex items-center justify-center active:scale-90 flex-shrink-0 transition-colors ${baggedIds.has(product.id) || inCloset('cart', product.id) ? 'border-success text-success' : 'border-line text-ink'}`}
                               >
-                                <span className="material-symbols-outlined text-[19px]" aria-hidden="true">add_shopping_cart</span>
+                                <span className="material-symbols-outlined text-[19px]" aria-hidden="true">
+                                  {baggedIds.has(product.id) || inCloset('cart', product.id) ? 'check' : 'add_shopping_cart'}
+                                </span>
                               </button>
                             </div>
                           ))}
@@ -372,6 +549,49 @@ const CommunityFeed: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Own-post management */}
+      <Sheet open={!!ownMenuLook} onClose={() => setOwnMenuLook(null)} title="Your post">
+        {ownMenuLook && (
+          <div className="flex flex-col pb-4">
+            <button
+              onClick={() => { setEditCaption(ownMenuLook.caption); setEditingLook(ownMenuLook); setOwnMenuLook(null); }}
+              className="flex items-center gap-4 py-4 border-b border-line text-left active:opacity-70"
+            >
+              <span className="material-symbols-outlined text-ink text-[20px]" aria-hidden="true">edit</span>
+              <div>
+                <p className="text-ink font-medium text-[14px]">Edit caption</p>
+                <p className="text-ink-faint text-[12px]">Update the caption and hashtags</p>
+              </div>
+            </button>
+            <button
+              onClick={() => handleDeleteLook(ownMenuLook)}
+              className="flex items-center gap-4 py-4 text-left active:opacity-70"
+            >
+              <span className="material-symbols-outlined text-danger text-[20px]" aria-hidden="true">delete</span>
+              <div>
+                <p className="text-danger font-medium text-[14px]">Delete post</p>
+                <p className="text-ink-faint text-[12px]">Removes it from The Salon for everyone</p>
+              </div>
+            </button>
+          </div>
+        )}
+      </Sheet>
+
+      {/* Edit caption */}
+      <Sheet open={!!editingLook} onClose={() => setEditingLook(null)} title="Edit caption">
+        <div className="flex flex-col gap-4 pb-4">
+          <textarea
+            value={editCaption}
+            onChange={e => setEditCaption(e.target.value)}
+            aria-label="Caption"
+            rows={4}
+            maxLength={300}
+            className="w-full bg-surface-1 border border-line rounded-card px-4 py-3.5 text-ink text-[14px] placeholder:text-ink-faint outline-none resize-none focus:border-ink transition-colors"
+          />
+          <Button fullWidth onClick={handleSaveCaption}>Save</Button>
+        </div>
+      </Sheet>
     </div>
   );
 };
