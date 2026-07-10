@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getStylistResponse } from '../services/stylistService';
-import { springs } from '../components/ui';
+import { springs, AppBar } from '../components/ui';
 import { recordJourneyEvent } from '../services/styleJourney';
 
 interface Message {
@@ -23,10 +23,10 @@ function pickRandomSuggestions(source: string[], count = 2) {
   return [...source].sort(() => 0.5 - Math.random()).slice(0, count);
 }
 
-/** Small gold spark avatar that identifies the stylist's messages. */
+/** Ultraviolet spark in a hairline ring — the stylist's mark. */
 const StylistAvatar: React.FC = () => (
-  <div className="h-8 w-8 rounded-full bg-[#6157FF]/15 border border-[#6157FF]/30 flex items-center justify-center shrink-0 mt-1" aria-hidden="true">
-    <span className="material-symbols-outlined text-[#6157FF] text-[16px]">auto_awesome</span>
+  <div className="h-8 w-8 rounded-full border border-brand/40 flex items-center justify-center shrink-0 mt-1" aria-hidden="true">
+    <span className="material-symbols-outlined text-brand text-[15px]">auto_awesome</span>
   </div>
 );
 
@@ -83,24 +83,18 @@ const StylistChat: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen h-dvh bg-surface-0 text-ink font-sans">
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5 bg-surface-0/80 backdrop-blur-xl border-b border-line shrink-0">
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-          className="h-11 w-11 flex items-center justify-center rounded-full active:scale-90 transition-transform"
-        >
-          <span className="material-symbols-outlined text-[22px] text-[#6157FF]" aria-hidden="true">arrow_back</span>
-        </button>
-        <div className="flex flex-col items-center">
-          <h1 className="text-xs font-bold text-[#6157FF]">AI Stylist</h1>
-          <span className="flex items-center gap-1.5 mt-0.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-            <span className="text-[11px] text-ink-soft">Personal · Private</span>
-          </span>
-        </div>
-        <div className="w-11"></div>
-      </div>
+    <div className="flex flex-col h-screen h-dvh bg-surface-0 text-ink">
+      <AppBar
+        title={
+          <div>
+            <h1 className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink">The Stylist</h1>
+            <span className="flex items-center gap-1.5 mt-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
+              <span className="text-[11px] text-ink-faint normal-case tracking-normal">Personal · Private</span>
+            </span>
+          </div>
+        }
+      />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5 no-scrollbar" role="log" aria-label="Conversation with your AI stylist" aria-live="polite">
         {messages.map((msg, idx) => (
@@ -113,13 +107,13 @@ const StylistChat: React.FC = () => {
           >
             {msg.role === 'ai' && <StylistAvatar />}
             <div
-              className={`max-w-[80%] overflow-visible rounded-[1.5rem] px-5 py-4 ${
+              className={`max-w-[80%] overflow-visible rounded-3xl px-5 py-3.5 ${
                 msg.role === 'user'
-                  ? 'bg-[#6157FF] text-ink rounded-br-md'
-                  : 'bg-surface-2 border border-line text-ink-soft rounded-tl-md'
+                  ? 'bg-ink text-ink-invert rounded-br-lg'
+                  : 'bg-surface-1 border border-line text-ink-soft rounded-tl-lg'
               }`}
             >
-              <div className="overflow-visible whitespace-pre-wrap break-words text-sm leading-relaxed">{msg.content}</div>
+              <div className="overflow-visible whitespace-pre-wrap break-words text-[13.5px] leading-relaxed">{msg.content}</div>
             </div>
           </motion.div>
         ))}
@@ -133,11 +127,11 @@ const StylistChat: React.FC = () => {
               aria-label="Stylist is thinking"
             >
               <StylistAvatar />
-              <div className="rounded-[1.5rem] rounded-tl-md border border-line bg-surface-2 px-5 py-4 flex items-center gap-1.5">
-                <span className="text-[11px] text-ink-soft mr-1">Styling</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-[#6157FF] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-[#6157FF] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-[#6157FF] animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="rounded-3xl rounded-tl-lg border border-line bg-surface-1 px-5 py-3.5 flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-[0.12em] font-semibold text-ink-faint mr-1">Styling</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </motion.div>
           )}
@@ -145,14 +139,14 @@ const StylistChat: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-6 pb-24 bg-surface-0 shrink-0 border-t border-line">
+      <div className="p-6 pb-28 bg-surface-0 shrink-0 border-t border-line">
         {!loading && (
           <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-6 px-6" role="group" aria-label="Suggested questions">
             {currentSuggestions.map((suggestion, idx) => (
               <button
                 key={idx}
                 onClick={() => sendMessage(suggestion)}
-                className="flex-shrink-0 bg-surface-2 border border-line rounded-full px-4 py-2.5 text-xs text-ink-soft active:scale-95 transition-transform hover:border-[#6157FF]/40 hover:text-ink"
+                className="flex-shrink-0 border border-line rounded-full px-4 py-2.5 text-[12px] text-ink-soft active:scale-95 transition-[transform,border-color,color] hover:border-line-strong hover:text-ink"
               >
                 {suggestion}
               </button>
@@ -167,15 +161,15 @@ const StylistChat: React.FC = () => {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
             placeholder="Ask for outfit, fit, color, and styling advice"
-            className="w-full bg-surface-2 border border-line rounded-full py-4 pl-6 pr-14 text-sm focus:outline-none focus:border-[#6157FF]/50 focus:ring-2 focus:ring-[#6157FF]/20 transition-[border-color,box-shadow]"
+            className="w-full bg-surface-1 border border-line rounded-full py-4 pl-5 pr-14 text-[13.5px] focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow] placeholder:text-ink-faint"
           />
           <button
             onClick={() => sendMessage(input)}
             disabled={!input.trim() || loading}
             aria-label="Send message"
-            className="absolute right-2 h-10 w-10 rounded-full bg-[#6157FF] text-ink flex items-center justify-center active:scale-90 transition-transform disabled:opacity-50 disabled:active:scale-100"
+            className="absolute right-2 h-10 w-10 rounded-full bg-ink text-ink-invert flex items-center justify-center active:scale-90 transition-transform disabled:opacity-40 disabled:active:scale-100"
           >
-            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">send</span>
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">send</span>
           </button>
         </div>
       </div>

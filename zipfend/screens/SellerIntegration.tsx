@@ -10,6 +10,15 @@ import {
   SellerIntegrationResponse,
   SyncHistoryEvent,
 } from '../services/ziprightApi';
+import {
+  AppBar,
+  Button,
+  Input,
+  Eyebrow,
+  SegmentedControl,
+  Spinner,
+  motion,
+} from '../components/ui';
 
 const SellerIntegration: React.FC = () => {
   const navigate = useNavigate();
@@ -88,7 +97,7 @@ const SellerIntegration: React.FC = () => {
       });
       setStatus(res);
       showToast(`Successfully connected to ${selectedPlatform} store!`, 'success');
-      
+
       // Reload logs
       const historyRes = await getSellerIntegrationHistory();
       setHistory(historyRes);
@@ -127,7 +136,7 @@ const SellerIntegration: React.FC = () => {
       setLoadingText('Fetching catalog & normalizing size structures...');
       const res = await triggerSellerIntegrationSync();
       showToast(`Sync completed successfully! Processed ${res.synced_count} products.`, 'success');
-      
+
       // Reload logs and status
       const statusRes = await getSellerIntegrationStatus();
       setStatus(statusRes);
@@ -136,7 +145,7 @@ const SellerIntegration: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       showToast(err.message || 'Catalog sync failed. Check configuration.', 'error');
-      
+
       // Reload logs
       const historyRes = await getSellerIntegrationHistory();
       setHistory(historyRes);
@@ -159,238 +168,222 @@ const SellerIntegration: React.FC = () => {
     }
   };
 
+  const logTone = (s: string) =>
+    s === 'success'
+      ? 'bg-success-soft text-success'
+      : s === 'failed'
+        ? 'bg-danger-soft text-danger'
+        : 'bg-warning-soft text-warning';
+
   return (
-    <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden relative">
-      
+    <div className="relative flex h-screen min-h-dvh w-full flex-col overflow-hidden bg-surface-0 text-ink">
+
       {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-[1000] flex flex-col items-center justify-center p-6">
-          <div className="bg-white dark:bg-surface-1 p-8 rounded-[2.5rem] border border-black/5 dark:border-line flex flex-col items-center max-w-sm text-center shadow-2xl">
-            <div className="h-16 w-16 border-4 border-[#6157FF] dark:border-[#6157FF] border-t-transparent rounded-full animate-spin mb-6"></div>
-            <h3 className="text-lg font-bold mb-2">Processing</h3>
-            <p className="text-xs text-[#555555] dark:text-ink-soft font-medium leading-relaxed">{loadingText}</p>
+        <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center bg-scrim backdrop-blur-md p-6">
+          <div className="flex max-w-sm flex-col items-center rounded-card border border-line bg-surface-1 p-9 text-center shadow-float">
+            <Spinner size={40} className="text-brand mb-6" />
+            <Eyebrow className="mb-2">Processing</Eyebrow>
+            <p className="text-[13px] text-ink-soft leading-relaxed">{loadingText}</p>
           </div>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line shrink-0">
-        <button 
-          onClick={() => navigate('/seller/dashboard')} 
-          aria-label="Go back" className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"
+      <AppBar title="Store Integration" onBack={() => navigate('/seller/dashboard')} />
+
+      {/* Content Scroll */}
+      <div className="flex-1 overflow-y-auto no-scrollbar px-6 pt-8 pb-24">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mx-auto flex max-w-md flex-col gap-8"
         >
-          <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h2 className="text-lg font-bold text-[#6157FF]">Store Integration</h2>
-        <div className="w-8"></div>
-      </div>
 
-      {/* Form Content Scroll */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-6 pb-24">
-        <div className="max-w-md mx-auto flex flex-col gap-6">
+          {/* Editorial opener */}
+          <div>
+            <Eyebrow className="mb-3">Commerce</Eyebrow>
+            <h1 className="font-display text-[34px] font-light leading-[1.05] text-ink">
+              Link your <em className="font-medium">catalog.</em>
+            </h1>
+            <p className="mt-4 max-w-[90%] text-[14px] leading-relaxed text-ink-soft">
+              Connect a storefront to sync products and serve sizing on every listing.
+            </p>
+          </div>
 
-          {/* SANDBOX ENTRY WIDGET */}
-          <div className="bg-[#6157FF]/5 border border-[#6157FF]/20 rounded-3xl p-5 flex justify-between items-center shadow-sm">
-            <div className="flex flex-col gap-0.5">
-              <h4 className="text-xs font-bold text-[#6157FF]">Storefront Sandbox</h4>
-              <p className="text-[12px] text-gray-400 font-medium">Test sizing & try-on widgets on mock storefronts.</p>
+          {/* SANDBOX ENTRY */}
+          <div className="flex items-center justify-between gap-4 rounded-card border border-line bg-surface-1 p-5">
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-brand">Storefront Sandbox</span>
+              <p className="text-[12.5px] leading-snug text-ink-soft">Test sizing & try-on widgets on mock storefronts.</p>
             </div>
-            <button
+            <Button
+              size="sm"
+              variant="outline"
+              trailingIcon="launch"
               onClick={() => navigate('/seller/integration/sandbox')}
-              className="h-9 px-4 bg-[#6157FF] dark:bg-[#6157FF] text-ink font-bold text-[12px] rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all shadow-sm"
+              className="shrink-0"
             >
-              <span className="material-symbols-outlined text-xs">launch</span>
-              Open Sandbox
-            </button>
+              Sandbox
+            </Button>
           </div>
 
           {/* IF ALREADY CONNECTED */}
           {status ? (
             <div className="flex flex-col gap-6">
-              
+
               {/* STATUS WIDGET */}
-              <div className="bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-6 shadow-sm flex flex-col gap-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-[12px] font-bold bg-green-500/10 text-green-600 px-2 py-0.5 rounded-full">Connected</span>
-                    <h3 className="text-xl font-bold mt-2 capitalize">{status.platform} Integration</h3>
-                    <p className="text-xs text-gray-400 font-bold truncate mt-1">{status.store_url}</p>
+              <div className="flex flex-col gap-5 rounded-card border border-line bg-surface-1 p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <span className="inline-block rounded-full bg-success-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-success">
+                      Connected
+                    </span>
+                    <h3 className="mt-3 font-display text-[22px] font-medium capitalize leading-tight text-ink">{status.platform} Integration</h3>
+                    <p className="mt-1 truncate text-[12.5px] text-ink-faint">{status.store_url}</p>
                   </div>
-                  
-                  <span className="material-symbols-outlined text-4xl text-[#6157FF]">
+                  <span className="material-symbols-outlined text-[36px] text-brand" aria-hidden="true">
                     {status.platform === 'rest' ? 'api' : 'storefront'}
                   </span>
                 </div>
 
-                <div className="h-[1px] bg-black/5 dark:bg-surface-2 my-2"></div>
+                <div className="h-px bg-line" aria-hidden="true"></div>
 
-                <div className="grid grid-cols-2 gap-4 text-xs font-bold">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-[12px] text-gray-400 block mb-1">Established</span>
-                    <span>{formatTimestamp(status.connected_at)}</span>
+                    <span className="mb-1 block text-[9px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Established</span>
+                    <span className="text-[13px] font-medium text-ink">{formatTimestamp(status.connected_at)}</span>
                   </div>
                   <div>
-                    <span className="text-[12px] text-gray-400 block mb-1">Last Sync</span>
-                    <span>{formatTimestamp(status.last_sync_at)}</span>
+                    <span className="mb-1 block text-[9px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Last Sync</span>
+                    <span className="text-[13px] font-medium text-ink">{formatTimestamp(status.last_sync_at)}</span>
                   </div>
                 </div>
 
-                <div className="flex gap-3 mt-4">
-                  <button
-                    onClick={handleSyncNow}
-                    className="flex-1 h-12 bg-[#6157FF] dark:bg-[#6157FF] text-ink rounded-xl font-bold text-xs active:scale-95 transition-all flex items-center justify-center gap-2"
-                  >
-                    <span className="material-symbols-outlined text-sm">sync</span>
+                <div className="mt-1 flex gap-3">
+                  <Button variant="primary" icon="sync" onClick={handleSyncNow} className="flex-1">
                     Sync Catalog
-                  </button>
-                  
-                  <button
-                    onClick={handleDisconnect}
-                    className="h-12 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl px-4 font-bold text-xs active:scale-95 transition-all flex items-center justify-center gap-2"
-                  >
-                    <span className="material-symbols-outlined text-sm">link_off</span>
+                  </Button>
+                  <Button variant="secondary" icon="link_off" onClick={handleDisconnect} className="text-danger">
                     Disconnect
-                  </button>
+                  </Button>
                 </div>
-
               </div>
 
             </div>
           ) : (
-            
+
             // CONNECT FORM
-            <div className="bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-6 shadow-sm flex flex-col gap-6">
+            <div className="flex flex-col gap-6 rounded-card border border-line bg-surface-1 p-6">
               <div>
-                <h3 className="text-base font-bold">Link Store Catalog</h3>
-                <p className="text-xs text-gray-400 font-medium mt-1">Select your e-commerce platform and input API keys below.</p>
+                <h3 className="font-display text-[19px] font-medium text-ink">Link Store Catalog</h3>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-ink-soft">Select your e-commerce platform and input API keys below.</p>
               </div>
 
-              {/* PLATFORM BUTTONS */}
-              <div className="grid grid-cols-3 gap-2">
-                {(['shopify', 'woocommerce', 'rest'] as const).map((plat) => (
-                  <button
-                    key={plat}
-                    onClick={() => { setSelectedPlatform(plat); setStoreUrl(''); }}
-                    className={`h-16 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all ${selectedPlatform === plat ? 'border-[#6157FF] bg-[#6157FF]/5 font-bold text-[#6157FF]' : 'border-black/5 dark:border-line font-bold text-gray-400'}`}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">
-                      {plat === 'shopify' ? 'shopping_bag' : plat === 'woocommerce' ? 'storefront' : 'api'}
-                    </span>
-                    <span className="text-[11px] capitalize">{plat}</span>
-                  </button>
-                ))}
-              </div>
+              {/* PLATFORM SELECT */}
+              <SegmentedControl
+                aria-label="E-commerce platform"
+                value={selectedPlatform}
+                onChange={(v) => { setSelectedPlatform(v); setStoreUrl(''); }}
+                options={[
+                  { value: 'shopify', label: 'Shopify', icon: 'shopping_bag' },
+                  { value: 'woocommerce', label: 'Woo', icon: 'storefront' },
+                  { value: 'rest', label: 'REST', icon: 'api' },
+                ]}
+              />
 
-              <form onSubmit={handleConnect} className="flex flex-col gap-4">
-                
+              <form onSubmit={handleConnect} className="flex flex-col gap-5">
+
                 {/* Store URL / Endpoint */}
-                <div>
-                  <label className="text-xs font-bold text-gray-400 tracking-wide block mb-2">
-                    {selectedPlatform === 'rest' ? 'API Endpoint URL' : 'Store Domain URL'} *
-                  </label>
-                  <input
-                    type="url"
-                    value={storeUrl}
-                    onChange={(e) => setStoreUrl(e.target.value)}
-                    placeholder={selectedPlatform === 'shopify' ? 'https://my-store.myshopify.com' : selectedPlatform === 'woocommerce' ? 'https://my-woo-site.com' : 'https://api.my-brand.com/products'}
-                    className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-4 font-bold text-xs text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF]"
-                    required
-                  />
-                </div>
+                <Input
+                  type="url"
+                  required
+                  label={selectedPlatform === 'rest' ? 'API Endpoint URL' : 'Store Domain URL'}
+                  value={storeUrl}
+                  onChange={(e) => setStoreUrl(e.target.value)}
+                  placeholder={selectedPlatform === 'shopify' ? 'https://my-store.myshopify.com' : selectedPlatform === 'woocommerce' ? 'https://my-woo-site.com' : 'https://api.my-brand.com/products'}
+                />
 
                 {/* Shopify Access Token */}
                 {selectedPlatform === 'shopify' && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 tracking-wide block mb-2">Admin API Access Token *</label>
-                    <input
-                      type="password"
-                      value={shopifyToken}
-                      onChange={(e) => setShopifyToken(e.target.value)}
-                      placeholder="shpat_xxxxxxxxxxxxxxxx"
-                      className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-4 font-bold text-xs text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF]"
-                      required
-                    />
-                  </div>
+                  <Input
+                    type="password"
+                    required
+                    label="Admin API Access Token"
+                    value={shopifyToken}
+                    onChange={(e) => setShopifyToken(e.target.value)}
+                    placeholder="shpat_xxxxxxxxxxxxxxxx"
+                  />
                 )}
 
                 {/* WooCommerce Keys */}
                 {selectedPlatform === 'woocommerce' && (
-                  <div className="flex flex-col gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 tracking-wide block mb-2">Consumer Key *</label>
-                      <input
-                        type="password"
-                        value={wooKey}
-                        onChange={(e) => setWooKey(e.target.value)}
-                        placeholder="ck_xxxxxxxxxxxxxxxx"
-                        className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-4 font-bold text-xs text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF]"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 tracking-wide block mb-2">Consumer Secret *</label>
-                      <input
-                        type="password"
-                        value={wooSecret}
-                        onChange={(e) => setWooSecret(e.target.value)}
-                        placeholder="cs_xxxxxxxxxxxxxxxx"
-                        className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-4 font-bold text-xs text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF]"
-                        required
-                      />
-                    </div>
+                  <div className="flex flex-col gap-5">
+                    <Input
+                      type="password"
+                      required
+                      label="Consumer Key"
+                      value={wooKey}
+                      onChange={(e) => setWooKey(e.target.value)}
+                      placeholder="ck_xxxxxxxxxxxxxxxx"
+                    />
+                    <Input
+                      type="password"
+                      required
+                      label="Consumer Secret"
+                      value={wooSecret}
+                      onChange={(e) => setWooSecret(e.target.value)}
+                      placeholder="cs_xxxxxxxxxxxxxxxx"
+                    />
                   </div>
                 )}
 
                 {/* Custom REST Key */}
                 {selectedPlatform === 'rest' && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 tracking-wide block mb-2">Authorization Bearer Token (Optional)</label>
-                    <input
-                      type="password"
-                      value={restApiKey}
-                      onChange={(e) => setRestApiKey(e.target.value)}
-                      placeholder="API Access Token/Secret"
-                      className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-4 font-bold text-xs text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF]"
-                    />
-                  </div>
+                  <Input
+                    type="password"
+                    label="Authorization Bearer Token"
+                    hint="Optional"
+                    value={restApiKey}
+                    onChange={(e) => setRestApiKey(e.target.value)}
+                    placeholder="API Access Token/Secret"
+                  />
                 )}
 
-                <button
-                  type="submit"
-                  className="h-12 bg-[#6157FF] dark:bg-[#6157FF] text-ink rounded-xl font-bold text-xs active:scale-95 transition-all mt-2"
-                >
+                <Button type="submit" variant="accent" fullWidth trailingIcon="bolt" className="mt-1">
                   Verify & Connect Store
-                </button>
+                </Button>
 
               </form>
 
             </div>
           )}
 
-          {/* SECTION: HISTORY AUDIT LOGS */}
-          <div className="flex flex-col bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-6 shadow-sm gap-4">
-            <h3 className="text-xs font-bold text-gray-400">Synchronization Log History</h3>
-            
+          {/* SYNC HISTORY */}
+          <div className="flex flex-col gap-4">
+            <Eyebrow>Synchronization Log</Eyebrow>
+
             {history.length === 0 ? (
-              <p className="text-xs text-gray-400 font-medium text-center py-4">No sync logs recorded yet.</p>
+              <div className="rounded-card border border-dashed border-line-strong bg-surface-1 py-8 text-center">
+                <p className="text-[12.5px] text-ink-faint">No sync logs recorded yet.</p>
+              </div>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col divide-y divide-line rounded-card border border-line bg-surface-1 px-6">
                 {history.map((log) => (
-                  <div key={log.event_id} className="border-b border-black/5 dark:border-line pb-3 last:border-0 last:pb-0">
-                    <div className="flex justify-between items-center text-xs font-bold">
-                      <span className="capitalize">{log.platform} Manual Sync</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${log.status === 'success' ? 'bg-green-500/10 text-green-600' : log.status === 'failed' ? 'bg-red-500/10 text-red-500' : 'bg-yellow-500/10 text-yellow-600'}`}>
+                  <div key={log.event_id} className="py-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-medium capitalize text-ink">{log.platform} Manual Sync</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${logTone(log.status)}`}>
                         {log.status}
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-center text-[12px] text-gray-400 font-bold mt-1.5">
-                      <span>Synced: {log.products_synced_count} items</span>
+                    <div className="mt-2 flex items-center justify-between text-[11.5px] text-ink-faint">
+                      <span>Synced {log.products_synced_count} items</span>
                       <span>{formatTimestamp(log.started_at)}</span>
                     </div>
 
                     {log.error_message && (
-                      <p className="text-[12px] text-red-400 font-medium bg-red-500/5 p-2 rounded-xl mt-2 select-all leading-tight">
+                      <p className="mt-3 select-all rounded-ctl bg-danger-soft p-3 text-[11.5px] leading-snug text-danger">
                         {log.error_message}
                       </p>
                     )}
@@ -400,7 +393,7 @@ const SellerIntegration: React.FC = () => {
             )}
           </div>
 
-        </div>
+        </motion.div>
       </div>
 
     </div>

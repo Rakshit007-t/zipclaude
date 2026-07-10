@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { listProducts, bulkOperation, duplicateProduct, SellerProduct } from '../services/ziprightApi';
+import {
+  AppBar,
+  Button,
+  IconButton,
+  Eyebrow,
+  EmptyState,
+  SegmentedControl,
+  Spinner,
+  StaggerList,
+  StaggerItem,
+} from '../components/ui';
 
 const ITEMS_PER_PAGE = 8;
 
@@ -122,7 +133,7 @@ const SellerCatalog: React.FC = () => {
 
   // Checkbox interactions
   const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => 
+    setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
@@ -203,69 +214,92 @@ const SellerCatalog: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const statusTone = (status: string) =>
+    status === 'active'
+      ? 'bg-success-soft text-success'
+      : status === 'draft'
+        ? 'bg-warning-soft text-warning'
+        : 'bg-surface-2 text-ink-faint';
+
   return (
-    <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden relative">
-      
+    <div className="relative flex flex-col min-h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-x-hidden">
+
       {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-center justify-center">
-          <div className="h-12 w-12 border-4 border-[#6157FF] dark:border-[#6157FF] border-t-transparent rounded-full animate-spin"></div>
+        <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-[1000] flex items-center justify-center">
+          <Spinner size={40} className="text-brand" />
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line shrink-0">
-        <button 
-          onClick={() => navigate('/settings')} 
-          aria-label="Go back" className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"
-        >
-          <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h2 className="text-lg font-bold text-[#6157FF]">Manage Products</h2>
-        <button 
-          onClick={() => navigate('/seller/add-product')}
-          className="flex items-center justify-center h-10 w-10 -mr-2 bg-[#6157FF]/10 dark:bg-[#6157FF]/10 text-[#6157FF] dark:text-[#6157FF] rounded-full active:scale-95 transition-transform"
-        >
-          <span className="material-symbols-outlined">add</span>
-        </button>
-      </div>
+      <AppBar
+        title="Catalogue"
+        onBack={() => navigate('/settings')}
+        trailing={
+          <IconButton
+            icon="add"
+            aria-label="Add product"
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/seller/add-product')}
+          />
+        }
+      />
 
-      {/* Main Grid View */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-6 pb-32">
-        <div className="max-w-md mx-auto flex flex-col gap-6">
+      {/* Main scroll region */}
+      <div className="flex-1 overflow-y-auto no-scrollbar px-6 pt-6 pb-40">
+        <div className="max-w-md mx-auto flex flex-col gap-7">
+
+          {/* Editorial opener */}
+          <div>
+            <Eyebrow className="mb-2">Merchant tools</Eyebrow>
+            <h1 className="font-display text-[32px] leading-[1.05] font-light text-ink">
+              Manage your <em className="font-medium">pieces.</em>
+            </h1>
+          </div>
 
           {/* SEARCH BAR */}
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
-            <input 
-              type="text"
+            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint text-[19px] pointer-events-none" aria-hidden="true">search</span>
+            <input
+              type="search"
+              aria-label="Search products"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search title, brand or tags..."
-              className="w-full h-12 bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-2xl pl-12 pr-4 font-medium text-sm text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] transition-all shadow-sm"
+              placeholder="Search title, brand or tags…"
+              className="w-full h-11 bg-surface-1 border border-line rounded-full pl-11 pr-10 text-[14px] text-ink placeholder:text-ink-faint focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow]"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full active:scale-90"
+              >
+                <span className="material-symbols-outlined text-ink-faint text-[17px]" aria-hidden="true">close</span>
+              </button>
+            )}
           </div>
 
-          {/* STATUS SLIDER */}
-          <div className="flex gap-2 overflow-x-auto no-scrollbar">
-            {(['all', 'active', 'draft', 'archived'] as const).map((status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2 rounded-full text-xs font-bold shrink-0 transition-all ${statusFilter === status ? 'bg-surface-0 text-ink dark:bg-white dark:text-[#111111] shadow-sm' : 'bg-white dark:bg-surface-1 text-gray-500 border border-black/5 dark:border-line'}`}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
+          {/* STATUS FILTER */}
+          <SegmentedControl
+            aria-label="Filter by status"
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v)}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'active', label: 'Active' },
+              { value: 'draft', label: 'Draft' },
+              { value: 'archived', label: 'Archived' },
+            ]}
+          />
 
           {/* ADVANCED FILTERS AND SORT */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2.5">
             {/* Category Dropdown */}
             <select
+              aria-label="Filter by category"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="h-10 bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-xl px-2 text-xs font-bold focus:outline-none"
+              className="h-10 bg-surface-1 border border-line rounded-full px-3 text-[12px] font-medium text-ink focus:outline-none focus:border-ink transition-colors"
             >
               <option value="">All Categories</option>
               {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -273,9 +307,10 @@ const SellerCatalog: React.FC = () => {
 
             {/* Brand Dropdown */}
             <select
+              aria-label="Filter by brand"
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
-              className="h-10 bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-xl px-2 text-xs font-bold focus:outline-none"
+              className="h-10 bg-surface-1 border border-line rounded-full px-3 text-[12px] font-medium text-ink focus:outline-none focus:border-ink transition-colors"
             >
               <option value="">All Brands</option>
               {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
@@ -283,9 +318,10 @@ const SellerCatalog: React.FC = () => {
 
             {/* Sort Dropdown */}
             <select
+              aria-label="Sort products"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="h-10 bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-xl px-2 text-xs font-bold focus:outline-none"
+              className="h-10 bg-surface-1 border border-line rounded-full px-3 text-[12px] font-medium text-ink focus:outline-none focus:border-ink transition-colors"
             >
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
@@ -298,144 +334,143 @@ const SellerCatalog: React.FC = () => {
 
           {/* PRODUCT CARDS LIST */}
           <div className="flex flex-col gap-4">
-            
+
             {paginatedProducts.length > 0 && (
-              <div className="flex justify-between items-center px-2">
-                <button 
+              <div className="flex justify-between items-center px-1">
+                <button
                   onClick={toggleSelectAll}
-                  className="text-[11px] font-bold text-gray-500 hover:text-[#6157FF] transition-colors"
+                  className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint hover:text-ink transition-colors"
                 >
-                  Select All on Page
+                  Select all on page
                 </button>
-                <span className="text-[12px] text-gray-400 font-bold">
+                <span className="text-[11px] font-medium text-ink-faint tabular-nums">
                   {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, totalCount)} of {totalCount}
                 </span>
               </div>
             )}
 
             {paginatedProducts.length === 0 ? (
-              <div className="bg-white dark:bg-surface-1 p-12 rounded-[2rem] text-center border border-black/5 dark:border-line shadow-sm">
-                <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">inventory_2</span>
-                <h3 className="font-bold text-sm">No products found</h3>
-                <p className="text-xs text-gray-400 mt-1">Try resetting your filters or add a new product.</p>
-              </div>
+              <EmptyState
+                icon="inventory_2"
+                title="No products found"
+                description="Try resetting your filters or add a new product."
+              />
             ) : (
-              paginatedProducts.map((p) => {
-                const isSelected = selectedIds.includes(p.id);
-                return (
-                  <div 
-                    key={p.id}
-                    onClick={() => navigate(`/seller/edit-product/${p.id}`)}
-                    className="flex bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line shadow-sm p-4 gap-4 items-center cursor-pointer hover:border-[#6157FF] transition-all relative overflow-hidden group"
-                  >
-                    {/* Checkbox Overlay */}
-                    <div 
-                      onClick={(e) => { e.stopPropagation(); toggleSelect(p.id); }}
-                      className="flex items-center justify-center p-2 -ml-2 shrink-0 cursor-pointer text-[#6157FF]"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">{isSelected ? 'check_box' : 'check_box_outline_blank'}</span>
-                    </div>
+              <StaggerList className="flex flex-col gap-4" delay={0.04}>
+                {paginatedProducts.map((p) => {
+                  const isSelected = selectedIds.includes(p.id);
+                  return (
+                    <StaggerItem key={p.id}>
+                      <div
+                        onClick={() => navigate(`/seller/edit-product/${p.id}`)}
+                        className={`group relative flex items-center gap-4 p-4 rounded-card bg-surface-1 border transition-colors cursor-pointer ${isSelected ? 'border-brand' : 'border-line hover:border-line-strong'}`}
+                      >
+                        {/* Checkbox */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleSelect(p.id); }}
+                          aria-label={isSelected ? `Deselect ${p.title}` : `Select ${p.title}`}
+                          className="flex items-center justify-center -ml-1 shrink-0 text-brand"
+                        >
+                          <span className="material-symbols-outlined text-[22px]" aria-hidden="true" style={isSelected ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                            {isSelected ? 'check_box' : 'check_box_outline_blank'}
+                          </span>
+                        </button>
 
-                    {/* Thumbnail */}
-                    <div className="h-16 w-16 rounded-2xl bg-gray-50 dark:bg-black overflow-hidden border border-black/5 dark:border-line shrink-0">
-                      {p.images && p.images[0] ? (
-                        <img src={p.images[0]} alt={p.title} className="h-full w-full object-cover"/>
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-gray-300">
-                          <span className="material-symbols-outlined">image</span>
+                        {/* Thumbnail */}
+                        <div className="h-16 w-16 rounded-xl bg-surface-2 overflow-hidden border border-line shrink-0">
+                          {p.images && p.images[0] ? (
+                            <img src={p.images[0]} alt={p.title} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center text-ink-faint">
+                              <span className="material-symbols-outlined" aria-hidden="true">image</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    {/* Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex gap-2 items-center mb-1">
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${p.status === 'active' ? 'bg-green-500/10 text-green-600' : p.status === 'draft' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-500/10 text-gray-500'}`}>
-                          {p.status}
-                        </span>
-                        {p.brand && <span className="text-[12px] font-bold text-gray-400 truncate max-w-[80px]">{p.brand}</span>}
+                        {/* Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex gap-2 items-center mb-1.5">
+                            <span className={`text-[9.5px] font-semibold uppercase tracking-[0.1em] px-2 py-0.5 rounded-full ${statusTone(p.status)}`}>
+                              {p.status}
+                            </span>
+                            {p.brand && <span className="text-[11px] font-medium text-ink-faint truncate max-w-[80px]">{p.brand}</span>}
+                          </div>
+                          <h4 className="font-display text-[15px] font-medium truncate text-ink leading-tight">{p.title}</h4>
+                          <p className="text-[12px] text-ink-soft font-medium mt-1">{p.price || 'No Price'}</p>
+                        </div>
+
+                        {/* Duplicate button */}
+                        <button
+                          onClick={(e) => handleDuplicate(e, p.id)}
+                          aria-label={`Duplicate ${p.title}`}
+                          className="absolute right-4 bottom-4 p-2 bg-surface-2 border border-line rounded-full opacity-0 group-hover:opacity-100 transition-opacity active:scale-90"
+                        >
+                          <span className="material-symbols-outlined text-[15px] text-ink-soft" aria-hidden="true">content_copy</span>
+                        </button>
                       </div>
-                      <h4 className="text-sm font-bold truncate text-[#111111] dark:text-ink leading-tight">{p.title}</h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">{p.price || 'No Price'}</p>
-                    </div>
-
-                    {/* Duplicate button */}
-                    <button 
-                      onClick={(e) => handleDuplicate(e, p.id)}
-                      className="absolute right-4 bottom-4 p-2 bg-black/5 dark:bg-surface-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity active:scale-90"
-                    >
-                      <span className="material-symbols-outlined text-xs text-gray-500">content_copy</span>
-                    </button>
-
-                  </div>
-                );
-              })
+                    </StaggerItem>
+                  );
+                })}
+              </StaggerList>
             )}
 
           </div>
 
           {/* PAGINATION CONTROLS */}
           {totalPages > 1 && (
-            <div className="flex justify-between items-center mt-4">
-              <button
+            <div className="flex justify-between items-center mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                icon="chevron_left"
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="h-10 px-4 rounded-xl border border-black/5 dark:border-line bg-white dark:bg-surface-1 font-bold text-xs disabled:opacity-40"
               >
                 Previous
-              </button>
-              <span className="text-xs text-gray-400 font-bold">
+              </Button>
+              <span className="text-[11px] font-medium text-ink-faint tabular-nums">
                 Page {currentPage} of {totalPages}
               </span>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
+                trailingIcon="chevron_right"
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="h-10 px-4 rounded-xl border border-black/5 dark:border-line bg-white dark:bg-surface-1 font-bold text-xs disabled:opacity-40"
               >
                 Next
-              </button>
+              </Button>
             </div>
           )}
 
         </div>
       </div>
 
-      {/* BULK OPERATIONS OVERLAY ACTION BAR */}
+      {/* BULK OPERATIONS ACTION BAR */}
       {selectedIds.length > 0 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-50">
-          <div className="bg-white/95 dark:bg-surface-1/95 backdrop-blur-xl border border-black/10 dark:border-line rounded-[2rem] p-4 flex flex-col gap-3 shadow-2xl items-center text-center">
-            <span className="text-xs font-bold text-[#6157FF]">{selectedIds.length} Products Selected</span>
-            
-            <div className="flex gap-2 w-full">
+        <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+          <div className="rounded-card bg-surface-1 border border-line shadow-float p-4 flex flex-col gap-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand text-center">
+              {selectedIds.length} Selected
+            </p>
+            <div className="flex gap-2">
               {statusFilter !== 'archived' ? (
-                <button
-                  onClick={() => handleBulkAction('archive')}
-                  className="flex-1 h-12 bg-gray-500/10 hover:bg-gray-500/20 text-gray-500 dark:text-gray-300 rounded-xl font-bold text-xs transition-colors"
-                >
+                <Button variant="secondary" size="sm" fullWidth onClick={() => handleBulkAction('archive')}>
                   Archive
-                </button>
+                </Button>
               ) : (
-                <button
-                  onClick={() => handleBulkAction('restore')}
-                  className="flex-1 h-12 bg-green-500/10 hover:bg-green-500/20 text-green-600 rounded-xl font-bold text-xs transition-colors"
-                >
+                <Button variant="secondary" size="sm" fullWidth icon="restore" onClick={() => handleBulkAction('restore')}>
                   Restore
-                </button>
+                </Button>
               )}
-              
-              <button
-                onClick={handleExportCSV}
-                className="flex-1 h-12 bg-[#6157FF]/10 hover:bg-[#6157FF]/20 text-[#6157FF] dark:text-[#6157FF] rounded-xl font-bold text-xs transition-colors"
-              >
+
+              <Button variant="outline" size="sm" fullWidth onClick={handleExportCSV}>
                 Export
-              </button>
-              
-              <button
-                onClick={() => handleBulkAction('delete')}
-                className="flex-1 h-12 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl font-bold text-xs transition-colors"
-              >
+              </Button>
+
+              <Button variant="danger" size="sm" fullWidth onClick={() => handleBulkAction('delete')}>
                 Delete
-              </button>
+              </Button>
             </div>
           </div>
         </div>

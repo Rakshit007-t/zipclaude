@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { getProduct, updateProduct, deleteProduct, duplicateProduct, uploadProductImage, SellerProduct } from '../services/ziprightApi';
+import { AppBar, Button, IconButton, Input, TextArea, Eyebrow, SegmentedControl, Spinner } from '../components/ui';
 
 interface SizeRow {
   size: string;
@@ -53,7 +54,7 @@ const SellerEditProduct: React.FC = () => {
       setLoadingText('Fetching product details...');
       const p = await getProduct(id);
       setOriginalProduct(p);
-      
+
       setTitle(p.title || '');
       setBrand(p.brand || '');
       setPrice(p.price || '');
@@ -70,7 +71,7 @@ const SellerEditProduct: React.FC = () => {
       setSourceUrl(p.source_url || '');
       setProductImages(p.images || []);
       setStatus(p.status || 'active');
-      
+
       if (p.size_chart) {
         const rows = Object.entries(p.size_chart).map(([size, value]) => ({
           size,
@@ -192,7 +193,7 @@ const SellerEditProduct: React.FC = () => {
       showToast('Enter a valid measurement value', 'error');
       return;
     }
-    
+
     const sizeName = newSizeName.trim().toUpperCase();
     if (sizeChart.some(r => r.size === sizeName)) {
       showToast('Size already exists in chart.', 'error');
@@ -213,7 +214,7 @@ const SellerEditProduct: React.FC = () => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const file = files[0];
-    
+
     if (productImages.length >= 6) {
       showToast('Maximum 6 images allowed.', 'error');
       return;
@@ -264,7 +265,7 @@ const SellerEditProduct: React.FC = () => {
   const handleMoveImage = (index: number, direction: 'left' | 'right') => {
     const targetIndex = direction === 'left' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= productImages.length) return;
-    
+
     setProductImages(prev => {
       const copy = [...prev];
       const temp = copy[index];
@@ -275,41 +276,31 @@ const SellerEditProduct: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden relative">
-      
+    <div className="relative flex h-full min-h-screen min-h-dvh w-full flex-col overflow-x-hidden bg-surface-0 text-ink">
+
       {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-[1000] flex flex-col items-center justify-center p-6">
-          <div className="bg-white dark:bg-surface-1 p-8 rounded-[2.5rem] border border-black/5 dark:border-line flex flex-col items-center max-w-sm text-center shadow-2xl">
-            <div className="h-16 w-16 border-4 border-[#6157FF] dark:border-[#6157FF] border-t-transparent rounded-full animate-spin mb-6"></div>
-            <h3 className="text-lg font-bold mb-2">Processing</h3>
-            <p className="text-xs text-[#555555] dark:text-ink-soft font-medium leading-relaxed">{loadingText}</p>
+        <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center bg-scrim/70 backdrop-blur-md p-6">
+          <div className="flex max-w-sm flex-col items-center rounded-card border border-line bg-surface-1 p-8 text-center shadow-float">
+            <Spinner size={40} className="text-brand mb-5" />
+            <Eyebrow className="mb-2">Processing</Eyebrow>
+            <p className="text-[13px] text-ink-soft leading-relaxed">{loadingText}</p>
           </div>
         </div>
       )}
 
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line shrink-0">
-        <button 
-          onClick={() => navigate('/seller/catalog')} 
-          aria-label="Go back" className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"
-        >
-          <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h2 className="text-lg font-bold text-[#6157FF]">Edit Product</h2>
-        <div className="w-8"></div>
-      </div>
+      <AppBar title="Edit Product" onBack={() => navigate('/seller/catalog')} />
 
       {/* Hidden File Inputs for Image Actions */}
-      <input 
-        type="file" 
+      <input
+        type="file"
         ref={addInputRef}
         accept="image/*"
         className="hidden"
         onChange={handleAddProductImage}
       />
-      <input 
-        type="file" 
+      <input
+        type="file"
         ref={replaceInputRef}
         accept="image/*"
         className="hidden"
@@ -317,55 +308,73 @@ const SellerEditProduct: React.FC = () => {
       />
 
       {/* Form Content area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-6 pb-36">
-        <div className="max-w-md mx-auto flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto no-scrollbar px-6 pt-6 pb-40">
+        <div className="mx-auto flex max-w-md flex-col gap-10">
+
+          {/* Editorial opener */}
+          <div>
+            <Eyebrow className="mb-3">Catalog</Eyebrow>
+            <h1 className="font-display text-[32px] font-light leading-[1.05] text-ink">
+              Refine the <em className="font-medium">piece.</em>
+            </h1>
+            <p className="mt-3 max-w-[85%] text-[14px] leading-relaxed text-ink-soft">
+              Update imagery, specs and sizing — every change is versioned safely.
+            </p>
+          </div>
 
           {/* SECTION 1: IMAGE MANAGER */}
-          <div className="flex flex-col bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm gap-4">
-            <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft">Image Manager</h3>
+          <section className="flex flex-col gap-5">
+            <div className="flex items-baseline justify-between">
+              <Eyebrow>Imagery</Eyebrow>
+              <span className="text-[11px] text-ink-faint">{productImages.length} / 6</span>
+            </div>
 
             <div className="grid grid-cols-3 gap-3">
               {productImages.map((img, idx) => (
-                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-black/5 dark:border-line group">
-                  <img src={img} alt={`Product ${idx}`} className="h-full w-full object-cover"/>
-                  
+                <div key={idx} className="group relative aspect-square overflow-hidden rounded-card border border-line">
+                  <img src={img} alt={`Product ${idx}`} className="h-full w-full object-cover" />
+
                   {/* Operations overlay */}
-                  <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition-all duration-300">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-scrim/70 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                     <div className="flex gap-1.5">
-                      <button 
+                      <IconButton
+                        icon="edit"
+                        aria-label="Replace image"
+                        size="sm"
+                        variant="ghost"
+                        className="bg-surface-1/90 text-ink"
                         onClick={() => { setReplacingIndex(idx); replaceInputRef.current?.click(); }}
-                        className="p-1.5 bg-surface-3 rounded-full hover:bg-white/40 text-ink"
-                        title="Replace Image"
-                      >
-                        <span className="material-symbols-outlined text-sm">edit</span>
-                      </button>
-                      <button 
+                      />
+                      <IconButton
+                        icon="delete"
+                        aria-label="Delete image"
+                        size="sm"
+                        variant="ghost"
+                        className="bg-danger-soft text-danger"
                         onClick={() => handleRemoveImage(idx)}
-                        className="p-1.5 bg-red-500/20 rounded-full hover:bg-red-500/40 text-red-600"
-                        title="Delete Image"
-                      >
-                        <span className="material-symbols-outlined text-sm">delete</span>
-                      </button>
+                      />
                     </div>
 
                     <div className="flex gap-1.5">
                       {idx > 0 && (
-                        <button 
+                        <IconButton
+                          icon="chevron_left"
+                          aria-label="Move image left"
+                          size="sm"
+                          variant="ghost"
+                          className="bg-surface-1/90 text-ink"
                           onClick={() => handleMoveImage(idx, 'left')}
-                          className="p-1.5 bg-surface-3 rounded-full hover:bg-white/40 text-ink"
-                          title="Move Left"
-                        >
-                          <span className="material-symbols-outlined text-sm">chevron_left</span>
-                        </button>
+                        />
                       )}
                       {idx < productImages.length - 1 && (
-                        <button 
+                        <IconButton
+                          icon="chevron_right"
+                          aria-label="Move image right"
+                          size="sm"
+                          variant="ghost"
+                          className="bg-surface-1/90 text-ink"
                           onClick={() => handleMoveImage(idx, 'right')}
-                          className="p-1.5 bg-surface-3 rounded-full hover:bg-white/40 text-ink"
-                          title="Move Right"
-                        >
-                          <span className="material-symbols-outlined text-sm">chevron_right</span>
-                        </button>
+                        />
                       )}
                     </div>
                   </div>
@@ -373,280 +382,204 @@ const SellerEditProduct: React.FC = () => {
               ))}
 
               {productImages.length < 6 && (
-                <div 
+                <button
+                  type="button"
                   onClick={() => addInputRef.current?.click()}
-                  className="aspect-square border-2 border-dashed border-black/10 dark:border-line hover:border-[#6157FF] rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors"
+                  aria-label="Add image"
+                  className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-card border border-dashed border-line-strong text-ink-faint transition-colors hover:border-brand hover:text-brand"
                 >
-                  <span className="material-symbols-outlined text-2xl text-[#6157FF]">add_photo_alternate</span>
-                  <span className="text-[11px] font-bold mt-1">Add Image</span>
-                </div>
+                  <span className="material-symbols-outlined text-2xl" aria-hidden="true">add_photo_alternate</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">Add</span>
+                </button>
               )}
             </div>
-          </div>
+          </section>
 
           {/* SECTION 2: EDIT FIELDS */}
-          <div className="flex flex-col bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm gap-5">
-            
-            {/* Title */}
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Title *</label>
-              <input 
-                type="text" 
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] transition-colors text-sm"
-              />
-            </div>
+          <section className="flex flex-col gap-5">
+            <Eyebrow>Details</Eyebrow>
 
-            {/* Brand */}
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Brand</label>
-              <input 
-                type="text" 
-                value={brand}
-                onChange={(e) => setBrand(e.target.value)}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] transition-colors text-sm"
-              />
-            </div>
+            <Input
+              label="Title"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
 
-            {/* Category & Gender */}
+            <Input
+              label="Brand"
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+            />
+
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Category</label>
-                <input 
-                  type="text" 
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] transition-colors text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Gender</label>
-                <input 
-                  type="text" 
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] transition-colors text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Price & Pattern */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Price</label>
-                <input 
-                  type="text" 
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] transition-colors text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Pattern</label>
-                <input 
-                  type="text" 
-                  value={pattern}
-                  onChange={(e) => setPattern(e.target.value)}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] transition-colors text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Description</label>
-              <textarea 
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full h-24 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 py-3 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] transition-colors text-xs resize-none"
+              <Input
+                label="Category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              />
+              <Input
+                label="Gender"
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
               />
             </div>
 
-            {/* Status Selector */}
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Status</label>
-              <select
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Price"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+              />
+              <Input
+                label="Pattern"
+                value={pattern}
+                onChange={(e) => setPattern(e.target.value)}
+              />
+            </div>
+
+            <TextArea
+              label="Description"
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">Status</span>
+              <SegmentedControl
+                aria-label="Product status"
                 value={status}
-                onChange={(e) => setStatus(e.target.value as any)}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] text-sm"
-              >
-                <option value="active">Active</option>
-                <option value="draft">Draft</option>
-                <option value="archived">Archived</option>
-              </select>
+                onChange={(v) => setStatus(v as 'active' | 'draft' | 'archived')}
+                options={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'draft', label: 'Draft' },
+                  { value: 'archived', label: 'Archived' },
+                ]}
+              />
             </div>
-
-          </div>
+          </section>
 
           {/* SECTION 3: SPEC SHEET DETAILS */}
-          <div className="flex flex-col bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm gap-5">
-            <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft">Garment Specs</h3>
+          <section className="flex flex-col gap-5">
+            <Eyebrow>Garment specs</Eyebrow>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Fabric</label>
-                <input 
-                  type="text" 
-                  value={fabric}
-                  onChange={(e) => setFabric(e.target.value)}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] text-xs"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Fit Type</label>
-                <input 
-                  type="text" 
-                  value={fitType}
-                  onChange={(e) => setFitType(e.target.value)}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Sleeve Type</label>
-                <input 
-                  type="text" 
-                  value={sleeveType}
-                  onChange={(e) => setSleeveType(e.target.value)}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] text-xs"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Neck Type</label>
-                <input 
-                  type="text" 
-                  value={neckType}
-                  onChange={(e) => setNeckType(e.target.value)}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] text-xs"
-                />
-              </div>
-            </div>
-
-            {/* Colors */}
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Colors (comma separated)</label>
-              <input 
-                type="text" 
-                value={colorsInput}
-                onChange={(e) => setColorsInput(e.target.value)}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] text-xs"
+              <Input
+                label="Fabric"
+                value={fabric}
+                onChange={(e) => setFabric(e.target.value)}
+              />
+              <Input
+                label="Fit Type"
+                value={fitType}
+                onChange={(e) => setFitType(e.target.value)}
               />
             </div>
 
-            {/* Tags */}
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-2">Tags (comma separated)</label>
-              <input 
-                type="text" 
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] text-xs"
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Sleeve Type"
+                value={sleeveType}
+                onChange={(e) => setSleeveType(e.target.value)}
+              />
+              <Input
+                label="Neck Type"
+                value={neckType}
+                onChange={(e) => setNeckType(e.target.value)}
               />
             </div>
-          </div>
+
+            <Input
+              label="Colors"
+              hint="Comma separated"
+              value={colorsInput}
+              onChange={(e) => setColorsInput(e.target.value)}
+            />
+
+            <Input
+              label="Tags"
+              hint="Comma separated"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+            />
+          </section>
 
           {/* SECTION 4: SIZE CHART BUILDER */}
-          <div className="flex flex-col bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm gap-4">
-            <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft">Sizing Specifications</h3>
-            
+          <section className="flex flex-col gap-4">
+            <Eyebrow>Sizing specifications</Eyebrow>
+
             {sizeChart.length === 0 ? (
-              <p className="text-[11px] text-[#555555] dark:text-ink-soft font-bold text-center py-4 bg-[#FAF9F6] dark:bg-surface-0 rounded-2xl">
+              <p className="rounded-card border border-dashed border-line-strong bg-surface-1 py-6 text-center text-[12px] text-ink-faint">
                 No sizes defined yet. Add standard sizes below.
               </p>
             ) : (
               <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center text-[12px] font-bold text-[#555555] dark:text-ink-soft px-2 border-b border-black/5 dark:border-line pb-2">
+                <div className="flex items-center justify-between border-b border-line px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
                   <span>Size</span>
-                  <span>Chest Value (cm)</span>
+                  <span>Chest value (cm)</span>
                   <span className="w-8"></span>
                 </div>
                 {sizeChart.map((row) => (
-                  <div key={row.size} className="flex justify-between items-center text-xs font-bold text-[#111111] dark:text-ink px-2 py-2.5 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl">
-                    <span>{row.size}</span>
-                    <span>{row.value}</span>
-                    <button 
+                  <div key={row.size} className="flex items-center justify-between rounded-ctl border border-line bg-surface-1 px-3 py-2.5 text-[13px] text-ink">
+                    <span className="font-display font-medium">{row.size}</span>
+                    <span className="font-display">{row.value}</span>
+                    <button
                       onClick={() => handleRemoveSizeRow(row.size)}
-                      className="text-red-500 hover:text-red-700 flex items-center justify-center"
+                      aria-label={`Remove size ${row.size}`}
+                      className="flex items-center justify-center text-ink-faint transition-colors hover:text-danger"
                     >
-                      <span className="material-symbols-outlined text-sm">close</span>
+                      <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
                     </button>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="h-[1px] bg-black/5 dark:bg-surface-2 my-2"></div>
-            
-            <div className="flex gap-3 items-end">
-              <div className="flex-1">
-                <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-1">Size Name</label>
-                <input 
-                  type="text" 
-                  value={newSizeName}
-                  onChange={(e) => setNewSizeName(e.target.value)}
-                  placeholder="e.g. M"
-                  className="w-full h-10 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-3 font-bold text-[#111111] dark:text-ink text-xs focus:outline-none"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-1">Chest Value</label>
-                <input 
-                  type="number" 
-                  value={newSizeValue === '' ? '' : newSizeValue}
-                  onChange={(e) => setNewSizeValue(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="e.g. 100"
-                  className="w-full h-10 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-3 font-bold text-[#111111] dark:text-ink text-xs focus:outline-none"
-                />
-              </div>
-              <button 
-                onClick={handleAddSizeRow}
-                className="h-10 bg-[#6157FF] dark:bg-[#6157FF] text-ink px-4 rounded-xl flex items-center justify-center font-bold text-xs active:scale-95 shrink-0"
-              >
-                Add Size
-              </button>
+            <div className="flex items-end gap-3 border-t border-line pt-4">
+              <Input
+                label="Size name"
+                className="flex-1"
+                value={newSizeName}
+                onChange={(e) => setNewSizeName(e.target.value)}
+                placeholder="e.g. M"
+              />
+              <Input
+                label="Chest value"
+                className="flex-1"
+                type="number"
+                value={newSizeValue === '' ? '' : newSizeValue}
+                onChange={(e) => setNewSizeValue(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="e.g. 100"
+              />
+              <Button size="md" variant="secondary" className="shrink-0" onClick={handleAddSizeRow}>
+                Add
+              </Button>
             </div>
-          </div>
+          </section>
 
           {/* DUPLICATE AND DELETE CONTROLS */}
           <div className="grid grid-cols-2 gap-4">
-            <button 
-              onClick={handleDuplicateProduct}
-              className="h-14 rounded-2xl border border-black/10 dark:border-line bg-white dark:bg-surface-1 text-gray-500 dark:text-gray-300 font-bold text-xs active:scale-95 flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-sm">content_copy</span>
+            <Button variant="outline" icon="content_copy" onClick={handleDuplicateProduct}>
               Duplicate
-            </button>
-            <button 
-              onClick={handleDeleteProduct}
-              className="h-14 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold text-xs active:scale-95 flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-sm">delete</span>
+            </Button>
+            <Button variant="danger" icon="delete" onClick={handleDeleteProduct}>
               Delete
-            </button>
+            </Button>
           </div>
 
         </div>
       </div>
 
       {/* STICKY BOTTOM ACTIONS FOR REVIEW */}
-      <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[#FAF9F6] via-[#FAF9F6] to-transparent dark:from-[#121212] dark:via-[#121212] dark:to-transparent z-40 shrink-0">
-        <div className="flex gap-4 max-w-md mx-auto bg-white/40 dark:bg-black/40 backdrop-blur-xl p-4 rounded-3xl border border-black/5 dark:border-line shadow-lg">
-          <button 
-            onClick={() => navigate('/seller/catalog')}
-            className="flex-1 h-14 rounded-2xl border border-black/10 dark:border-line text-[#555555] dark:text-ink-soft bg-white dark:bg-surface-1 font-bold text-sm transition-all active:scale-95"
-          >
+      <div className="fixed bottom-0 inset-x-0 z-50 w-full bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent px-6 pb-8 pt-5 phone-fixed-bottom">
+        <div className="mx-auto flex max-w-md gap-3">
+          <Button variant="outline" className="flex-1" onClick={() => navigate('/seller/catalog')}>
             Cancel
-          </button>
-          <button 
-            onClick={handleSave}
-            className="flex-[2] h-14 rounded-2xl bg-green-500 text-ink font-bold text-sm transition-all active:scale-95 shadow-md flex items-center justify-center gap-2"
-          >
-            <span className="material-symbols-outlined text-lg">save</span>
+          </Button>
+          <Button variant="accent" icon="save" className="flex-[2]" onClick={handleSave}>
             Save Changes
-          </button>
+          </Button>
         </div>
       </div>
 

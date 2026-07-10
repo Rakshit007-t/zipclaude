@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import {
   addDoc,
   collection,
@@ -14,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
+import { Eyebrow, Wordmark, Badge, Button, EmptyState } from '../components/ui';
 
 type Tab = 'circle' | 'inbox' | 'requests';
 
@@ -200,62 +202,57 @@ const FriendsScreen: React.FC = () => {
     } catch {}
   };
 
-  const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: 'circle', label: 'Circle', icon: 'group' },
-    { key: 'inbox', label: 'Inbox', icon: 'inbox' },
-    { key: 'requests', label: 'Requests', icon: 'person_add' },
+  const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: 'circle', label: 'Circle' },
+    { key: 'inbox', label: 'Inbox', count: unreadCount },
+    { key: 'requests', label: 'Requests', count: requests.length },
   ];
 
+  const reactionTone = (active: boolean) =>
+    active ? 'bg-ink border-ink text-ink-invert' : 'border-line text-ink-soft hover:border-line-strong';
+
   return (
-    <div className="min-h-dvh bg-surface-0 text-ink pb-32 font-body">
+    <div className="min-h-screen min-h-dvh bg-surface-0 text-ink pb-32">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-surface-0/90 backdrop-blur-xl border-b border-line px-6 py-5">
-        <div className="flex items-center justify-between">
-          <h1 className="text-ink font-bold text-xl tracking-tight">
-            Style <span className="text-[#6157FF]">Circle</span>
-          </h1>
-          {unreadCount > 0 && (
-            <div className="bg-[#FF4D6D] rounded-full px-3 py-1 flex items-center gap-1">
-              <span className="text-ink text-[12px] font-bold">{unreadCount} new</span>
-            </div>
-          )}
+      <div className="sticky top-0 z-40 bg-surface-0/90 backdrop-blur-xl border-b border-line px-6 pt-5 pb-0 pt-safe">
+        <div className="flex items-end justify-between pb-4">
+          <div>
+            <Eyebrow className="mb-1.5">Your people</Eyebrow>
+            <h1 className="font-display text-[28px] leading-none font-light">
+              Style <em className="font-medium text-brand">circle.</em>
+            </h1>
+          </div>
+          <Wordmark size="sm" className="opacity-40 pb-1" />
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mt-4 overflow-x-auto no-scrollbar pb-1 -mx-6 px-6">
+        {/* Tabs — sliding underline */}
+        <div className="flex gap-7" role="tablist">
           {tabs.map(t => (
             <button
               key={t.key}
+              role="tab"
+              aria-selected={activeTab === t.key}
               onClick={() => setActiveTab(t.key)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold active:scale-95 transition-colors ${
-                activeTab === t.key
-                  ? 'bg-[#6157FF] text-ink'
-                  : 'bg-surface-2 text-ink-soft'
-              }`}
+              className={`relative pb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${activeTab === t.key ? 'text-ink' : 'text-ink-faint'}`}
             >
-              <span className="material-symbols-outlined text-[14px]"
-                style={{ fontVariationSettings: activeTab === t.key ? "'FILL' 1" : "'FILL' 0" }}>
-                {t.icon}
-              </span>
               {t.label}
-              {t.key === 'requests' && requests.length > 0 && (
-                <span className="bg-[#FF4D6D] rounded-full h-4 w-4 flex items-center justify-center text-[12px] text-ink font-bold">
-                  {requests.length}
-                </span>
+              {t.count ? <Badge variant={activeTab === t.key ? 'brand' : 'neutral'} size="sm">{t.count}</Badge> : null}
+              {activeTab === t.key && (
+                <motion.span layoutId="friends-tab-underline" className="absolute -bottom-px left-0 right-0 h-[2px] bg-ink" aria-hidden="true" />
               )}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="px-4 pt-5">
+      <div className="px-6 pt-6">
 
         {/* ---- CIRCLE TAB ---- */}
         {activeTab === 'circle' && (
           <div>
             {/* Search to add */}
-            <div className="mb-6">
-              <p className="text-ink-soft text-[12px] font-bold mb-3">Add by email</p>
+            <div className="mb-7">
+              <Eyebrow className="mb-3">Add by email</Eyebrow>
               <div className="flex gap-2">
                 <input
                   type="email"
@@ -263,67 +260,58 @@ const FriendsScreen: React.FC = () => {
                   onChange={e => setSearchEmail(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearchUser()}
                   placeholder="friend@email.com"
-                  className="flex-1 bg-surface-2 border border-line rounded-xl px-4 py-3 text-ink text-sm placeholder:text-ink-faint outline-none focus:border-[#6157FF]/50"
+                  className="flex-1 bg-surface-1 border border-line rounded-full px-4 h-12 text-ink text-[14px] placeholder:text-ink-faint outline-none focus:border-ink transition-colors"
                 />
                 <button
                   onClick={handleSearchUser}
                   disabled={isSearching}
-                  className="bg-[#6157FF] px-4 py-3 rounded-xl active:scale-95"
+                  aria-label="Search"
+                  className="bg-ink text-ink-invert h-12 w-12 rounded-full flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-ink text-[20px]">
-                    {isSearching ? 'hourglass_empty' : 'search'}
+                  <span className={`material-symbols-outlined text-[20px] ${isSearching ? 'animate-spin' : ''}`} aria-hidden="true">
+                    {isSearching ? 'progress_activity' : 'search'}
                   </span>
                 </button>
               </div>
 
               {/* Search result */}
               {searchResult && (
-                <div className="mt-3 flex items-center justify-between bg-surface-2 rounded-2xl p-4 border border-line">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-[#6157FF]/20 flex items-center justify-center">
-                      <span className="text-[#6157FF] font-bold">{searchResult.name.charAt(0).toUpperCase()}</span>
+                <div className="mt-3 flex items-center justify-between bg-surface-1 rounded-card p-4 border border-line">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-full border border-line flex items-center justify-center shrink-0">
+                      <span className="text-ink font-display font-medium">{searchResult.name.charAt(0).toUpperCase()}</span>
                     </div>
-                    <div>
-                      <p className="text-ink font-bold text-sm">{searchResult.name}</p>
-                      <p className="text-ink-soft text-xs">{searchResult.email}</p>
+                    <div className="min-w-0">
+                      <p className="text-ink font-semibold text-[14px] truncate">{searchResult.name}</p>
+                      <p className="text-ink-faint text-[12px] truncate">{searchResult.email}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleSendRequest(searchResult)}
-                    className="bg-[#6157FF] text-ink px-4 py-2 rounded-full text-xs font-bold active:scale-95"
-                  >
-                    Add
-                  </button>
+                  <Button size="sm" onClick={() => handleSendRequest(searchResult)}>Add</Button>
                 </div>
               )}
             </div>
 
             {/* Friends list */}
             {friends.length === 0 ? (
-              <div className="text-center py-16">
-                <span className="material-symbols-outlined text-ink-faint text-7xl block mb-4">group</span>
-                <p className="text-ink-soft text-sm">Your circle is empty</p>
-                <p className="text-ink-faint text-xs mt-1">Add friends by email above</p>
-              </div>
+              <EmptyState icon="group" title="Your circle is empty" description="Add friends by email above to start sharing fits." />
             ) : (
-              <div className="flex flex-col gap-3">
-                <p className="text-ink-soft text-[12px] font-bold mb-1">
-                  {friends.length} in your circle
-                </p>
+              <div className="flex flex-col">
+                <Eyebrow className="mb-3">{friends.length} in your circle</Eyebrow>
                 {friends.map(friend => (
-                  <div key={friend.uid} className="flex items-center gap-4 bg-surface-2 rounded-2xl p-4 border border-line">
-                    <div className="h-11 w-11 rounded-full bg-[#6157FF]/20 flex items-center justify-center shrink-0">
-                      <span className="text-[#6157FF] font-bold text-base">{friend.name.charAt(0).toUpperCase()}</span>
+                  <div key={friend.uid} className="flex items-center gap-4 py-3.5 border-b border-line last:border-none">
+                    <div className="h-11 w-11 rounded-full border border-line flex items-center justify-center shrink-0">
+                      <span className="text-ink font-display font-medium text-[16px]">{friend.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-ink font-bold text-sm truncate">{friend.name}</p>
-                      <p className="text-ink-faint text-xs truncate">{friend.email}</p>
+                      <p className="text-ink font-medium text-[14px] truncate">{friend.name}</p>
+                      <p className="text-ink-faint text-[12px] truncate">{friend.email}</p>
                     </div>
                     <button
                       onClick={() => handleRemoveFriend(friend.uid)}
-                      className="p-2 rounded-full bg-surface-2 active:scale-90"
+                      aria-label={`Remove ${friend.name}`}
+                      className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-faint active:scale-90 transition-transform"
                     >
-                      <span className="material-symbols-outlined text-ink-faint text-[18px]">person_remove</span>
+                      <span className="material-symbols-outlined text-[17px]" aria-hidden="true">person_remove</span>
                     </button>
                   </div>
                 ))}
@@ -336,77 +324,48 @@ const FriendsScreen: React.FC = () => {
         {activeTab === 'inbox' && (
           <div>
             {inboxItems.length === 0 ? (
-              <div className="text-center py-16">
-                <span className="material-symbols-outlined text-ink-faint text-7xl block mb-4">inbox</span>
-                <p className="text-ink-soft text-sm">Nothing here yet</p>
-                <p className="text-ink-faint text-xs mt-1">When friends send you fits, they'll appear here</p>
-              </div>
+              <EmptyState icon="inbox" title="Nothing here yet" description="When friends send you fits, they'll appear here." />
             ) : (
               <div className="flex flex-col gap-4">
                 {inboxItems.map(item => (
                   <div
                     key={item.id}
                     onClick={() => markSeen(item.id)}
-                    className={`rounded-2xl overflow-hidden border ${item.seen ? 'border-line bg-white/3' : 'border-[#6157FF]/20 bg-[#6157FF]/5'}`}
+                    className={`rounded-card overflow-hidden border ${item.seen ? 'border-line' : 'border-brand/40'} bg-surface-1`}
                   >
                     {/* Product image */}
-                    <div className="relative h-48 w-full">
+                    <div className="relative h-52 w-full">
                       <img src={item.image} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                       {!item.seen && (
-                        <div className="absolute top-3 left-3 bg-[#FF4D6D] rounded-full px-2 py-0.5">
-                          <span className="text-ink text-[11px] font-bold">NEW</span>
+                        <div className="absolute top-3 left-3">
+                          <Badge variant="brand" size="sm">New</Badge>
                         </div>
                       )}
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                        <p className="text-[#6157FF] text-[12px] font-bold">From {item.fromName}</p>
-                        <p className="text-ink font-bold text-base">{item.brand}</p>
-                        <p className="text-ink-soft text-xs">{item.title} · {item.price}</p>
+                      <div className="absolute bottom-0 left-0 right-0 p-4" style={{ background: 'linear-gradient(to top, rgba(15,12,8,0.85), transparent)' }}>
+                        <p className="text-white/60 text-[9px] font-semibold uppercase tracking-[0.16em]">From {item.fromName}</p>
+                        <p className="text-white font-display text-[18px] font-medium mt-0.5">{item.brand}</p>
+                        <p className="text-white/75 text-[12px]">{item.title} · {item.price}</p>
                       </div>
                     </div>
 
                     {/* Reaction row */}
                     <div className="px-4 py-4">
-                      <p className="text-ink-faint text-[12px] font-bold mb-3">Your take</p>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => handleReact(item.id, 'cop')}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold active:scale-95 border ${
-                            item.reaction === 'cop'
-                              ? 'bg-[#22c55e] border-[#22c55e] text-ink'
-                              : 'bg-surface-2 border-line text-ink-soft'
-                          }`}
-                        >
-                          ✅ Cop it
-                        </button>
-                        <button
-                          onClick={() => handleReact(item.id, 'maybe')}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold active:scale-95 border ${
-                            item.reaction === 'maybe'
-                              ? 'bg-[#6157FF] border-[#6157FF] text-ink'
-                              : 'bg-surface-2 border-line text-ink-soft'
-                          }`}
-                        >
-                          🤔 Maybe
-                        </button>
-                        <button
-                          onClick={() => handleReact(item.id, 'skip')}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold active:scale-95 border ${
-                            item.reaction === 'skip'
-                              ? 'bg-[#FF4D6D] border-[#FF4D6D] text-ink'
-                              : 'bg-surface-2 border-line text-ink-soft'
-                          }`}
-                        >
-                          ❌ Skip
-                        </button>
+                      <Eyebrow className="mb-3">Your take</Eyebrow>
+                      <div className="grid grid-cols-3 gap-2.5">
+                        <button onClick={() => handleReact(item.id, 'cop')} className={`py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.08em] active:scale-95 border transition-[transform,border-color,background-color,color] ${reactionTone(item.reaction === 'cop')}`}>Cop it</button>
+                        <button onClick={() => handleReact(item.id, 'maybe')} className={`py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.08em] active:scale-95 border transition-[transform,border-color,background-color,color] ${reactionTone(item.reaction === 'maybe')}`}>Maybe</button>
+                        <button onClick={() => handleReact(item.id, 'skip')} className={`py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.08em] active:scale-95 border transition-[transform,border-color,background-color,color] ${reactionTone(item.reaction === 'skip')}`}>Skip</button>
                       </div>
                       {/* Check MY size button */}
-                      <button
+                      <Button
+                        variant="outline"
+                        fullWidth
+                        icon="straighten"
+                        className="mt-3"
                         onClick={() => navigate('/add-product', { state: { prefill: { id: item.id, brand: item.brand, title: item.title, image: item.image, url: item.url, category: 'Tops' } } })}
-                        className="mt-3 w-full py-3 rounded-xl bg-surface-2 border border-line text-ink-soft text-xs font-bold active:scale-95 flex items-center justify-center gap-2"
                       >
-                        <span className="material-symbols-outlined text-[#6157FF] text-[16px]">straighten</span>
                         Check if this fits me
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -419,36 +378,23 @@ const FriendsScreen: React.FC = () => {
         {activeTab === 'requests' && (
           <div>
             {requests.length === 0 ? (
-              <div className="text-center py-16">
-                <span className="material-symbols-outlined text-ink-faint text-7xl block mb-4">person_add</span>
-                <p className="text-ink-soft text-sm">No pending requests</p>
-              </div>
+              <EmptyState icon="person_add" title="No pending requests" description="Friend requests will show up here." />
             ) : (
               <div className="flex flex-col gap-3">
                 {requests.map(req => (
-                  <div key={req.id} className="bg-surface-2 rounded-2xl p-4 border border-line">
+                  <div key={req.id} className="bg-surface-1 rounded-card p-5 border border-line">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="h-11 w-11 rounded-full bg-[#6157FF]/20 flex items-center justify-center shrink-0">
-                        <span className="text-[#6157FF] font-bold text-base">{req.fromName.charAt(0).toUpperCase()}</span>
+                      <div className="h-11 w-11 rounded-full border border-line flex items-center justify-center shrink-0">
+                        <span className="text-ink font-display font-medium text-[16px]">{req.fromName.charAt(0).toUpperCase()}</span>
                       </div>
-                      <div>
-                        <p className="text-ink font-bold text-sm">{req.fromName}</p>
-                        <p className="text-ink-faint text-xs">{req.fromEmail}</p>
+                      <div className="min-w-0">
+                        <p className="text-ink font-semibold text-[14px] truncate">{req.fromName}</p>
+                        <p className="text-ink-faint text-[12px] truncate">{req.fromEmail}</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <button
-                        onClick={() => handleAcceptRequest(req)}
-                        className="flex-1 bg-[#6157FF] text-ink py-2.5 rounded-xl text-xs font-bold active:scale-95"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => handleDeclineRequest(req.id)}
-                        className="px-5 py-2.5 rounded-xl bg-surface-2 border border-line text-ink-soft text-xs font-bold active:scale-95"
-                      >
-                        Decline
-                      </button>
+                      <Button fullWidth onClick={() => handleAcceptRequest(req)}>Accept</Button>
+                      <Button variant="outline" onClick={() => handleDeclineRequest(req.id)}>Decline</Button>
                     </div>
                   </div>
                 ))}

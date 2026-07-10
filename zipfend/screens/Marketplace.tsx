@@ -4,7 +4,8 @@ import { auth } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { fetchProductAvailability, fetchSizeChart } from '../services/BrandAPI';
 import { demoProducts } from '../services/demoProducts';
-import { Chip, Skeleton, EmptyState, Button, StaggerList, StaggerItem } from '../components/ui';
+import { closetCount, listCloset, onClosetChange, toggleCloset } from '../services/closet';
+import { Chip, Skeleton, EmptyState, Button, Eyebrow, IconButton, StaggerList, StaggerItem } from '../components/ui';
 
 const DEMO_AUTH_KEY = 'zipright_demo_user';
 
@@ -45,8 +46,14 @@ const Marketplace: React.FC = () => {
       setIsLoading(false);
     };
     fetchProducts();
-    setCartCount(1);
-    setLikedMap({});
+    const sync = () => {
+      setCartCount(closetCount('cart'));
+      const map: Record<string, boolean> = {};
+      listCloset('likes').forEach(i => { map[i.id] = true; });
+      setLikedMap(map);
+    };
+    sync();
+    return onClosetChange(sync);
   }, []);
 
   useEffect(() => {
@@ -76,8 +83,11 @@ const Marketplace: React.FC = () => {
       return;
     }
 
-    void product;
-    showToast('Wishlist syncing is unavailable right now.', 'error');
+    const saved = toggleCloset('likes', {
+      id: product.id, title: product.title, brand: product.brand, price: product.price,
+      image: product.image, url: product.url, affiliateLink: product.affiliateLink, category: product.category,
+    });
+    showToast(saved ? 'Saved to wishlist ♥' : 'Removed from wishlist', 'success');
   };
 
   const handleProductClick = async (product: Product) => {
@@ -112,50 +122,46 @@ const Marketplace: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans pb-24">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-surface-0/90 backdrop-blur-xl">
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
-          <div className="flex-1 flex justify-start">
-            <button
-              onClick={() => navigate('/home')}
-              aria-label="Back to home"
-              className="active:scale-90 p-2 -ml-2 rounded-full transition-transform"
-            >
-              <span className="material-symbols-outlined text-[24px] text-brand" aria-hidden="true">arrow_back</span>
-            </button>
+    <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink pb-32">
+      {/* Masthead */}
+      <div className="sticky top-0 z-50 bg-surface-0/90 backdrop-blur-xl border-b border-line">
+        <div className="flex items-end justify-between px-6 pt-6 pb-4">
+          <div>
+            <Eyebrow className="mb-1.5">The edit</Eyebrow>
+            <h1 className="font-display text-[28px] leading-none font-light">
+              Market<em className="font-medium">place.</em>
+            </h1>
           </div>
-          <h1 className="text-xs font-bold text-brand shrink-0">Marketplace</h1>
-          <div className="flex-1 flex justify-end gap-2">
-            <button onClick={() => navigate('/wishlist')} aria-label="Wishlist" className="active:scale-90 p-2 rounded-full transition-transform">
-              <span className="material-symbols-outlined text-[24px] text-brand" aria-hidden="true">favorite</span>
-            </button>
-            <button
-              onClick={() => navigate('/cart')}
-              aria-label={`Cart${cartCount > 0 ? `, ${cartCount} items` : ''}`}
-              className="relative active:scale-90 p-2 -mr-2 rounded-full transition-transform"
-            >
-              <span className="material-symbols-outlined text-[24px] text-brand" aria-hidden="true">shopping_cart</span>
+          <div className="flex gap-2">
+            <IconButton icon="favorite" aria-label="Wishlist" variant="ghost" size="sm" onClick={() => navigate('/wishlist')} />
+            <div className="relative">
+              <IconButton
+                icon="shopping_bag"
+                aria-label={`Cart${cartCount > 0 ? `, ${cartCount} items` : ''}`}
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/cart')}
+              />
               {cartCount > 0 && (
-                <span className="absolute top-1 right-1 h-4 w-4 bg-success rounded-full text-[12px] font-bold flex items-center justify-center text-ink ring-2 ring-surface-0">
+                <span className="absolute top-0 right-0 h-4 w-4 bg-brand rounded-full text-[10px] font-bold flex items-center justify-center text-on-brand pointer-events-none">
                   {cartCount}
                 </span>
               )}
-            </button>
+            </div>
           </div>
         </div>
 
         {/* Search Bar */}
-        <div className="px-4 pb-3">
+        <div className="px-6 pb-3">
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint text-[20px] pointer-events-none" aria-hidden="true">search</span>
+            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint text-[19px] pointer-events-none" aria-hidden="true">search</span>
             <input
               type="search"
               aria-label="Search products"
-              placeholder="Search brands, styles, items..."
+              placeholder="Search brands, styles, pieces…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-12 bg-surface-2 border border-transparent rounded-full pl-12 pr-10 text-[15px] text-ink placeholder:text-ink-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 transition-[border-color,box-shadow]"
+              className="w-full h-11 bg-surface-1 border border-line rounded-full pl-11 pr-10 text-[14px] text-ink placeholder:text-ink-faint focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow]"
             />
             {searchQuery && (
               <button
@@ -163,17 +169,18 @@ const Marketplace: React.FC = () => {
                 aria-label="Clear search"
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full active:scale-90"
               >
-                <span className="material-symbols-outlined text-ink-faint text-[18px]" aria-hidden="true">close</span>
+                <span className="material-symbols-outlined text-ink-faint text-[17px]" aria-hidden="true">close</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Categories */}
-        <div className="flex overflow-x-auto gap-2 px-4 pb-3 no-scrollbar" role="group" aria-label="Filter by category">
+        <div className="flex overflow-x-auto gap-2 px-6 pb-3.5 no-scrollbar" role="group" aria-label="Filter by category">
           {CATEGORIES.map(category => (
             <Chip
               key={category}
+              size="sm"
               selected={selectedCategory === category}
               onClick={() => setSelectedCategory(category)}
             >
@@ -185,11 +192,11 @@ const Marketplace: React.FC = () => {
 
       {/* Product Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-2 gap-4 px-4 pt-2" aria-label="Loading products" role="status">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-7 px-6 pt-5" aria-label="Loading products" role="status">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex flex-col gap-3">
-              <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
-              <div className="px-1 flex flex-col gap-2">
+              <Skeleton className="aspect-[3/4] w-full rounded-xl" />
+              <div className="px-0.5 flex flex-col gap-2">
                 <Skeleton className="h-3.5 w-20" />
                 <Skeleton className="h-3 w-full" />
                 <Skeleton className="h-3.5 w-14" />
@@ -210,14 +217,14 @@ const Marketplace: React.FC = () => {
             title="Nothing matches"
             description={`No products found for "${searchQuery || selectedCategory}". Try a different search or category.`}
             action={
-              <Button variant="secondary" onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }}>
+              <Button variant="outline" onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }}>
                 Clear filters
               </Button>
             }
           />
         )
       ) : (
-        <StaggerList className="grid grid-cols-2 gap-4 px-4 pt-2" delay={0.04}>
+        <StaggerList className="grid grid-cols-2 gap-x-4 gap-y-7 px-6 pt-5" delay={0.04}>
           {filteredProducts.map(product => (
             <StaggerItem key={product.id}>
               <div
@@ -225,9 +232,9 @@ const Marketplace: React.FC = () => {
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleProductClick(product); }}
-                className="flex flex-col gap-3 cursor-pointer active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-2xl"
+                className="flex flex-col gap-3 cursor-pointer active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-xl"
               >
-                <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-surface-2 border border-line">
+                <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-surface-2 border border-line">
                   <img
                     src={product.image}
                     alt={product.title}
@@ -239,10 +246,10 @@ const Marketplace: React.FC = () => {
                   <button
                     onClick={(e) => toggleLike(e, product)}
                     aria-label={likedMap[product.id] ? `Remove ${product.title} from wishlist` : `Add ${product.title} to wishlist`}
-                    className="absolute top-3 right-3 p-2 bg-black/40 rounded-full backdrop-blur-md border border-line active:scale-90 transition-transform"
+                    className="absolute top-2.5 right-2.5 p-2 bg-black/35 rounded-full backdrop-blur-md active:scale-90 transition-transform"
                   >
                     <span
-                      className={`material-symbols-outlined text-[18px] ${likedMap[product.id] ? 'text-[#FF4D6D] filled' : 'text-ink'}`}
+                      className={`material-symbols-outlined text-[17px] ${likedMap[product.id] ? 'text-[#f2705c]' : 'text-white'}`}
                       style={{ fontVariationSettings: likedMap[product.id] ? "'FILL' 1" : "'FILL' 0" }}
                       aria-hidden="true"
                     >
@@ -250,10 +257,10 @@ const Marketplace: React.FC = () => {
                     </span>
                   </button>
                 </div>
-                <div className="px-1">
-                  <p className="font-bold text-sm text-ink tracking-tight">{product.brand}</p>
-                  <p className="text-ink-soft text-xs truncate mt-0.5">{product.title}</p>
-                  <p className="font-bold text-sm text-brand mt-1.5">{product.price}</p>
+                <div className="px-0.5">
+                  <p className="font-display text-[15px] font-medium text-ink leading-tight">{product.brand}</p>
+                  <p className="text-ink-faint text-[11.5px] truncate mt-0.5">{product.title}</p>
+                  <p className="text-[13px] font-semibold text-ink mt-1.5">{product.price}</p>
                 </div>
               </div>
             </StaggerItem>

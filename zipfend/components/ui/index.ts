@@ -1,5 +1,5 @@
 /**
- * ZipRIGHT UI kit — the only place screens should import primitives from:
+ * ZipRIGHT MAISON UI kit — the only place screens should import primitives from:
  *   import { Button, Card, Sheet } from '../components/ui';
  */
 export { cn } from './cn';
@@ -12,6 +12,7 @@ export {
   fadeUp,
   fade,
   scaleIn,
+  reveal,
   staggerChildren,
   PageTransition,
   StaggerList,
@@ -34,3 +35,8 @@ export { default as EmptyState } from './EmptyState';
 export { default as ErrorState } from './ErrorState';
 export { default as OfflineBanner } from './OfflineBanner';
 export { default as ScreenFallback } from './ScreenFallback';
+export { default as Wordmark } from './Wordmark';
+export { default as Eyebrow } from './Eyebrow';
+export { default as Divider } from './Divider';
+export { default as ListRow } from './ListRow';
+export { default as SegmentedControl } from './SegmentedControl';

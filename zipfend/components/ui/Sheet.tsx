@@ -18,8 +18,8 @@ interface SheetProps {
 
 /**
  * Bottom sheet: portal-rendered, spring entrance, drag-to-dismiss,
- * Esc to close, scroll-locked backdrop. The app's replacement for
- * ad-hoc fixed-position drawers.
+ * Esc to close, scroll-locked backdrop. Serif title gives it the
+ * editorial voice.
  */
 const Sheet: React.FC<SheetProps> = ({ open, onClose, title, children, className, hideGrabber }) => {
   const reduce = useReducedMotion();
@@ -55,7 +55,7 @@ const Sheet: React.FC<SheetProps> = ({ open, onClose, title, children, className
           {/* Panel */}
           <motion.div
             className={cn(
-              'absolute bottom-0 w-full sm:max-w-[430px] max-h-[88dvh] flex flex-col',
+              'absolute bottom-0 w-full max-h-[88dvh] flex flex-col max-w-[430px]',
               'bg-surface-1 rounded-t-sheet border-t border-x border-line shadow-float',
               className,
             )}
@@ -76,12 +76,12 @@ const Sheet: React.FC<SheetProps> = ({ open, onClose, title, children, className
               </div>
             )}
             {title && (
-              <div className="flex items-center justify-between px-5 pt-2 pb-3 shrink-0">
-                <h2 className="text-[17px] font-bold text-ink tracking-tight">{title}</h2>
+              <div className="flex items-center justify-between px-6 pt-2 pb-3 shrink-0">
+                <h2 className="font-display text-[21px] font-medium text-ink">{title}</h2>
                 <IconButton icon="close" aria-label="Close" variant="ghost" size="sm" onClick={onClose} />
               </div>
             )}
-            <div className="overflow-y-auto overscroll-contain px-5 pb-6 pb-safe grow">{children}</div>
+            <div className="overflow-y-auto overscroll-contain px-6 pb-6 pb-safe grow">{children}</div>
           </motion.div>
         </div>
       )}

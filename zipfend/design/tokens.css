@@ -1,8 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   ZipRIGHT Design Tokens — v2 "Aurora"
-   Light-first premium identity: soft neutral surfaces, near-black ink, one
-   vivid violet accent. Plain, readable type — no display serif, no uppercase
-   letterspaced labels. Dark theme flips via the `dark` class on <html>.
+   ZipRIGHT V2 Design Tokens — "MAISON"
+   Editorial luxury fashion-tech. Warm bone canvas, espresso ink, one deep
+   ultraviolet accent, brass reserved for reward moments. Print-like flatness:
+   hairlines carry structure, shadows are whispers. Fraunces (display serif)
+   speaks; Instrument Sans works. Dark theme is a warm atelier-night, not a
+   grey inversion — flips via the `dark` class on <html>.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* `dark:` utilities follow the html.dark class (matches the app's theme
@@ -10,61 +12,67 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Light theme — clean gallery neutrals */
-  --surface-0: #f6f6f9; /* page */
-  --surface-1: #ffffff; /* card */
-  --surface-2: #efeff4; /* inset / input */
-  --surface-3: #e4e4ec; /* highest inset */
-  --line: rgba(22, 22, 29, 0.08);
-  --line-strong: rgba(22, 22, 29, 0.16);
-  --ink: #16161d;
-  --ink-soft: rgba(22, 22, 29, 0.65);
-  --ink-faint: rgba(22, 22, 29, 0.45);
-  --brand: #6157ff; /* vivid violet accent */
-  --brand-strong: #4e45e6;
-  --brand-soft: rgba(97, 87, 255, 0.1);
+  /* Light — "Gallery": warm bone + paper white + espresso */
+  --surface-0: #f4f1ea; /* page — bone */
+  --surface-1: #fcfbf7; /* card — warm paper */
+  --surface-2: #ece8de; /* inset / input */
+  --surface-3: #e0dbce; /* deepest inset */
+  --line: rgba(28, 25, 16, 0.1);
+  --line-strong: rgba(28, 25, 16, 0.24);
+  --ink: #191613; /* espresso black */
+  --ink-soft: rgba(25, 22, 19, 0.64);
+  --ink-faint: rgba(25, 22, 19, 0.42);
+  --ink-invert: #f6f4ed; /* bone type on ink surfaces */
+  --brand: #b95b23; /* burnt copper — warm, zero blue */
+  --brand-strong: #9e4a17;
+  --brand-soft: rgba(185, 91, 35, 0.1);
   --on-brand: #ffffff;
-  --success: #1e9e55;
-  --success-soft: rgba(30, 158, 85, 0.12);
-  --warning: #b7791f;
-  --warning-soft: rgba(183, 121, 31, 0.12);
-  --danger: #e5484d;
-  --danger-soft: rgba(229, 72, 77, 0.1);
-  --info: #2f6fed;
-  --info-soft: rgba(47, 111, 237, 0.1);
-  --scrim: rgba(15, 15, 25, 0.45);
-  --elev-lift: 0 1px 2px rgba(22, 22, 29, 0.05), 0 8px 24px rgba(22, 22, 29, 0.07);
-  --elev-float: 0 8px 24px rgba(22, 22, 29, 0.1), 0 24px 64px rgba(22, 22, 29, 0.16);
-  --elev-glow: 0 8px 28px rgba(97, 87, 255, 0.3);
+  --brass: #9c7c33; /* reward moments only: streaks, scores, gold states */
+  --brass-soft: rgba(156, 124, 51, 0.14);
+  --success: #237a50;
+  --success-soft: rgba(35, 122, 80, 0.12);
+  --warning: #9a6b1f;
+  --warning-soft: rgba(154, 107, 31, 0.12);
+  --danger: #c73e2e; /* oxide red */
+  --danger-soft: rgba(199, 62, 46, 0.1);
+  --info: #2e7d74; /* muted teal — the coolest note allowed, no blue */
+  --info-soft: rgba(46, 125, 116, 0.1);
+  --scrim: rgba(20, 17, 10, 0.55);
+  --elev-lift: 0 1px 2px rgba(25, 22, 19, 0.04), 0 10px 30px rgba(25, 22, 19, 0.06);
+  --elev-float: 0 6px 20px rgba(25, 22, 19, 0.1), 0 28px 70px rgba(25, 22, 19, 0.16);
+  --elev-glow: 0 10px 32px rgba(185, 91, 35, 0.28);
 }
 
 .dark {
-  /* Dark theme — deep neutral, same accent family */
-  --surface-0: #0c0c12;
-  --surface-1: #15151c;
-  --surface-2: #1d1d26;
-  --surface-3: #252532;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --ink: #f2f2f7;
-  --ink-soft: rgba(242, 242, 247, 0.66);
-  --ink-faint: rgba(242, 242, 247, 0.44);
-  --brand: #7c74ff;
-  --brand-strong: #948dff;
-  --brand-soft: rgba(124, 116, 255, 0.16);
-  --on-brand: #ffffff;
-  --success: #4ade80;
-  --success-soft: rgba(74, 222, 128, 0.14);
-  --warning: #eab308;
-  --warning-soft: rgba(234, 179, 8, 0.14);
-  --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.14);
-  --info: #60a5fa;
-  --info-soft: rgba(96, 165, 250, 0.14);
-  --scrim: rgba(0, 0, 0, 0.6);
-  --elev-lift: 0 2px 8px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.32);
-  --elev-float: 0 8px 24px rgba(0, 0, 0, 0.5), 0 24px 64px rgba(0, 0, 0, 0.45);
-  --elev-glow: 0 8px 28px rgba(124, 116, 255, 0.3);
+  /* Dark — "Atelier night": warm near-black, candlelit neutrals */
+  --surface-0: #12100d;
+  --surface-1: #1a1815;
+  --surface-2: #23201b;
+  --surface-3: #2d2a23;
+  --line: rgba(246, 244, 237, 0.08);
+  --line-strong: rgba(246, 244, 237, 0.2);
+  --ink: #f1ede3;
+  --ink-soft: rgba(241, 237, 227, 0.66);
+  --ink-faint: rgba(241, 237, 227, 0.42);
+  --ink-invert: #14120f;
+  --brand: #e89b6b; /* candlelit copper for dark ground */
+  --brand-strong: #f2b08a;
+  --brand-soft: rgba(232, 155, 107, 0.14);
+  --on-brand: #2a1608; /* espresso ink on the pale copper */
+  --brass: #d6ae5f;
+  --brass-soft: rgba(214, 174, 95, 0.14);
+  --success: #5fce8f;
+  --success-soft: rgba(95, 206, 143, 0.14);
+  --warning: #e4b04d;
+  --warning-soft: rgba(228, 176, 77, 0.14);
+  --danger: #f2705c;
+  --danger-soft: rgba(242, 112, 92, 0.14);
+  --info: #7cc7bd;
+  --info-soft: rgba(124, 199, 189, 0.14);
+  --scrim: rgba(0, 0, 0, 0.65);
+  --elev-lift: 0 2px 8px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.3);
+  --elev-float: 0 8px 24px rgba(0, 0, 0, 0.5), 0 28px 70px rgba(0, 0, 0, 0.45);
+  --elev-glow: 0 10px 32px rgba(232, 155, 107, 0.25);
 }
 
 @theme {
@@ -78,10 +86,13 @@
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-ink-faint: var(--ink-faint);
+  --color-ink-invert: var(--ink-invert);
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
   --color-on-brand: var(--on-brand);
+  --color-brass: var(--brass);
+  --color-brass-soft: var(--brass-soft);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
@@ -92,20 +103,21 @@
   --color-info-soft: var(--info-soft);
   --color-scrim: var(--scrim);
 
-  /* Typography — one plain sans everywhere (no display serif) */
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Typography — editorial pairing: Fraunces speaks, Instrument Sans works */
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
 
   /* Elevation → shadow-lift / shadow-float / shadow-glow */
   --shadow-lift: var(--elev-lift);
   --shadow-float: var(--elev-float);
   --shadow-glow: var(--elev-glow);
 
-  /* Radius → rounded-card / rounded-sheet */
-  --radius-card: 1.5rem;
+  /* Shape — squarer editorial cards, pill controls */
+  --radius-card: 1rem;
+  --radius-ctl: 0.875rem;
   --radius-sheet: 1.75rem;
 
-  /* Motion → ease-swift / ease-out-back */
+  /* Motion → ease-swift (confident decel) / ease-out-back (playful settle) */
   --ease-swift: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
 }

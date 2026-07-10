@@ -1,7 +1,8 @@
 /**
- * Motion system — shared physics, variants, and transition wrappers.
- * All JS-driven animation in the app should come through here so the whole
- * product moves with one voice. Everything respects prefers-reduced-motion.
+ * MAISON motion system — shared physics, variants, and transition wrappers.
+ * The voice: composed, confident, never busy. Entrances glide and settle;
+ * bounce is reserved for genuine celebration. All JS-driven animation in the
+ * app should come through here. Everything respects prefers-reduced-motion.
  */
 import React from 'react';
 import { motion, useReducedMotion, type Transition, type Variants } from 'motion/react';
@@ -11,18 +12,20 @@ export { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 /** Spring presets — the app's motion vocabulary. */
 export const springs = {
   /** UI response: buttons, chips, toggles. Fast, no overshoot. */
-  snappy: { type: 'spring', stiffness: 500, damping: 40, mass: 0.6 } as Transition,
-  /** Panels, sheets, page elements. Composed, slight settle. */
-  gentle: { type: 'spring', stiffness: 300, damping: 32, mass: 0.8 } as Transition,
+  snappy: { type: 'spring', stiffness: 480, damping: 38, mass: 0.6 } as Transition,
+  /** Panels, sheets, page elements. Composed glide with a quiet settle. */
+  gentle: { type: 'spring', stiffness: 250, damping: 30, mass: 0.9 } as Transition,
+  /** Hero reveals and editorial moments. Slow, luxurious decel. */
+  luxe: { type: 'spring', stiffness: 150, damping: 26, mass: 1.1 } as Transition,
   /** Celebratory moments only (achievements, success). */
   bouncy: { type: 'spring', stiffness: 380, damping: 22, mass: 0.9 } as Transition,
 };
 
-export const durations = { fast: 0.15, base: 0.25, slow: 0.4 };
+export const durations = { fast: 0.15, base: 0.28, slow: 0.5 };
 
 /** Standard entrance: rise + fade. */
 export const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 14 },
+  hidden: { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0, transition: springs.gentle },
 };
 
@@ -32,12 +35,18 @@ export const fade: Variants = {
 };
 
 export const scaleIn: Variants = {
-  hidden: { opacity: 0, scale: 0.96 },
+  hidden: { opacity: 0, scale: 0.97 },
   visible: { opacity: 1, scale: 1, transition: springs.gentle },
 };
 
-/** Parent for staggered lists — children use `fadeUp`/`scaleIn`. */
-export const staggerChildren = (delay = 0.05): Variants => ({
+/** Editorial reveal — longer travel, luxe physics. For heroes and headlines. */
+export const reveal: Variants = {
+  hidden: { opacity: 0, y: 28 },
+  visible: { opacity: 1, y: 0, transition: springs.luxe },
+};
+
+/** Parent for staggered lists — children use `fadeUp`/`scaleIn`/`reveal`. */
+export const staggerChildren = (delay = 0.06): Variants => ({
   hidden: {},
   visible: { transition: { staggerChildren: delay } },
 });
@@ -55,7 +64,7 @@ export const PageTransition: React.FC<{
   return (
     <motion.div
       className={className}
-      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 12 }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14 }}
       animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
       transition={reduce ? { duration: 0.15 } : springs.gentle}
     >
@@ -69,7 +78,7 @@ export const StaggerList: React.FC<{
   children: React.ReactNode;
   className?: string;
   delay?: number;
-}> = ({ children, className, delay = 0.05 }) => {
+}> = ({ children, className, delay = 0.06 }) => {
   const reduce = useReducedMotion();
   if (reduce) return <div className={className}>{children}</div>;
   return (

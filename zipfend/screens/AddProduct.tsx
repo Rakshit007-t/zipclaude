@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { auth } from '../firebase';
 import { getUserRole, UserRole } from '../utils/subscription';
 import { useToast } from '../contexts/ToastContext';
@@ -30,6 +30,7 @@ import {
   trackRecommendationRejected,
   trackRecommendationViewed,
 } from '../services/recommendationAnalytics';
+import { AppBar, Button, Chip, Eyebrow, Sheet, SegmentedControl, Spinner } from '../components/ui';
 
 interface Member {
   id: string;
@@ -133,6 +134,31 @@ function convertManualToMeasurements(_profile: Pick<UserProfile, 'height'>): Use
   return null;
 }
 
+/** Editorial status slip — request errors / ready states / profile notices. */
+const StatusSlip: React.FC<{
+  tone: 'danger' | 'success' | 'warning';
+  icon: string;
+  label: string;
+  message: string;
+}> = ({ tone, icon, label, message }) => {
+  const tones = {
+    danger: 'border-danger/25 bg-danger-soft text-danger',
+    success: 'border-success/25 bg-success-soft text-success',
+    warning: 'border-warning/25 bg-warning-soft text-warning',
+  };
+  return (
+    <div className={`mb-5 rounded-2xl border p-4 ${tones[tone]}`}>
+      <div className="flex items-start gap-3">
+        <span className="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">{icon}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mb-0.5">{label}</p>
+          <p className="text-[13px] text-ink-soft break-words leading-relaxed">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AddProduct: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -164,7 +190,7 @@ const AddProduct: React.FC = () => {
       setHistory([]);
     }
   }, []);
-  
+
   // Image Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -581,7 +607,7 @@ const AddProduct: React.FC = () => {
     }
 
     setIsModalOpen(false);
-    
+
     // Save to history
     const historyItem = {
         title: analyzedProduct.title,
@@ -593,7 +619,7 @@ const AddProduct: React.FC = () => {
         confidence: analyzedProduct.confidence,
         recommendationReason: analyzedProduct.recommendationReason,
     };
-    
+
     try {
       const raw = sessionStorage.getItem(SESSION_HISTORY_KEY);
       const parsed = raw ? JSON.parse(raw) : [];
@@ -609,13 +635,13 @@ const AddProduct: React.FC = () => {
       source: 'add-product',
     });
 
-    navigate('/recommendation', { 
-        state: { 
+    navigate('/recommendation', {
+        state: {
             product: analyzedProduct,
             productUrl: analyzedProduct?.url || link,
             selectedProfileId: profile?.selectedProfileId || profile?.profileId,
             source: 'add-product',
-        } 
+        }
     });
   };
 
@@ -664,123 +690,110 @@ const AddProduct: React.FC = () => {
   const isActionDisabled = isLoading;
 
   return (
-    <div className="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden bg-surface-0 text-ink font-sans">
+    <div className="relative flex h-full min-h-screen min-h-dvh w-full flex-col overflow-x-hidden bg-surface-0 text-ink">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload}/>
 
-      {/* Top App Bar */}
-      <div className="sticky top-0 z-50 flex items-center bg-surface-0/80 backdrop-blur-xl p-6 justify-between border-b border-line">
-        <button aria-label="Go back" onClick={handleBack} className="text-[#6157FF] flex size-12 shrink-0 items-center justify-start cursor-pointer active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-2xl">arrow_back</span>
-        </button>
-        <h2 className="text-[#6157FF] text-xs font-bold flex-1 text-center pr-12">AI Sizing Engine</h2>
-      </div>
+      <AppBar title="The Fit Engine" onBack={handleBack} />
 
-      <div className="flex-1 flex flex-col px-6 pt-8 pb-32">
-        
-        {/* Toggle Tabs */}
-        <div className="flex p-1 bg-surface-2 rounded-2xl mb-10 border border-line">
-            <button 
-                onClick={() => setActiveTab('link')}
-                className={`flex-1 py-3 rounded-xl text-[12px] font-bold transition-all ${activeTab === 'link' ? 'bg-[#6157FF] text-[#111111] shadow-xl' : 'text-ink-soft'}`}
-            >
-                Paste Link
-            </button>
-            <button 
-                onClick={() => setActiveTab('image')}
-                className={`flex-1 py-3 rounded-xl text-[12px] font-bold transition-all ${activeTab === 'image' ? 'bg-[#6157FF] text-[#111111] shadow-xl' : 'text-ink-soft'}`}
-            >
-                Upload Photo
-            </button>
-        </div>
+      <div className="flex-1 flex flex-col px-6 pt-8 pb-36">
+        {/* Editorial opener */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <Eyebrow className="mb-3">Size Match</Eyebrow>
+          <h1 className="font-display text-[38px] leading-[1.05] font-light text-ink">
+            {activeTab === 'link' ? <>Find your <em className="font-medium">fit.</em></> : <>Scan your <em className="font-medium">style.</em></>}
+          </h1>
+          <p className="text-ink-soft text-[14px] leading-relaxed max-w-[85%] mt-4">
+            {activeTab === 'link' ? 'Paste the link of the piece you desire — we\'ll reveal your perfect size.' : 'Capture a clear image of the garment to begin the analysis.'}
+          </p>
+        </motion.div>
 
-        {/* Content Area */}
+        {/* Mode selector */}
+        <SegmentedControl
+          aria-label="Input method"
+          className="mb-10"
+          value={activeTab}
+          onChange={(v) => setActiveTab(v)}
+          options={[
+            { value: 'link', label: 'Paste link', icon: 'link' },
+            { value: 'image', label: 'Upload photo', icon: 'photo_camera' },
+          ]}
+        />
+
         <div className="flex flex-col gap-8 mb-12">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col gap-2"
-          >
-            <h1 className="text-4xl font-sans font-medium tracking-tight text-ink">
-                {activeTab === 'link' ? 'Find Your Fit' : 'Scan Your Style'}
-            </h1>
-            <p className="text-ink-soft text-sm font-light leading-relaxed max-w-[80%]">
-                {activeTab === 'link' ? 'Paste the URL of the item you desire, and we\'ll reveal your perfect size.' : 'Capture a clear image of the garment to begin the analysis.'}
-            </p>
-          </motion.div>
-
           {activeTab === 'link' ? (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="flex flex-col gap-8"
               >
                 <div className="flex flex-col w-full relative group">
-                    <input 
+                    <input
                         value={link}
                         onChange={(e) => setLink(e.target.value)}
                         disabled={isLoading}
-                        className={`w-full bg-transparent border-b-2 py-6 text-2xl font-sans text-ink placeholder:text-ink-faint focus:outline-none transition-all ${isLoading ? 'border-line opacity-50' : 'border-line focus:border-[#6157FF]'}`} 
-                        placeholder="Paste or share link..." 
-                        type="url" 
+                        className={`w-full bg-transparent border-b py-5 pr-16 text-[19px] text-ink placeholder:text-ink-faint focus:outline-none transition-colors ${isLoading ? 'border-line opacity-50' : 'border-line-strong focus:border-ink'}`}
+                        placeholder="Paste or share link…"
+                        type="url"
                         autoFocus
                     />
-                    <div className="absolute right-0 bottom-6 flex items-center gap-4">
+                    <div className="absolute right-0 bottom-5 flex items-center gap-3">
                         {link && !isLoading && (
-                            <button 
+                            <button
                                 onClick={() => setLink('')}
+                                aria-label="Clear link"
                                 className="text-ink-faint hover:text-ink transition-colors"
                             >
-                                <span className="material-symbols-outlined text-xl">close</span>
+                                <span className="material-symbols-outlined text-[19px]" aria-hidden="true">close</span>
                             </button>
                         )}
                         {isLoading ? (
-                            <div className="w-5 h-5 border-2 border-[#6157FF] border-t-transparent rounded-full animate-spin mb-1"></div>
+                            <Spinner size={18} className="text-brand mb-0.5" />
                         ) : (
-                            <span className={`material-symbols-outlined mb-1 transition-colors ${isValid ? 'text-[#6157FF]' : 'text-ink-faint'}`}>
+                            <span className={`material-symbols-outlined mb-0.5 transition-colors ${isValid ? 'text-success' : 'text-ink-faint'}`} aria-hidden="true">
                                 {isValid ? 'check_circle' : 'link'}
                             </span>
                         )}
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-4">
-                    <p className="text-[12px] font-bold text-[#6157FF]">Quick Access</p>
-                    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                <div className="flex flex-col gap-3">
+                    <Eyebrow>Quick access</Eyebrow>
+                    <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
                         {quickLinks.map((ql, idx) => (
-                            <button 
-                                key={idx}
-                                onClick={() => setLink(ql.url)}
-                                className="flex items-center gap-2 px-6 py-3 rounded-full bg-surface-2 border border-line active:scale-95 transition-all whitespace-nowrap"
-                            >
-                                <span className="text-xs font-bold text-ink-soft">{ql.name}</span>
-                                <span className="material-symbols-outlined text-[14px] text-[#6157FF]">arrow_outward</span>
-                            </button>
+                            <Chip key={idx} size="md" onClick={() => setLink(ql.url)}>
+                                {ql.name}
+                                <span className="material-symbols-outlined text-[13px]" aria-hidden="true">arrow_outward</span>
+                            </Chip>
                         ))}
                     </div>
                 </div>
               </motion.div>
           ) : (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                  <div 
+                  <div
                     onClick={() => fileInputRef.current?.click()}
-                    className={`relative w-full aspect-[4/5] rounded-[3rem] border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all ${selectedImage ? 'border-transparent' : 'border-line bg-surface-2 hover:bg-surface-2'}`}
+                    className={`relative w-full aspect-[4/5] rounded-card border border-dashed flex flex-col items-center justify-center cursor-pointer transition-colors ${selectedImage ? 'border-transparent' : 'border-line-strong bg-surface-1 hover:bg-surface-2'}`}
                   >
                       {selectedImage ? (
                           <>
-                            <img src={selectedImage} alt="Selected" className="w-full h-full object-cover rounded-[3rem]" />
-                            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center rounded-[3rem] opacity-0 hover:opacity-100 transition-opacity">
-                                <span className="text-ink text-xs font-bold bg-black/50 px-6 py-3 rounded-full border border-line">Change Photo</span>
+                            <img src={selectedImage} alt="Selected" className="w-full h-full object-cover rounded-card" />
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center rounded-card opacity-0 hover:opacity-100 transition-opacity">
+                                <span className="text-white text-[11px] font-semibold uppercase tracking-[0.12em] border border-white/40 px-6 py-3 rounded-full">Change photo</span>
                             </div>
                           </>
                       ) : (
                           <div className="flex flex-col items-center gap-4">
-                            <div className="w-20 h-20 rounded-full bg-[#6157FF]/10 flex items-center justify-center border border-[#6157FF]/20">
-                                <span className="material-symbols-outlined text-4xl text-[#6157FF]">add_a_photo</span>
+                            <div className="w-16 h-16 rounded-full border border-line-strong flex items-center justify-center">
+                                <span className="material-symbols-outlined text-[28px] text-ink-faint" aria-hidden="true">add_a_photo</span>
                             </div>
-                            <span className="text-[12px] font-bold text-ink-soft">Tap to capture</span>
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">Tap to capture</span>
                           </div>
                       )}
                   </div>
@@ -790,29 +803,29 @@ const AddProduct: React.FC = () => {
 
         {/* Recent Scans Section */}
         {history.length > 0 && (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex flex-col gap-6 mb-12"
+                className="flex flex-col gap-5 mb-12"
             >
-                <div className="flex items-center justify-between">
-                    <h3 className="text-[12px] font-bold text-[#6157FF]">Recent Scans</h3>
-                    <button className="text-[12px] font-bold text-ink-faint">View All</button>
+                <div className="flex items-baseline justify-between">
+                    <Eyebrow>Recent scans</Eyebrow>
+                    <button onClick={() => navigate('/recent-scans')} className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-faint underline underline-offset-4">View all</button>
                 </div>
                 <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
                     {history.map((item, idx) => (
-                        <button 
+                        <button
                             key={idx}
                             onClick={() => navigate('/recommendation', { state: { product: item } })}
-                            className="flex flex-col gap-3 min-w-[120px] active:scale-95 transition-transform"
+                            className="flex flex-col gap-3 min-w-[124px] active:scale-95 transition-transform text-left"
                         >
-                            <div 
-                                className="w-full aspect-[3/4] rounded-2xl bg-surface-2 border border-line bg-center bg-cover"
+                            <div
+                                className="w-full aspect-[3/4] rounded-xl bg-surface-2 border border-line bg-center bg-cover"
                                 style={{ backgroundImage: `url("${item.image}")` }}
                             ></div>
-                            <div className="flex flex-col items-start px-1">
-                                <span className="text-[12px] font-bold text-[#6157FF] tracking-tighter truncate w-full text-left">{item.brand}</span>
-                                <span className="text-xs font-medium text-ink-soft truncate w-full text-left">{item.title}</span>
+                            <div className="flex flex-col items-start px-0.5">
+                                <span className="font-display text-[14px] font-medium text-ink truncate w-full">{item.brand}</span>
+                                <span className="text-[11.5px] text-ink-faint truncate w-full">{item.title}</span>
                             </div>
                         </button>
                     ))}
@@ -821,224 +834,141 @@ const AddProduct: React.FC = () => {
         )}
 
         {requestError && (
-          <div className="mb-6 rounded-[2rem] border border-red-500/20 bg-red-500/10 p-5">
-            <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-red-400 text-lg">error</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-bold text-red-600 mb-1">Request Failed</p>
-                <p className="text-sm text-red-100/80 break-words">{requestError}</p>
-              </div>
-            </div>
-          </div>
+          <StatusSlip tone="danger" icon="error" label="Request failed" message={requestError} />
         )}
 
         {requestSuccess && !requestError && (
-          <div className="mb-6 rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-5">
-            <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-emerald-600 text-lg">check_circle</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-bold text-emerald-600 mb-1">Ready</p>
-                <p className="text-sm text-emerald-100/80 break-words">{requestSuccess}</p>
-              </div>
-            </div>
-          </div>
+          <StatusSlip tone="success" icon="check_circle" label="Ready" message={requestSuccess} />
         )}
 
         {activeTab === 'link' && eligibilityLabel && (
-          <div className="mb-6 rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-5">
-            <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-emerald-600 text-lg">verified</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-bold text-emerald-200 mb-1">Profile Source</p>
-                <p className="text-sm text-emerald-50/80">{eligibilityLabel}</p>
-              </div>
-            </div>
-          </div>
+          <StatusSlip tone="success" icon="verified" label="Profile source" message={eligibilityLabel} />
         )}
 
         {activeTab === 'link' && (
-          <div className="mb-6 rounded-[1rem] border border-line bg-surface-2 p-4 text-[11px] text-ink-soft">
-            <p>Height: {profile?.height ?? '-'}</p>
-            <p>Weight: {profile?.weight ?? '-'}</p>
-            <p>Body: {profile?.bodyShape || '-'}</p>
+          <div className="mb-5 rounded-2xl border border-line bg-surface-1 px-4 py-3.5 flex items-center gap-5">
+            <span className="eyebrow !text-[9px] shrink-0">Profile</span>
+            <div className="flex gap-5 text-[12px] text-ink-soft">
+              <span>Height <span className="text-ink font-medium">{profile?.height ?? '–'}</span></span>
+              <span>Weight <span className="text-ink font-medium">{profile?.weight ?? '–'}</span></span>
+              <span>Body <span className="text-ink font-medium">{profile?.bodyShape || '–'}</span></span>
+            </div>
           </div>
         )}
 
         {activeTab === 'link' && !hasSavedMeasurements && (
-          <div className="mb-6 rounded-[2rem] border border-amber-500/20 bg-amber-500/10 p-5">
-            <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-amber-600 text-lg">straighten</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-bold text-amber-200 mb-1">Smart Fit Required</p>
-                <p className="text-sm text-amber-50/80">Complete Smart Fit Scan OR fill your Fit Profile.</p>
-              </div>
+          <StatusSlip tone="warning" icon="straighten" label="Smart Fit required" message="Complete Smart Fit Scan OR fill your Fit Profile." />
+        )}
+
+        {/* The engine's word */}
+        <div className="mt-2 p-6 rounded-card bg-ink text-ink-invert relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[50px] -mr-10 -mt-10" style={{ background: 'var(--brand)', opacity: 0.25 }} aria-hidden="true"></div>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-50 mb-2">Neural sizing</p>
+          <p className="font-display text-[19px] font-medium leading-snug mb-2">Cut to your geometry.</p>
+          <p className="text-[13px] opacity-70 leading-relaxed">
+            Our AI reads fabric drape, brand-specific patterns, and your unique measurements to land a flawless fit.
+          </p>
+        </div>
+      </div>
+
+      {/* Sticky Bottom CTA */}
+      <div className="fixed bottom-0 inset-x-0 w-full p-6 pb-8 bg-gradient-to-t from-surface-0 via-surface-0/92 to-transparent z-50 pointer-events-none phone-fixed-bottom">
+        <div className="pointer-events-auto">
+          <Button
+            size="lg"
+            fullWidth
+            loading={isLoading}
+            disabled={isActionDisabled}
+            trailingIcon="straighten"
+            onClick={handleRevealSize}
+          >
+            {activeTab === 'image' ? 'Analyze garment' : 'Reveal my size'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Profile Selection Sheet */}
+      <Sheet open={isModalOpen} onClose={handleDismissRecommendationModal} title="Select profile">
+        <p className="text-[13.5px] text-ink-soft leading-relaxed mb-6 -mt-1">
+          Who are we styling today? We'll match the garment to their unique profile.
+        </p>
+
+        {analyzedProduct && recommendedSize && (
+          <div className="mb-6 p-5 rounded-card border border-line bg-surface-2">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-brand mb-3">The verdict</p>
+            <div className="flex items-baseline gap-3">
+              <span className="font-display text-[34px] font-semibold text-ink leading-none">{recommendedSize}</span>
+              <span className="text-[11px] uppercase tracking-[0.1em] text-ink-faint">Confidence {confidence || 'Medium'}</span>
             </div>
+            {recommendationReason && (
+              <p className="text-ink-soft text-[12.5px] mt-3 leading-relaxed">{recommendationReason}</p>
+            )}
           </div>
         )}
 
-        {/* Info Box */}
-        <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-[#1A1A1A] to-[#111111] border border-line flex items-start gap-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-[#6157FF]/5 blur-[40px] rounded-full -mr-12 -mt-12"></div>
-          <div className="h-12 w-12 rounded-full bg-[#6157FF]/10 flex items-center justify-center shrink-0 border border-[#6157FF]/20">
-             <span className="material-symbols-outlined text-[#6157FF] text-2xl">auto_awesome</span>
+        {userRole === 'seller' && (
+          <div className="mb-6 p-5 rounded-card border border-success/25 bg-success-soft">
+            <div className="flex items-center gap-2.5 mb-4">
+              <span className="material-symbols-outlined text-success text-[18px]" aria-hidden="true">storefront</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-success">Seller</span>
+            </div>
+            <Button fullWidth variant="secondary" icon="publish" loading={isListing} onClick={handleListForSale}>
+              List for sale
+            </Button>
           </div>
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-bold text-[#6157FF]">Neural Sizing</p>
-            <p className="text-sm text-ink-soft leading-relaxed font-light">
-              Our AI analyzes fabric drape, brand-specific patterns, and your unique geometry to ensure a flawless fit.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Sticky Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-surface-0 via-surface-0/90 to-transparent z-50 pointer-events-none">
-        <div className="max-w-md mx-auto pointer-events-auto">
-            <motion.button 
-                whileTap={{ scale: 0.95 }}
-                onClick={handleRevealSize}
-                disabled={isActionDisabled}
-                className={`flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[2rem] h-18 px-5 transition-all ${!isActionDisabled ? 'bg-white text-[#111111] shadow-[0_10px_30px_rgba(255,255,255,0.1)]' : 'bg-surface-2 text-ink-faint border border-line cursor-not-allowed'}`}
-            >
-                {isLoading ? (
-                    <div className="flex items-center gap-4">
-                        <div className="w-5 h-5 border-2 border-surface-0 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-xs font-bold">Analyzing...</span>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold">
-                            {activeTab === 'image' ? 'Analyze Garment' : 'Reveal My Size'}
-                        </span>
-                        <span className="material-symbols-outlined text-[20px]">straighten</span>
-                    </div>
-                )}
-            </motion.button>
-        </div>
-      </div>
-
-      {/* Profile Selection Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-            <>
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-md" 
-                onClick={handleDismissRecommendationModal}
-            ></motion.div>
-            <motion.div 
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="fixed bottom-0 left-0 right-0 z-[70] bg-surface-1 rounded-t-[3rem] p-10 pb-12 shadow-2xl max-w-md mx-auto border-t border-line"
-            >
-                <div className="w-12 h-1.5 bg-surface-2 rounded-full mx-auto mb-10"></div>
-                
-                <div className="flex items-center justify-between mb-4">
-                <h3 className="text-3xl font-sans font-medium text-ink">Select Profile</h3>
-                <button 
-                    onClick={handleDismissRecommendationModal} 
-                    className="h-10 w-10 rounded-full bg-surface-2 flex items-center justify-center active:scale-90 transition-transform"
-                >
-                    <span className="material-symbols-outlined text-ink text-lg">close</span>
-                </button>
-                </div>
-                
-                <p className="text-sm text-ink-soft font-light mb-10">Who are we styling today? We'll match the garment to their unique profile.</p>
-                {analyzedProduct && recommendedSize && (
-                    <div className="mb-8 p-5 rounded-[1.5rem] bg-surface-2 border border-line">
-                        <p className="text-[12px] font-bold text-[#6157FF] mb-2">MVP Size Engine</p>
-                        <p className="text-ink font-bold text-lg">Recommended Size: {recommendedSize}</p>
-                        <p className="text-ink-soft text-xs mt-1">Confidence: {confidence || 'Medium'}</p>
-                        {recommendationReason && (
-                            <p className="text-ink-soft text-xs mt-3 leading-relaxed">{recommendationReason}</p>
-                        )}
-                    </div>
-                )}
-
-                {userRole === 'seller' && (
-                    <div className="mb-10 p-6 rounded-[2.5rem] bg-emerald-500/5 border border-emerald-500/20">
-                        <div className="flex items-center gap-3 mb-4">
-                            <span className="material-symbols-outlined text-emerald-500 text-xl">storefront</span>
-                            <span className="text-[12px] font-bold text-emerald-500">Seller Dashboard</span>
-                        </div>
-                        <button 
-                            onClick={handleListForSale}
-                            disabled={isListing}
-                            className="w-full h-14 rounded-2xl bg-emerald-500 text-ink font-bold text-[12px] shadow-xl shadow-emerald-500/10 active:scale-95 flex items-center justify-center gap-3 transition-all"
-                        >
-                            {isListing ? (
-                                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                                <>
-                                    <span className="material-symbols-outlined text-lg">publish</span>
-                                    List for Sale
-                                </>
-                            )}
-                        </button>
-                    </div>
-                )}
-
-                <div className="flex flex-col gap-4 max-h-[40vh] overflow-y-auto no-scrollbar">
-                {members.map(member => (
-                    <button 
-                        key={member.id}
-                        onClick={() => handleProfileSelect()}
-                        className="group flex items-center justify-between p-5 rounded-[2rem] bg-surface-2 border border-line active:scale-[0.98] transition-all hover:bg-surface-2"
-                    >
-                    <div className="flex items-center gap-5">
-                        <div className={`h-14 w-14 rounded-full flex items-center justify-center text-xl font-bold shadow-2xl ${member.isPrimary ? 'bg-gradient-to-tr from-[#6157FF] to-[#6157FF] text-ink' : 'bg-surface-2 text-ink'}`}>
-                            {member.isPrimary ? <span className="material-symbols-outlined">person</span> : member.name.charAt(0)}
-                        </div>
-                        <div className="flex flex-col items-start">
-                            <span className="text-lg font-bold text-ink">{member.name}</span>
-                            {member.isPrimary && <span className="text-[12px] font-bold text-[#6157FF]">Primary Fit</span>}
-                        </div>
-                    </div>
-                    <div className="h-10 w-10 rounded-full bg-surface-2 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-ink-faint group-hover:text-[#6157FF] transition-colors">chevron_right</span>
-                    </div>
-                    </button>
-                ))}
-
-                {members.length === 0 && (
-                    <button
-                        onClick={() => handleProfileSelect()}
-                        className="group flex items-center justify-between p-5 rounded-[2rem] bg-surface-2 border border-line active:scale-[0.98] transition-all hover:bg-surface-2"
-                    >
-                    <div className="flex items-center gap-5">
-                        <div className="h-14 w-14 rounded-full flex items-center justify-center text-xl font-bold shadow-2xl bg-gradient-to-tr from-[#6157FF] to-[#6157FF] text-ink">
-                            <span className="material-symbols-outlined">straighten</span>
-                        </div>
-                        <div className="flex flex-col items-start">
-                            <span className="text-lg font-bold text-ink">Current Fit Profile</span>
-                            <span className="text-[12px] font-bold text-[#6157FF]">Live Smart Fit Data</span>
-                        </div>
-                    </div>
-                    <div className="h-10 w-10 rounded-full bg-surface-2 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-ink-faint group-hover:text-[#6157FF] transition-colors">chevron_right</span>
-                    </div>
-                    </button>
-                )}
-                
-                <button 
-                    onClick={() => navigate('/fit-profile', { state: { mode: 'add', returnTo: '/add-product' } })} 
-                    className="flex items-center justify-center p-6 mt-4 rounded-[2rem] border-2 border-dashed border-line text-ink-faint font-bold text-xs gap-3 active:scale-[0.98] transition-all hover:bg-surface-2"
-                >
-                    <span className="material-symbols-outlined">add_circle</span>
-                    <span>Create New Profile</span>
-                </button>
-                </div>
-            </motion.div>
-            </>
         )}
-      </AnimatePresence>
+
+        <div className="flex flex-col gap-3 max-h-[40vh] overflow-y-auto no-scrollbar">
+          {members.map(member => (
+            <button
+              key={member.id}
+              onClick={() => handleProfileSelect()}
+              className="group flex items-center justify-between p-4 rounded-card bg-surface-1 border border-line hover:border-line-strong active:scale-[0.98] transition-[transform,border-color]"
+            >
+              <div className="flex items-center gap-4">
+                <div className={`h-12 w-12 rounded-full flex items-center justify-center ${member.isPrimary ? 'bg-ink text-ink-invert' : 'border border-line text-ink'}`}>
+                  {member.isPrimary
+                    ? <span className="material-symbols-outlined text-[20px]" aria-hidden="true">person</span>
+                    : <span className="font-display font-medium text-[17px]">{member.name.charAt(0)}</span>}
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-[15px] font-semibold text-ink">{member.name}</span>
+                  {member.isPrimary && <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand mt-0.5">Primary fit</span>}
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-ink-faint text-[18px]" aria-hidden="true">arrow_forward</span>
+            </button>
+          ))}
+
+          {members.length === 0 && (
+            <button
+              onClick={() => handleProfileSelect()}
+              className="group flex items-center justify-between p-4 rounded-card bg-surface-1 border border-line hover:border-line-strong active:scale-[0.98] transition-[transform,border-color]"
+            >
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full flex items-center justify-center bg-ink text-ink-invert">
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">straighten</span>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-[15px] font-semibold text-ink">Current fit profile</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand mt-0.5">Live Smart Fit data</span>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-ink-faint text-[18px]" aria-hidden="true">arrow_forward</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => navigate('/fit-profile', { state: { mode: 'add', returnTo: '/add-product' } })}
+            className="flex items-center justify-center p-5 mt-1 rounded-card border border-dashed border-line-strong text-ink-faint text-[11px] font-semibold uppercase tracking-[0.12em] gap-2.5 active:scale-[0.98] transition-transform hover:bg-surface-2"
+          >
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">add_circle</span>
+            <span>Create new profile</span>
+          </button>
+        </div>
+      </Sheet>
     </div>
   );
 };
 
 export default AddProduct;
-

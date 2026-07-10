@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
-import { EmptyState, Button } from '../components/ui';
+import { listCloset, onClosetChange, removeFromCloset } from '../services/closet';
+import { AppBar, EmptyState, Button, Spinner } from '../components/ui';
 
 const DEMO_AUTH_KEY = 'zipright_demo_user';
 
@@ -32,85 +33,80 @@ const Wishlist: React.FC = () => {
       navigate('/login');
       return;
     }
-    setItems([]);
+    const sync = () => setItems(listCloset('likes'));
+    sync();
     setLoading(false);
+    return onClosetChange(sync);
   }, [navigate]);
 
   const removeItem = async (id: string) => {
-    void id;
+    removeFromCloset('likes', id);
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-body">
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-6 bg-surface-0/80 backdrop-blur-xl border-b border-line">
-        <button onClick={() => navigate('/home')} aria-label="Back to home" className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[20px] text-[#6157FF]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h1 className="text-xs font-bold text-[#6157FF]">My Wishlist</h1>
-        <div className="w-10"></div>
-      </div>
+    <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
+      <AppBar title="Wishlist" onBack={() => navigate('/home')} />
 
       <div className="flex-1 p-6">
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[#6157FF]"></div>
+          <div className="flex items-center justify-center h-64 text-ink-faint">
+            <Spinner size={26} />
           </div>
         ) : items.length === 0 ? (
           <EmptyState
             icon="favorite"
-            title="Your wishlist is empty"
-            description="Double-tap looks you love in the feed to keep them here."
+            title="Nothing saved yet"
+            description="Tap the heart on pieces in the Marketplace to keep them here."
             action={
-              <Button onClick={() => navigate('/home')} icon="explore">
-                Explore Feed
+              <Button onClick={() => navigate('/marketplace')} icon="storefront">
+                Browse the marketplace
               </Button>
             }
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             <AnimatePresence mode="popLayout">
               {items.map((item) => (
                 <motion.div
                   key={item.id}
                   layout
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-surface-2 rounded-2xl p-4 border border-line flex gap-4 relative group"
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-surface-1 rounded-card p-4 border border-line flex gap-4 relative"
                 >
-                  <div 
-                    className="h-24 w-24 rounded-xl overflow-hidden flex-shrink-0 bg-black/20 cursor-pointer"
+                  <div
+                    className="h-28 w-24 rounded-xl overflow-hidden flex-shrink-0 bg-surface-2 cursor-pointer"
                     onClick={() => window.open(item.productUrl || item.url || '#', '_blank')}
                   >
-                    <img 
-                      src={item.image || ''} 
-                      alt={item.title || item.productRefId || ''} 
+                    <img
+                      src={item.image || ''}
+                      alt={item.title || item.productRefId || ''}
                       className="h-full w-full object-cover"
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  <div className="flex-1 flex flex-col justify-between py-1">
+                  <div className="flex-1 flex flex-col justify-between py-1 min-w-0">
                     <div>
-                      <p className="text-[12px] font-bold text-[#6157FF] mb-0.5">{item.brand || ''}</p>
-                      <h3 className="text-sm font-bold leading-tight line-clamp-2">{item.title || item.productRefId || ''}</h3>
+                      <p className="font-display text-[16px] font-medium text-ink leading-tight">{item.brand || ''}</p>
+                      <h3 className="text-[12.5px] text-ink-soft leading-snug line-clamp-2 mt-1">{item.title || item.productRefId || ''}</h3>
                     </div>
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-bold text-ink">{item.price || ''}</p>
+                      <p className="text-[14px] font-semibold text-ink">{item.price || ''}</p>
                       <div className="flex gap-2">
                         <button
                           onClick={() => window.open(item.productUrl || item.url || '#', '_blank')}
                           aria-label={`Shop ${item.title || 'item'}`}
-                          className="h-9 w-9 rounded-full bg-surface-2 flex items-center justify-center active:scale-90 transition-transform"
+                          className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform"
                         >
-                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">shopping_bag</span>
+                          <span className="material-symbols-outlined text-[17px]" aria-hidden="true">shopping_bag</span>
                         </button>
                         <button
                           onClick={() => removeItem(item.id)}
                           aria-label={`Remove ${item.title || 'item'} from wishlist`}
-                          className="h-9 w-9 rounded-full bg-[#FF4D6D]/10 flex items-center justify-center active:scale-90 transition-transform"
+                          className="h-9 w-9 rounded-full border border-danger/25 bg-danger-soft flex items-center justify-center active:scale-90 transition-transform"
                         >
-                          <span className="material-symbols-outlined text-[18px] text-[#FF4D6D]" aria-hidden="true">delete</span>
+                          <span className="material-symbols-outlined text-[17px] text-danger" aria-hidden="true">delete</span>
                         </button>
                       </div>
                     </div>

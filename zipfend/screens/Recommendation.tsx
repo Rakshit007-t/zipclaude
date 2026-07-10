@@ -28,6 +28,7 @@ import {
   trackSizeExchanged,
   trackSizeReturned,
 } from '../services/recommendationAnalytics';
+import { AppBar, Button, IconButton, Eyebrow, Skeleton, Spinner } from '../components/ui';
 
 interface Member {
   id: string;
@@ -415,13 +416,13 @@ const Recommendation: React.FC = () => {
     readSelectedProfileId()
   ));
   const [showMemberSelector, setShowMemberSelector] = useState(false);
-  
+
   const [wishlistCount, setWishlistCount] = useState(0);
   const [userPlan, setUserPlan] = useState(getUserPlan());
-  
+
   // Multi-stage loading state
   const [loadingStage, setLoadingStage] = useState<number>(0);
-  
+
   const [aiResult, setAiResult] = useState<RecommendationUiResult | null>(null);
   const [resultKey, setResultKey] = useState<string | null>(null);
 
@@ -442,7 +443,7 @@ const Recommendation: React.FC = () => {
 
   const product = location.state?.product || storedRecommendationRef.current?.product;
   const source = location.state?.source || storedRecommendationRef.current?.source;
-  
+
   useEffect(() => {
     if (!product && !hasShownMissingProductToastRef.current) {
       hasShownMissingProductToastRef.current = true;
@@ -454,7 +455,7 @@ const Recommendation: React.FC = () => {
   const displayProduct = product;
   const productUrl = location.state?.productUrl || storedRecommendationRef.current?.productUrl || product?.url;
 
-  const isClothing = displayProduct?.type === 'clothing' || 
+  const isClothing = displayProduct?.type === 'clothing' ||
                      ['Men', 'Women', 'Kids', 'Tops', 'Bottoms', 'Dresses', 'Apparel', 'Clothing'].includes(displayProduct?.category) ||
                      !['Accessories', 'Shoes', 'Bags', 'Jewelry'].includes(displayProduct?.category);
 
@@ -747,7 +748,6 @@ const Recommendation: React.FC = () => {
     });
   }, [currentInputKey, displayProduct, visibleAiResult]);
 
-
   const handleProfileChange = (member: Member) => {
     setSelectedMemberId(member.id);
     writeSelectedProfileId(member.id);
@@ -942,18 +942,11 @@ const Recommendation: React.FC = () => {
 
   if (!displayProduct) return null;
 
-  // Confidence Ring Colors
-  const getConfidenceColor = (conf: number) => {
-    if (conf >= 80) return '#22c55e'; // green-500
-    if (conf >= 60) return '#eab308'; // yellow-500
-    return '#ef4444'; // red-500
-  };
-
-  const getDirectionColor = (dir: string) => {
+  const getDirectionTone = (dir: string) => {
     const d = dir.toLowerCase();
-    if (d.includes('up')) return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
-    if (d.includes('down')) return 'text-purple-500 bg-purple-500/10 border-purple-500/20';
-    return 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20';
+    if (d.includes('up')) return 'text-info border-info/30 bg-info-soft';
+    if (d.includes('down')) return 'text-brand border-brand/30 bg-brand-soft';
+    return 'text-success border-success/30 bg-success-soft';
   };
 
   const feedbackForRecommendation = visibleAiResult?.recommendationId
@@ -974,47 +967,44 @@ const Recommendation: React.FC = () => {
     ? hasOutcomeBeenSubmitted(currentRecommendationId, 'size_returned')
     : false;
 
+  const outcomeInputClasses =
+    'h-12 rounded-ctl border border-line bg-surface-1 px-4 text-[13px] font-medium text-ink outline-none placeholder:text-ink-faint focus:border-ink transition-colors';
+
   return (
-    <div className="bg-surface-0 text-ink font-sans min-h-screen flex flex-col antialiased relative overflow-x-hidden">
-      
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-surface-0/60 backdrop-blur-xl border-b border-line">
-        <button aria-label="Go back" onClick={handleBack} className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-0/40 border border-line active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
-        </button>
-        <h1 className="text-[12px] font-bold text-[#6157FF] bg-surface-0/40 px-4 py-1.5 rounded-full border border-line">Recommendation</h1>
-        <button onClick={() => navigate('/wishlist')} className="relative h-10 w-10 flex items-center justify-center rounded-full bg-surface-0/40 border border-line active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">{wishlistCount > 0 ? 'favorite' : 'favorite'}</span>
-          <span className={`material-symbols-outlined text-[20px] text-[#6157FF] ${wishlistCount > 0 ? 'filled' : ''}`} style={{ fontVariationSettings: wishlistCount > 0 ? "'FILL' 1" : "'FILL' 0" }}>favorite</span>
-          {wishlistCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF4D6D] text-[12px] font-bold text-ink ring-2 ring-[#111111]">
-                    {wishlistCount}
-                </span>
-            )}
-        </button>
-      </div>
+    <div className="bg-surface-0 text-ink min-h-screen min-h-dvh flex flex-col antialiased relative overflow-x-hidden">
+      <AppBar
+        title="The Verdict"
+        onBack={handleBack}
+        trailing={
+          <IconButton
+            icon="favorite"
+            aria-label={`Wishlist${wishlistCount > 0 ? `, ${wishlistCount} items` : ''}`}
+            variant="ghost"
+            size="sm"
+            filled={wishlistCount > 0}
+            onClick={() => navigate('/wishlist')}
+          />
+        }
+      />
 
       {/* Member Selector */}
       {isClothing && (
           <div className="px-6 py-4 flex items-center justify-center">
-              <button 
+              <button
                 onClick={() => {
                   if (members.length > 0) {
                     setShowMemberSelector(!showMemberSelector);
                   }
                 }}
-                className="flex items-center gap-3 px-6 py-3 rounded-full bg-surface-2 border border-[#6157FF]/20 shadow-xl active:scale-95 transition-all"
+                className="flex items-center gap-3 px-5 h-11 rounded-full bg-surface-1 border border-line hover:border-line-strong active:scale-95 transition-[transform,border-color]"
               >
-                  <div className="h-6 w-6 rounded-full bg-[#6157FF] flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[14px] text-[#111111]">person</span>
-                  </div>
-                  <span className="text-[12px] font-bold text-ink">
-                      Fit for: {fitTargetLabel}
-                  </span>
+                  <span className="eyebrow !text-[9px]">Fit for</span>
+                  <span className="text-[13px] font-semibold text-ink">{fitTargetLabel}</span>
                   {members.length > 0 && (
-                    <motion.span 
+                    <motion.span
                       animate={{ rotate: showMemberSelector ? 180 : 0 }}
-                      className="material-symbols-outlined text-sm text-[#6157FF]"
+                      className="material-symbols-outlined text-[16px] text-ink-faint"
+                      aria-hidden="true"
                     >
                       expand_more
                     </motion.span>
@@ -1025,44 +1015,44 @@ const Recommendation: React.FC = () => {
 
       <AnimatePresence>
         {showMemberSelector && isClothing && members.length > 0 && (
-            <motion.div 
-                initial={{ opacity: 0, y: -20 }}
+            <motion.div
+                initial={{ opacity: 0, y: -16 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                exit={{ opacity: 0, y: -16 }}
                 className="absolute top-32 left-0 right-0 z-[60] px-6"
             >
-                <div className="bg-surface-1 rounded-[2rem] shadow-2xl border border-[#6157FF]/20 p-3 flex flex-col gap-1">
+                <div className="bg-surface-1 rounded-card shadow-float border border-line p-2 flex flex-col gap-0.5">
                     {members.map(member => (
-                        <button 
+                        <button
                             key={member.id}
                             onClick={() => {
                                 handleProfileChange(member);
                                 setShowMemberSelector(false);
                             }}
-                            className={`flex items-center justify-between p-4 rounded-2xl active:scale-95 transition-all ${selectedMemberId === member.id ? 'bg-[#6157FF]/10' : ''}`}
+                            className={`flex items-center justify-between p-3.5 rounded-xl active:scale-[0.98] transition-[transform,background-color] ${selectedMemberId === member.id ? 'bg-surface-2' : 'hover:bg-surface-2/60'}`}
                         >
-                            <div className="flex items-center gap-4">
-                                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${member.isPrimary ? 'bg-[#6157FF] text-[#111111]' : 'bg-surface-2 text-ink'}`}>
-                                    <span className="material-symbols-outlined text-lg">{member.isPrimary ? 'person' : 'group'}</span>
+                            <div className="flex items-center gap-3.5">
+                                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${member.isPrimary ? 'bg-ink text-ink-invert' : 'border border-line text-ink'}`}>
+                                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{member.isPrimary ? 'person' : 'group'}</span>
                                 </div>
-                                <span className="font-bold text-base text-ink">{member.name}</span>
+                                <span className="font-semibold text-[15px] text-ink">{member.name}</span>
                             </div>
-                            {selectedMemberId === member.id && <span className="material-symbols-outlined text-[#6157FF] text-lg">check</span>}
+                            {selectedMemberId === member.id && <span className="material-symbols-outlined text-brand text-[18px]" aria-hidden="true">check</span>}
                         </button>
                     ))}
-                    <div className="h-[1px] bg-surface-2 my-2"></div>
-                    <button 
+                    <div className="h-px bg-line my-1.5 mx-3"></div>
+                    <button
                         onClick={() => navigate('/settings')}
-                        className="flex items-center justify-center p-4 text-[#6157FF] font-bold text-sm active:scale-95"
+                        className="flex items-center justify-center p-3.5 text-ink text-[11px] font-semibold uppercase tracking-[0.12em] active:scale-95 transition-transform"
                     >
-                        Manage Profiles
+                        Manage profiles
                     </button>
                 </div>
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[-1] bg-black/60 backdrop-blur-sm" 
+                    className="fixed inset-0 z-[-1] bg-scrim backdrop-blur-sm"
                     onClick={() => setShowMemberSelector(false)}
                 ></motion.div>
             </motion.div>
@@ -1070,176 +1060,164 @@ const Recommendation: React.FC = () => {
       </AnimatePresence>
 
       {/* Main Content Scroll Area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-48" onClick={() => setShowMemberSelector(false)}>
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-52" onClick={() => setShowMemberSelector(false)}>
              {isClothing ? (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="flex flex-col"
             >
-                {/* Editorial Product Header */}
-                <div className="p-6">
-                    <div className="flex flex-col gap-4 rounded-[2.5rem] bg-gradient-to-br from-[#1A1A1A] to-[#111111] p-8 border border-line shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#6157FF]/10 blur-[60px] rounded-full -mr-16 -mt-16"></div>
-                        
-                        <div className="flex gap-6 items-center">
-                            <motion.img 
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                src={displayProduct.image}
-                                alt={displayProduct.title}
-                                className="w-24 h-32 object-cover rounded-2xl flex-shrink-0 border border-line shadow-2xl"
-                            />
-                            <div className="flex flex-col flex-1">
-                                <h3 className="text-[12px] font-bold text-[#6157FF] mb-2">{displayProduct.brand}</h3>
-                                <p className="text-2xl font-sans font-medium text-ink leading-tight line-clamp-2">{displayProduct.title}</p>
-                                <div className="flex items-center gap-3 mt-4">
-                                    <span className="text-xl font-bold text-ink">{displayProduct.price}</span>
-                                </div>
-                            </div>
+                {/* Garment identity */}
+                <div className="px-6 pt-2">
+                    <div className="flex gap-5 items-center rounded-card bg-surface-1 border border-line p-5">
+                        <motion.img
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            src={displayProduct.image}
+                            alt={displayProduct.title}
+                            className="w-20 h-28 object-cover rounded-xl flex-shrink-0 border border-line"
+                        />
+                        <div className="flex flex-col flex-1 min-w-0">
+                            <p className="eyebrow !text-[9px] mb-1.5">{displayProduct.brand}</p>
+                            <p className="font-display text-[19px] font-medium text-ink leading-snug line-clamp-2">{displayProduct.title}</p>
+                            {displayProduct.price && (
+                              <span className="text-[15px] font-semibold text-ink mt-2.5">{displayProduct.price}</span>
+                            )}
                         </div>
                     </div>
                 </div>
 
                 {/* Error Banner */}
                 {engineError && (
-                    <div className="px-6 pb-2">
-                        <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20">
-                            <span className="material-symbols-outlined text-red-400 text-lg mt-0.5">error</span>
+                    <div className="px-6 pt-4">
+                        <div className="flex items-start gap-3 p-4 rounded-2xl bg-danger-soft border border-danger/25" role="alert">
+                            <span className="material-symbols-outlined text-danger text-[18px] mt-0.5" aria-hidden="true">error</span>
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-red-400 mb-1">Engine Error</p>
-                                <p className="text-sm text-red-600/80 break-words">{engineError}</p>
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-danger mb-1">Engine error</p>
+                                <p className="text-[13px] text-ink-soft break-words leading-relaxed">{engineError}</p>
                             </div>
-                            <button onClick={() => setEngineError(null)} className="text-red-400/50 hover:text-red-400 transition-colors flex-shrink-0">
-                                <span className="material-symbols-outlined text-base">close</span>
+                            <button onClick={() => setEngineError(null)} aria-label="Dismiss" className="text-danger/60 hover:text-danger transition-colors flex-shrink-0">
+                                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Main Recommendation Panel */}
-                <div className="px-6 pb-6">
-                    <div className="flex flex-col gap-8 rounded-[3rem] bg-surface-1 p-10 shadow-2xl border border-[#6157FF]/30 relative overflow-hidden">
-                        
+                {/* The Verdict */}
+                <div className="px-6 py-6">
+                    <div className="flex flex-col rounded-card bg-surface-1 border border-line px-7 py-9 relative overflow-hidden">
+
                         {loadingStage > 0 && !visibleAiResult ? (
-                            <div className="flex flex-col gap-6 py-16 animate-pulse">
-                                <div className="flex flex-col items-center text-center gap-5">
-                                    <div className="w-14 h-14 rounded-full border-2 border-[#6157FF]/20 border-t-[#6157FF] animate-spin"></div>
-                                    <p className="text-sm font-bold text-[#6157FF]">Analyzing product…</p>
+                            <div className="flex flex-col gap-8 py-10">
+                                <div className="flex flex-col items-center text-center gap-4">
+                                    <Spinner size={30} className="text-brand" />
+                                    <p className="eyebrow">Reading the garment…</p>
                                 </div>
-
-                                {/* Skeleton: size badge */}
-                                <div className="flex flex-col items-center gap-4 mt-4">
-                                    <div className="h-4 w-32 rounded-full bg-surface-2"></div>
-                                    <div className="h-28 w-28 rounded-3xl bg-surface-2"></div>
-                                    <div className="h-4 w-24 rounded-full bg-surface-2"></div>
+                                <div className="flex flex-col items-center gap-4 mt-2">
+                                    <Skeleton className="h-3.5 w-32" />
+                                    <Skeleton className="h-32 w-32 rounded-2xl" />
+                                    <Skeleton className="h-3.5 w-24" />
                                 </div>
-
-                                {/* Skeleton: confidence bar */}
-                                <div className="flex flex-col gap-3 mt-4">
+                                <div className="flex flex-col gap-3">
                                     <div className="flex justify-between">
-                                        <div className="h-3 w-28 rounded-full bg-surface-2"></div>
-                                        <div className="h-3 w-10 rounded-full bg-surface-2"></div>
+                                        <Skeleton className="h-3 w-28" />
+                                        <Skeleton className="h-3 w-10" />
                                     </div>
-                                    <div className="h-3 w-full rounded-full bg-surface-2"></div>
+                                    <Skeleton className="h-2 w-full" />
                                 </div>
-
-                                {/* Skeleton: detail block */}
-                                <div className="rounded-[2rem] bg-surface-2 border border-line p-8 mt-2 flex flex-col gap-3">
-                                    <div className="h-4 w-full rounded-full bg-surface-2"></div>
-                                    <div className="h-4 w-3/4 rounded-full bg-surface-2"></div>
-                                    <div className="h-4 w-1/2 rounded-full bg-surface-2 mt-2"></div>
+                                <div className="rounded-2xl border border-line p-6 flex flex-col gap-3">
+                                    <Skeleton className="h-3.5 w-full" />
+                                    <Skeleton className="h-3.5 w-3/4" />
+                                    <Skeleton className="h-3.5 w-1/2" />
                                 </div>
                             </div>
                         ) : visibleAiResult ? (
-                            <motion.div 
+                            <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 className="flex flex-col items-center text-center gap-8 relative z-10 w-full"
                             >
-                                
-                                {/* Size Badge */}
+                                {/* The size — set like a cover masthead */}
                                 <div className="flex flex-col items-center">
-                                    <span className="text-[12px] font-bold text-[#6157FF] mb-4">Recommended Size</span>
+                                    <Eyebrow className="mb-2">Your size</Eyebrow>
                                     <div className="relative">
-                                        <motion.h2 
-                                            initial={{ scale: 0.5, opacity: 0 }}
+                                        <motion.h2
+                                            initial={{ scale: 0.7, opacity: 0 }}
                                             animate={{ scale: 1, opacity: 1 }}
-                                            transition={{ type: "spring", damping: 12 }}
-                                            className="text-[12rem] font-sans font-light text-ink leading-none tracking-tighter"
+                                            transition={{ type: 'spring', stiffness: 150, damping: 18 }}
+                                            className="font-display text-[9.5rem] font-light text-ink leading-none tracking-tight"
                                         >
                                             {visibleAiResult.recommendedSize}
                                         </motion.h2>
-                                        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                                            <div className={`px-6 py-2 rounded-full border bg-surface-0 text-[12px] font-bold ${getDirectionColor(visibleAiResult.sizeDirection)}`}>
+                                        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                                            <div className={`px-5 py-1.5 rounded-full border text-[10px] font-semibold uppercase tracking-[0.12em] ${getDirectionTone(visibleAiResult.sizeDirection)}`}>
                                                 {visibleAiResult.sizeDirection.replace(/-/g, ' ')}
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Confidence Bar */}
-                                <div className="w-full flex flex-col gap-3 mt-8">
-                                    <div className="flex justify-between items-center px-2">
-                                        <span className="text-[12px] font-bold text-ink-soft">Confidence Level</span>
-                                        <span className="text-sm font-bold text-[#6157FF]">{visibleAiResult.confidence}%</span>
+                                {/* Confidence — hairline gauge */}
+                                <div className="w-full flex flex-col gap-2.5 mt-6">
+                                    <div className="flex justify-between items-baseline px-0.5">
+                                        <span className="eyebrow !text-[9px]">Confidence</span>
+                                        <span className="font-display text-[17px] font-medium text-ink">{visibleAiResult.confidence}%</span>
                                     </div>
-                                    <div className="h-3 w-full bg-surface-2 rounded-full overflow-hidden p-[2px] border border-line">
-                                        <motion.div 
+                                    <div className="h-px w-full bg-line relative" aria-hidden="true">
+                                        <motion.div
                                             initial={{ width: 0 }}
                                             animate={{ width: `${visibleAiResult.confidence}%` }}
-                                            transition={{ duration: 1.5, ease: "easeOut" }}
-                                            className="h-full rounded-full bg-gradient-to-r from-[#6157FF] to-[#6157FF]"
+                                            transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                                            className="absolute -top-[1.5px] left-0 h-[4px] rounded-full bg-brand"
                                         ></motion.div>
                                     </div>
                                 </div>
 
-                                {/* Details from API */}
-                                <div className="w-full bg-surface-2 rounded-[2rem] p-8 text-left border border-line mt-4">
-                                    <p className="text-sm text-ink-soft leading-relaxed mb-5">
+                                {/* Reasoning */}
+                                <div className="w-full rounded-2xl bg-surface-2 p-6 text-left">
+                                    <p className="text-[13.5px] text-ink-soft leading-relaxed mb-5">
                                         {visibleAiResult.reasoning}
                                     </p>
-                                    <div className="flex flex-wrap gap-3">
+                                    <div className="flex flex-wrap gap-2.5">
                                         {(() => {
-                                            // Risk chip color matches the actual risk — a low risk
+                                            // Risk chip tone matches the actual risk — a low risk
                                             // should reassure, not alarm.
                                             const riskText = String(visibleAiResult.fitNotes || '').toLowerCase();
                                             const riskTone = riskText.includes('low')
-                                                ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-600'
+                                                ? 'border-success/30 bg-success-soft text-success'
                                                 : riskText.includes('medium')
-                                                    ? 'bg-amber-400/10 border-amber-400/20 text-amber-600'
-                                                    : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]';
+                                                    ? 'border-warning/30 bg-warning-soft text-warning'
+                                                    : 'border-danger/30 bg-danger-soft text-danger';
                                             return (
-                                                <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${riskTone}`}>
-                                                    <span className="text-[12px] font-bold">Return Risk:</span>
-                                                    <span className="text-xs font-bold text-ink">{visibleAiResult.fitNotes}</span>
+                                                <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[10px] font-semibold uppercase tracking-[0.1em] ${riskTone}`}>
+                                                    Return risk · {visibleAiResult.fitNotes}
                                                 </div>
                                             );
                                         })()}
                                         {visibleAiResult.alternativeSize && (
-                                            <div className="flex items-center gap-2 px-4 py-2 bg-surface-2 rounded-full border border-line">
-                                                <span className="text-[12px] font-bold text-ink-soft">Engine:</span>
-                                                <span className="text-xs font-bold text-ink">{visibleAiResult.alternativeSize}</span>
+                                            <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-line text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-soft">
+                                                Engine · {visibleAiResult.alternativeSize}
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
                                 {visibleAiResult.isOffline && (
-                                    <p className="text-xs font-medium text-amber-600/70 tracking-wide max-w-[80%] flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-sm">cloud_off</span>
+                                    <p className="text-[12px] text-warning flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-[15px]" aria-hidden="true">cloud_off</span>
                                         Offline estimate — results may be less accurate
                                     </p>
                                 )}
 
-                                <div className="w-full rounded-[2rem] bg-surface-2 border border-line p-6 text-left">
+                                {/* Fit feedback */}
+                                <div className="w-full rounded-2xl border border-line p-5 text-left">
                                     <div className="flex items-center justify-between gap-4 mb-4">
-                                        <span className="text-[12px] font-bold text-[#6157FF]">Fit Feedback</span>
+                                        <Eyebrow>How did it fit?</Eyebrow>
                                         {hasSubmittedFeedback && (
-                                            <span className="text-[12px] font-bold text-emerald-600">Saved</span>
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success">Saved</span>
                                         )}
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-2 gap-2.5">
                                         {FEEDBACK_OPTIONS.map(option => {
                                             const isSelected = feedbackForRecommendation === option.type;
                                             return (
@@ -1248,12 +1226,12 @@ const Recommendation: React.FC = () => {
                                                     type="button"
                                                     onClick={() => handleRecommendationFeedback(option.type)}
                                                     disabled={hasSubmittedFeedback}
-                                                    className={`min-h-12 rounded-2xl border px-3 text-[12px] font-bold transition-all active:scale-95 ${
+                                                    className={`min-h-11 rounded-full border px-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] transition-[transform,border-color,background-color,color] active:scale-95 ${
                                                         isSelected
-                                                            ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600'
+                                                            ? 'border-ink bg-ink text-ink-invert'
                                                             : hasSubmittedFeedback
-                                                                ? 'border-line bg-surface-2 text-ink-faint cursor-not-allowed'
-                                                                : 'border-line bg-surface-2 text-ink-soft hover:border-[#6157FF]/30 hover:text-ink'
+                                                                ? 'border-line text-ink-faint cursor-not-allowed'
+                                                                : 'border-line text-ink-soft hover:border-line-strong hover:text-ink'
                                                     }`}
                                                 >
                                                     {option.label}
@@ -1263,23 +1241,24 @@ const Recommendation: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="w-full rounded-[2rem] bg-surface-2 border border-line p-6 text-left">
+                                {/* Outcome */}
+                                <div className="w-full rounded-2xl border border-line p-5 text-left">
                                     <div className="flex items-center justify-between gap-4 mb-4">
-                                        <span className="text-[12px] font-bold text-[#6157FF]">Outcome</span>
+                                        <Eyebrow>Outcome</Eyebrow>
                                         {(hasPurchasedOutcome || hasExchangedOutcome || hasReturnedOutcome) && (
-                                            <span className="text-[12px] font-bold text-emerald-600">Tracked</span>
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success">Tracked</span>
                                         )}
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-3 gap-2.5">
                                         <button
                                             type="button"
                                             onClick={handleProductPurchased}
                                             disabled={hasPurchasedOutcome}
-                                            className={`min-h-12 rounded-2xl border px-2 text-[11px] font-bold transition-all active:scale-95 ${
+                                            className={`min-h-11 rounded-full border px-2 text-[10px] font-semibold uppercase tracking-[0.08em] transition-[transform,border-color,background-color,color] active:scale-95 ${
                                                 hasPurchasedOutcome
-                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600 cursor-not-allowed'
-                                                    : 'border-line bg-surface-2 text-ink-soft hover:border-[#6157FF]/30 hover:text-ink'
+                                                    ? 'border-success/40 bg-success-soft text-success cursor-not-allowed'
+                                                    : 'border-line text-ink-soft hover:border-line-strong hover:text-ink'
                                             }`}
                                         >
                                             Purchased
@@ -1288,12 +1267,12 @@ const Recommendation: React.FC = () => {
                                             type="button"
                                             onClick={() => setActiveOutcomeForm(activeOutcomeForm === 'exchange' ? null : 'exchange')}
                                             disabled={hasExchangedOutcome}
-                                            className={`min-h-12 rounded-2xl border px-2 text-[11px] font-bold transition-all active:scale-95 ${
+                                            className={`min-h-11 rounded-full border px-2 text-[10px] font-semibold uppercase tracking-[0.08em] transition-[transform,border-color,background-color,color] active:scale-95 ${
                                                 hasExchangedOutcome
-                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600 cursor-not-allowed'
+                                                    ? 'border-success/40 bg-success-soft text-success cursor-not-allowed'
                                                     : activeOutcomeForm === 'exchange'
-                                                        ? 'border-[#6157FF]/40 bg-[#6157FF]/10 text-[#6157FF]'
-                                                        : 'border-line bg-surface-2 text-ink-soft hover:border-[#6157FF]/30 hover:text-ink'
+                                                        ? 'border-ink bg-ink text-ink-invert'
+                                                        : 'border-line text-ink-soft hover:border-line-strong hover:text-ink'
                                             }`}
                                         >
                                             Exchanged
@@ -1302,12 +1281,12 @@ const Recommendation: React.FC = () => {
                                             type="button"
                                             onClick={() => setActiveOutcomeForm(activeOutcomeForm === 'return' ? null : 'return')}
                                             disabled={hasReturnedOutcome}
-                                            className={`min-h-12 rounded-2xl border px-2 text-[11px] font-bold transition-all active:scale-95 ${
+                                            className={`min-h-11 rounded-full border px-2 text-[10px] font-semibold uppercase tracking-[0.08em] transition-[transform,border-color,background-color,color] active:scale-95 ${
                                                 hasReturnedOutcome
-                                                    ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600 cursor-not-allowed'
+                                                    ? 'border-success/40 bg-success-soft text-success cursor-not-allowed'
                                                     : activeOutcomeForm === 'return'
-                                                        ? 'border-[#6157FF]/40 bg-[#6157FF]/10 text-[#6157FF]'
-                                                        : 'border-line bg-surface-2 text-ink-soft hover:border-[#6157FF]/30 hover:text-ink'
+                                                        ? 'border-ink bg-ink text-ink-invert'
+                                                        : 'border-line text-ink-soft hover:border-line-strong hover:text-ink'
                                             }`}
                                         >
                                             Returned
@@ -1315,41 +1294,37 @@ const Recommendation: React.FC = () => {
                                     </div>
 
                                     {activeOutcomeForm === 'exchange' && !hasExchangedOutcome && (
-                                        <div className="grid grid-cols-2 gap-3 mt-4">
+                                        <div className="grid grid-cols-2 gap-2.5 mt-4">
                                             <input
                                                 value={exchangeOriginalSize}
                                                 onChange={(event) => setExchangeOriginalSize(event.target.value)}
                                                 placeholder={`Original ${visibleAiResult.recommendedSize}`}
-                                                className="h-12 rounded-2xl border border-line bg-surface-0 px-4 text-xs font-bold text-ink outline-none placeholder:text-ink-faint focus:border-[#6157FF]/40"
+                                                className={outcomeInputClasses}
                                             />
                                             <input
                                                 value={exchangeNewSize}
                                                 onChange={(event) => setExchangeNewSize(event.target.value)}
                                                 placeholder="New size"
-                                                className="h-12 rounded-2xl border border-line bg-surface-0 px-4 text-xs font-bold text-ink outline-none placeholder:text-ink-faint focus:border-[#6157FF]/40"
+                                                className={outcomeInputClasses}
                                             />
-                                            <button
-                                                type="button"
-                                                onClick={handleSizeExchanged}
-                                                className="col-span-2 h-12 rounded-2xl bg-[#6157FF] text-[#111111] text-[12px] font-bold active:scale-95 transition-all"
-                                            >
-                                                Save Exchange
-                                            </button>
+                                            <div className="col-span-2">
+                                                <Button fullWidth onClick={handleSizeExchanged}>Save exchange</Button>
+                                            </div>
                                         </div>
                                     )}
 
                                     {activeOutcomeForm === 'return' && !hasReturnedOutcome && (
-                                        <div className="grid grid-cols-2 gap-3 mt-4">
+                                        <div className="grid grid-cols-2 gap-2.5 mt-4">
                                             <input
                                                 value={returnedSize}
                                                 onChange={(event) => setReturnedSize(event.target.value)}
                                                 placeholder={`Returned ${visibleAiResult.recommendedSize}`}
-                                                className="h-12 rounded-2xl border border-line bg-surface-0 px-4 text-xs font-bold text-ink outline-none placeholder:text-ink-faint focus:border-[#6157FF]/40"
+                                                className={outcomeInputClasses}
                                             />
                                             <select
                                                 value={returnReason}
                                                 onChange={(event) => setReturnReason(event.target.value)}
-                                                className="h-12 rounded-2xl border border-line bg-surface-0 px-4 text-xs font-bold text-ink outline-none focus:border-[#6157FF]/40"
+                                                className={outcomeInputClasses}
                                             >
                                                 <option value="">Reason</option>
                                                 <option value="too_tight">Too tight</option>
@@ -1357,22 +1332,18 @@ const Recommendation: React.FC = () => {
                                                 <option value="wrong_size">Wrong size</option>
                                                 <option value="other">Other</option>
                                             </select>
-                                            <button
-                                                type="button"
-                                                onClick={handleSizeReturned}
-                                                className="col-span-2 h-12 rounded-2xl bg-[#6157FF] text-[#111111] text-[12px] font-bold active:scale-95 transition-all"
-                                            >
-                                                Save Return
-                                            </button>
+                                            <div className="col-span-2">
+                                                <Button fullWidth onClick={handleSizeReturned}>Save return</Button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
 
                             </motion.div>
                         ) : (
-                            <div className="flex flex-col items-center text-center gap-5 py-16 opacity-60">
-                                <span className="material-symbols-outlined text-4xl text-[#6157FF]">info</span>
-                                <p className="text-sm font-bold text-[#6157FF]">No data yet</p>
+                            <div className="flex flex-col items-center text-center gap-4 py-14 opacity-70">
+                                <span className="material-symbols-outlined text-[32px] text-ink-faint" aria-hidden="true">info</span>
+                                <p className="eyebrow">No data yet</p>
                             </div>
                         )}
                     </div>
@@ -1382,30 +1353,31 @@ const Recommendation: React.FC = () => {
              /* --- LAYOUT 2: Standard E-Commerce (Accessories, etc) --- */
              <div className="flex flex-col">
                  <div className="w-full aspect-[4/5] bg-surface-1 relative overflow-hidden">
-                     <motion.div 
-                        initial={{ scale: 1.1 }}
+                     <motion.div
+                        initial={{ scale: 1.08 }}
                         animate={{ scale: 1 }}
+                        transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
                         className="absolute inset-0 bg-center bg-cover"
                         style={{ backgroundImage: `url("${displayProduct.image}")` }}
                      ></motion.div>
                      <div className="absolute inset-0 bg-gradient-to-t from-surface-0 to-transparent"></div>
                  </div>
 
-                 <div className="flex flex-col p-8 gap-8 -mt-20 relative z-10">
-                     <div className="bg-surface-1 p-8 rounded-[3rem] border border-line shadow-2xl">
+                 <div className="flex flex-col p-6 gap-8 -mt-20 relative z-10">
+                     <div className="bg-surface-1 p-7 rounded-card border border-line shadow-lift">
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex-1 pr-4">
-                                <h3 className="text-[12px] font-bold text-[#6157FF] mb-3">{displayProduct.brand}</h3>
-                                <h1 className="text-4xl font-sans text-ink leading-tight">{displayProduct.title}</h1>
+                                <p className="eyebrow mb-2">{displayProduct.brand}</p>
+                                <h1 className="font-display text-[28px] font-light text-ink leading-tight">{displayProduct.title}</h1>
                             </div>
                              <div className="flex flex-col items-end">
-                                <span className="text-3xl font-bold text-ink">{displayProduct.price}</span>
+                                <span className="font-display text-[24px] font-medium text-ink">{displayProduct.price}</span>
                              </div>
                         </div>
-                        <div className="h-[1px] w-full bg-surface-2 mb-6"></div>
+                        <div className="h-px w-full bg-line mb-6"></div>
                         <div>
-                            <h4 className="text-xs font-bold text-[#6157FF] mb-4">The Details</h4>
-                            <p className="text-ink-soft leading-relaxed text-sm font-light">
+                            <Eyebrow className="mb-3">The details</Eyebrow>
+                            <p className="text-ink-soft leading-relaxed text-[14px]">
                                 This {displayProduct.title.toLowerCase()} from {displayProduct.brand} combines timeless elegance with modern durability. Crafted from high-quality materials, it is designed to last and elevate your style for any occasion.
                             </p>
                         </div>
@@ -1416,45 +1388,26 @@ const Recommendation: React.FC = () => {
       </div>
 
       {/* Bottom Actions */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 p-8 bg-gradient-to-t from-surface-0 via-surface-0/90 to-transparent">
-        <div className="max-w-md mx-auto flex flex-col gap-4">
-          <motion.button 
-            whileTap={{ scale: 0.95 }}
-            onClick={source === 'marketplace' ? handleBuyNow : handleExternalBuy}
+      <div className="fixed bottom-0 inset-x-0 w-full z-50 p-6 pb-8 bg-gradient-to-t from-surface-0 via-surface-0/92 to-transparent phone-fixed-bottom">
+        <div className="flex flex-col gap-3">
+          <Button
+            size="lg"
+            fullWidth
+            trailingIcon="open_in_new"
+            loading={loadingStage > 0}
             disabled={loadingStage > 0}
-            className={`w-full h-18 rounded-[2rem] font-bold text-sm flex items-center justify-center gap-3 transition-all ${
-              loadingStage > 0
-                ? 'bg-surface-2 text-ink-faint cursor-not-allowed'
-                : 'bg-[#FF4D6D] text-ink shadow-[0_10px_30px_rgba(255,77,109,0.3)] active:scale-95'
-            }`}
+            onClick={source === 'marketplace' ? handleBuyNow : handleExternalBuy}
           >
-            {loadingStage > 0 ? (
-              <>
-                <div className="w-4 h-4 border-2 border-line border-t-white/70 rounded-full animate-spin"></div>
-                Analyzing…
-              </>
-            ) : (
-              <>
-                OPEN PRODUCT
-                <span className="material-symbols-outlined text-[20px]">open_in_new</span>
-              </>
-            )}
-          </motion.button>
-          
-          <div className="flex gap-4">
-            <button 
-                onClick={toggleWishlist} 
-                className="flex-1 h-14 rounded-2xl bg-surface-2 border border-line text-ink font-bold text-[12px] active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-                <span className={`material-symbols-outlined text-sm ${likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? 'text-[#FF4D6D] filled' : ''}`} style={{ fontVariationSettings: likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? "'FILL' 1" : "'FILL' 0" }}>favorite</span>
-                {likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? 'In Wishlist' : 'Add to Wishlist'}
-            </button>
-            <button 
-                onClick={handleExploreMore} 
-                className="flex-1 h-14 rounded-2xl bg-surface-2 border border-line text-ink-soft font-bold text-[12px] active:scale-95 transition-all"
-            >
-                Explore More
-            </button>
+            Open product
+          </Button>
+
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1" icon="favorite" onClick={toggleWishlist}>
+              {likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? 'In wishlist' : 'Wishlist'}
+            </Button>
+            <Button variant="ghost" className="flex-1" onClick={handleExploreMore}>
+              Explore more
+            </Button>
           </div>
         </div>
       </div>

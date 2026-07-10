@@ -15,7 +15,7 @@ const FashionStudio: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
-  
+
   // State
   const [size, setSize] = useState('M');
   const [view, setView] = useState<'Front' | 'Side' | 'Back'>('Front');
@@ -131,230 +131,237 @@ const FashionStudio: React.FC = () => {
     setTimeout(() => setIsAnimating(false), 500); // 500ms morph duration
   };
 
-  // Fit Logic
+  // Fit Logic — semantic tones only (no hard-coded palette)
   const getFitStatus = () => {
     const indexDiff = sizes.indexOf(size) - sizes.indexOf(product.recommendedSize);
-    if (indexDiff === 0) return { text: 'Perfect Fit', color: 'bg-green-500 text-white', glow: 'shadow-[0_0_15px_rgba(34,197,94,0.4)]' };
-    if (indexDiff < 0) return { text: 'Tight Fit', color: 'bg-red-500 text-white', glow: 'shadow-[0_0_15px_rgba(239,68,68,0.4)]' };
-    return { text: 'Relaxed Fit', color: 'bg-yellow-500 text-black', glow: 'shadow-[0_0_15px_rgba(234,179,8,0.4)]' };
+    if (indexDiff === 0) return { text: 'Perfect fit', dot: '#5fce8f' };
+    if (indexDiff < 0) return { text: 'Tight fit', dot: '#f2705c' };
+    return { text: 'Relaxed fit', dot: '#e4b04d' };
   };
 
   const fit = getFitStatus();
 
+  // Warm atelier lighting environments — never blue
+  const lightingBg =
+    lighting === 'Studio'
+      ? 'radial-gradient(circle at center, #26211b 0%, #0b0906 100%)'
+      : lighting === 'Outdoor'
+        ? 'linear-gradient(to bottom, rgba(232,155,107,0.12), #0b0906)'
+        : '#050403';
+
   return (
-    <div className="relative h-screen w-full bg-gradient-to-b from-[#0E0E0E] to-[#1A1A1A] text-white overflow-hidden font-sans select-none">
-      
+    <div className="relative h-screen h-dvh w-full text-white overflow-hidden select-none" style={{ background: 'linear-gradient(to bottom, #100d09, #1a1611)' }}>
+
       {/* Top Minimal Navbar */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-[#111111]/40 backdrop-blur-md border-b border-white/5">
-        <button aria-label="Go back" 
-          onClick={() => navigate(-1)} 
-          className="h-10 w-10 flex items-center justify-center rounded-full bg-[#111111]/40 border border-white/5 active:scale-95 transition-all"
+      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-4 pt-safe bg-black/30 backdrop-blur-md border-b border-white/5">
+        <button aria-label="Go back"
+          onClick={() => navigate(-1)}
+          className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 active:scale-95 transition-transform"
         >
-          <span className="material-symbols-outlined text-[18px] text-[#6157FF]">arrow_back</span>
+          <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">arrow_back</span>
         </button>
-        
-        <div className="flex flex-col items-center bg-[#111111]/40 px-4 py-1 rounded-full border border-white/5">
-          <span className="text-[11px] font-bold text-gray-400">{product.brand}</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[12px] font-bold text-white tracking-tight">
-                <span className="text-white">Zip</span><span className="text-[#6157FF]">RIGHT</span>
-            </span>
-            <span className="text-[12px] text-gray-500">/</span>
-            <span className="text-[12px] font-bold text-white">Studio</span>
-          </div>
+
+        <div className="flex flex-col items-center">
+          <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">{product.brand}</span>
+          <span className="font-display text-[15px] leading-none text-white mt-0.5">
+            <span className="italic font-light">Zip</span><span className="font-semibold">RIGHT</span>
+            <span className="text-white/40 mx-1.5 font-sans text-[11px]">/</span>
+            <span className="text-[11px] font-sans font-semibold uppercase tracking-[0.14em] align-middle">Studio</span>
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
-           <button 
-             onClick={toggleWishlist}
-             className="h-10 w-10 flex items-center justify-center rounded-full bg-[#111111]/40 border border-white/5 active:scale-95 transition-all relative"
-           >
-              <span className="material-symbols-outlined text-[18px] text-[#6157FF]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0", color: isLiked ? "#FF4D6D" : "#6157FF" }}>favorite</span>
-              {wishlistCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 w-4 bg-[#FF4D6D] rounded-full text-[12px] font-bold flex items-center justify-center text-white ring-2 ring-[#111111]">
-                  {wishlistCount}
-                </span>
-              )}
-           </button>
-           <button className="h-10 w-10 flex items-center justify-center rounded-full bg-[#111111]/40 border border-white/5 active:scale-95 transition-all">
-              <span className="material-symbols-outlined text-[18px] text-[#6157FF]">ios_share</span>
-           </button>
+          <button
+            onClick={toggleWishlist}
+            aria-label="Toggle wishlist"
+            className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 active:scale-95 transition-transform relative"
+          >
+            <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0", color: isLiked ? '#e89b6b' : '#ffffff' }} aria-hidden="true">favorite</span>
+            {wishlistCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center text-black bg-[#e89b6b]">
+                {wishlistCount}
+              </span>
+            )}
+          </button>
+          <button aria-label="Share" onClick={() => { if (navigator.share) navigator.share({ title: product.name, url: product.url }).catch(() => {}); }} className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 active:scale-95 transition-transform">
+            <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">ios_share</span>
+          </button>
         </div>
       </div>
 
       {/* Fullscreen Try-On Canvas */}
       <div className={`relative w-full h-[85vh] mt-[8vh] transition-all duration-700 ease-in-out ${isZoomed ? 'scale-125 translate-y-10' : 'scale-100'}`}>
-        
+
         {/* Background Environment / Lighting */}
-        <div className={`absolute inset-0 transition-all duration-1000 ${
-            lighting === 'Studio' ? 'bg-[radial-gradient(circle_at_center,#2a2a2a_0%,#000_100%)]' :
-            lighting === 'Outdoor' ? 'bg-gradient-to-b from-blue-900/20 to-[#0D0D0D]' :
-            'bg-[#050505]'
-        }`}></div>
+        <div className="absolute inset-0 transition-all duration-1000" style={{ background: lightingBg }}></div>
 
         {/* Avatar Layer */}
         <div className="absolute inset-0 flex items-center justify-center">
-           {/* Simulate breathing animation */}
-           <div className={`relative h-full w-full max-w-lg transition-transform duration-500 ${isAnimating ? 'scale-[1.01]' : 'scale-100'}`}>
-              <div className="absolute inset-0 animate-[breathe_4s_ease-in-out_infinite]">
-                  <img
-                    src={tryonUrl || product.image}
-                    className={`h-full w-full object-contain transition-all duration-500 ${showHeatmap ? 'opacity-70 grayscale' : 'opacity-90'} ${generating ? 'blur-sm opacity-40' : ''}`}
-                    alt="Virtual Try On"
-                    style={{ maskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)' }}
-                    referrerPolicy="no-referrer"
-                  />
-                  {generating && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
-                      <div className="h-12 w-12 rounded-full border-2 border-[#6157FF] border-t-transparent animate-spin"></div>
-                      <span className="text-[12px] font-bold text-[#6157FF]">Rendering your look</span>
-                    </div>
-                  )}
-                  {tryonEngine && !generating && (
-                    <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/10">
-                      <span className="text-[11px] font-bold text-[#6157FF]">
-                        {tryonEngine === 'overlay' ? 'Preview' : 'AI Render'}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {/* Fit Heatmap Overlay */}
-                  <div 
-                    className={`absolute inset-0 transition-opacity duration-500 mix-blend-overlay ${showHeatmap ? 'opacity-70' : 'opacity-0'}`}
-                    style={{
-                        background: size === 'S' || size === 'XS' 
-                            ? 'radial-gradient(circle at 50% 30%, rgba(255,0,0,0.6) 0%, transparent 40%)' // Tight chest
-                            : size === 'XL' 
-                            ? 'radial-gradient(circle at 50% 40%, rgba(0,0,255,0.4) 0%, transparent 50%)' // Loose waist
-                            : 'none'
-                    }}
-                  ></div>
-              </div>
-           </div>
+          <div className={`relative h-full w-full max-w-lg transition-transform duration-500 ${isAnimating ? 'scale-[1.01]' : 'scale-100'}`}>
+            <div className="absolute inset-0 animate-[breathe_4s_ease-in-out_infinite]">
+              <img
+                src={tryonUrl || product.image}
+                className={`h-full w-full object-contain transition-all duration-500 ${showHeatmap ? 'opacity-70 grayscale' : 'opacity-90'} ${generating ? 'blur-sm opacity-40' : ''}`}
+                alt="Virtual Try On"
+                style={{ maskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)' }}
+                referrerPolicy="no-referrer"
+              />
+              {generating && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
+                  <div className="h-12 w-12 rounded-full border-2 border-[#e89b6b] border-t-transparent animate-spin"></div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e89b6b]">Rendering your look</span>
+                </div>
+              )}
+              {tryonEngine && !generating && (
+                <div className="absolute top-3 left-3 z-10 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/10">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#e89b6b]">
+                    {tryonEngine === 'overlay' ? 'Preview' : 'AI Render'}
+                  </span>
+                </div>
+              )}
+
+              {/* Fit Heatmap Overlay */}
+              <div
+                className={`absolute inset-0 transition-opacity duration-500 mix-blend-overlay ${showHeatmap ? 'opacity-70' : 'opacity-0'}`}
+                style={{
+                  background: size === 'S' || size === 'XS'
+                    ? 'radial-gradient(circle at 50% 30%, rgba(242,112,92,0.6) 0%, transparent 40%)'
+                    : size === 'XL'
+                      ? 'radial-gradient(circle at 50% 40%, rgba(124,199,189,0.45) 0%, transparent 50%)'
+                      : 'none'
+                }}
+              ></div>
+            </div>
+          </div>
         </div>
 
         {/* Fit Status Micro Badge */}
-        <div className="absolute top-[10%] right-[15%] z-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className={`px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10 flex items-center gap-2 ${fit.glow} transition-all duration-300`}>
-                <div className={`h-2 w-2 rounded-full ${fit.color.split(' ')[0]}`}></div>
-                <span className="text-[12px] font-bold text-white">{fit.text}</span>
-            </div>
+        <div className="absolute top-[10%] right-[12%] z-20">
+          <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: fit.dot }}></div>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white">{fit.text}</span>
+          </div>
         </div>
 
       </div>
 
       {/* Try-On Controls + Heatmap Toggle (Left Float) */}
-      <div className="absolute left-6 bottom-32 z-30 flex flex-col gap-4">
-          <button
-            onClick={() => runTryOn('fast')}
-            disabled={generating}
-            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#6157FF]/50 bg-black/30 text-[#6157FF] backdrop-blur-md active:scale-95 transition-all disabled:opacity-40"
-          >
-              <span className={`material-symbols-outlined text-[20px] ${generating ? 'animate-spin' : ''}`}>refresh</span>
-          </button>
-          <span className="text-[11px] font-bold text-center text-gray-400 -mt-2">Try Again</span>
-          <button
-            onClick={() => runTryOn('2k')}
-            disabled={generating}
-            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#6157FF]/50 bg-black/30 text-[#6157FF] backdrop-blur-md active:scale-95 transition-all disabled:opacity-40"
-          >
-              <span className="text-[12px] font-bold">MAX</span>
-          </button>
-          <span className="text-[11px] font-bold text-center text-gray-400 -mt-2">Best Quality</span>
-          <button
-            onClick={() => navigate('/live-tryon', { state: { product: incomingProduct || product } })}
-            className="h-12 w-12 rounded-full flex items-center justify-center border border-[#6157FF]/50 bg-black/30 text-[#6157FF] backdrop-blur-md active:scale-95 transition-all"
-          >
-              <span className="material-symbols-outlined text-[20px]">videocam</span>
-          </button>
-          <span className="text-[11px] font-bold text-center text-gray-400 -mt-2">Live</span>
-          <button
-            onClick={() => setShowHeatmap(!showHeatmap)}
-            className={`h-12 w-12 rounded-full flex items-center justify-center border transition-all duration-300 backdrop-blur-md ${showHeatmap ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'bg-black/30 border-white/10 text-white'}`}
-          >
-              <span className="material-symbols-outlined text-[20px]">layers</span>
-          </button>
-          <span className="text-[11px] font-bold text-center text-gray-400 -mt-2">Heatmap</span>
+      <div className="absolute left-5 bottom-32 z-30 flex flex-col gap-3.5 items-center">
+        <button
+          onClick={() => runTryOn('fast')}
+          disabled={generating}
+          aria-label="Try again"
+          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-[#e89b6b] backdrop-blur-md active:scale-95 transition-transform disabled:opacity-40"
+        >
+          <span className={`material-symbols-outlined text-[19px] ${generating ? 'animate-spin' : ''}`} aria-hidden="true">refresh</span>
+        </button>
+        <button
+          onClick={() => runTryOn('2k')}
+          disabled={generating}
+          aria-label="Best quality render"
+          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-[#e89b6b] backdrop-blur-md active:scale-95 transition-transform disabled:opacity-40"
+        >
+          <span className="text-[10px] font-bold tracking-wide">MAX</span>
+        </button>
+        <button
+          onClick={() => navigate('/live-tryon', { state: { product: incomingProduct || product } })}
+          aria-label="Live try-on"
+          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-[#e89b6b] backdrop-blur-md active:scale-95 transition-transform"
+        >
+          <span className="material-symbols-outlined text-[19px]" aria-hidden="true">videocam</span>
+        </button>
+        <button
+          onClick={() => setShowHeatmap(!showHeatmap)}
+          aria-label="Toggle fit heatmap"
+          aria-pressed={showHeatmap}
+          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all backdrop-blur-md ${showHeatmap ? 'bg-white text-black border-white' : 'bg-black/30 border-white/15 text-white'}`}
+        >
+          <span className="material-symbols-outlined text-[19px]" aria-hidden="true">layers</span>
+        </button>
       </div>
 
       {/* View Controls (Right Float) */}
-      <div className="absolute right-6 bottom-32 z-30 flex flex-col gap-3">
-          {['Front', 'Side', 'Back'].map((v) => (
-              <button 
-                key={v}
-                onClick={() => setView(v as any)}
-                className={`h-10 w-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md ${view === v ? 'bg-white text-black border-white' : 'bg-black/30 border-white/10 text-gray-400 hover:text-white'}`}
-              >
-                  <span className="text-[11px] font-bold">{v[0]}</span>
-              </button>
-          ))}
-          <div className="h-[1px] w-6 bg-white/10 mx-auto my-1"></div>
-          <button 
-            onClick={() => setIsZoomed(!isZoomed)}
-            className={`h-10 w-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md ${isZoomed ? 'bg-white text-black border-white' : 'bg-black/30 border-white/10 text-gray-400 hover:text-white'}`}
+      <div className="absolute right-5 bottom-32 z-30 flex flex-col gap-2.5 items-center">
+        {['Front', 'Side', 'Back'].map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v as any)}
+            aria-label={`${v} view`}
+            aria-pressed={view === v}
+            className={`h-10 w-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md text-[11px] font-semibold ${view === v ? 'bg-white text-black border-white' : 'bg-black/30 border-white/15 text-white/60'}`}
           >
-              {isZoomed ? <span className="material-symbols-outlined text-[18px]">zoom_out</span> : <span className="material-symbols-outlined text-[18px]">zoom_in</span>}
+            {v[0]}
           </button>
-          <div className="h-[1px] w-6 bg-white/10 mx-auto my-1"></div>
-          <button 
-            onClick={() => setLighting(lighting === 'Studio' ? 'Outdoor' : lighting === 'Outdoor' ? 'Night' : 'Studio')}
-            className="h-10 w-10 rounded-full flex items-center justify-center border border-white/10 bg-black/30 text-gray-400 hover:text-white backdrop-blur-md"
-          >
-              {lighting === 'Studio' ? <span className="material-symbols-outlined text-[18px]">light_mode</span> : lighting === 'Outdoor' ? <span className="material-symbols-outlined text-[18px]">cloud</span> : <span className="material-symbols-outlined text-[18px]">dark_mode</span>}
-          </button>
+        ))}
+        <div className="h-px w-5 bg-white/10 my-0.5"></div>
+        <button
+          onClick={() => setIsZoomed(!isZoomed)}
+          aria-label={isZoomed ? 'Zoom out' : 'Zoom in'}
+          className={`h-10 w-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md ${isZoomed ? 'bg-white text-black border-white' : 'bg-black/30 border-white/15 text-white/60'}`}
+        >
+          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{isZoomed ? 'zoom_out' : 'zoom_in'}</span>
+        </button>
+        <div className="h-px w-5 bg-white/10 my-0.5"></div>
+        <button
+          onClick={() => setLighting(lighting === 'Studio' ? 'Outdoor' : lighting === 'Outdoor' ? 'Night' : 'Studio')}
+          aria-label="Cycle lighting"
+          className="h-10 w-10 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-white/60 backdrop-blur-md active:scale-95 transition-transform"
+        >
+          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{lighting === 'Studio' ? 'light_mode' : lighting === 'Outdoor' ? 'wb_cloudy' : 'dark_mode'}</span>
+        </button>
       </div>
 
       {/* Size Switcher (Bottom Float Dock) */}
-      <div className="absolute bottom-10 left-0 right-0 flex flex-col items-center gap-3 z-40">
-          
-          {/* Fabric Drape Indicator */}
-          <div className="flex items-center gap-2 opacity-80 mb-1">
-              <span className="material-symbols-outlined text-[14px] text-[#6157FF] animate-bounce">accessibility</span>
-              <span className="text-[12px] font-bold text-gray-300">
-                  {size === 'XS' || size === 'S' ? 'Structured Fit' : size === 'XL' ? 'Flowy Drape' : 'Natural Fall'}
-              </span>
-          </div>
+      <div className="absolute bottom-[104px] left-0 right-0 flex flex-col items-center gap-3 z-40">
+        <div className="flex items-center gap-2 opacity-80">
+          <span className="material-symbols-outlined text-[13px] text-[#e89b6b]" aria-hidden="true">accessibility</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
+            {size === 'XS' || size === 'S' ? 'Structured fit' : size === 'XL' ? 'Flowy drape' : 'Natural fall'}
+          </span>
+        </div>
 
-          <div className="flex items-center gap-2 p-1.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl">
-              {sizes.map((s) => {
-                  const isSelected = size === s;
-                  const isRecommended = s === product.recommendedSize;
-                  
-                  return (
-                    <button
-                        key={s}
-                        onClick={() => handleSizeChange(s)}
-                        className={`relative h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
-                            isSelected 
-                            ? 'bg-white text-black scale-110 shadow-[0_0_15px_rgba(255,255,255,0.3)]' 
-                            : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        } ${isRecommended && !isSelected ? 'border border-[#6157FF]/50 text-[#6157FF]' : ''}`}
-                    >
-                        {s}
-                        {isRecommended && !isSelected && (
-                            <div className="absolute -top-1 -right-1 h-2 w-2 bg-[#6157FF] rounded-full shadow-[0_0_5px_rgba(97,87,255,0.8)]"></div>
-                        )}
-                    </button>
-                  );
-              })}
-          </div>
+        <div className="flex items-center gap-1.5 p-1.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full">
+          {sizes.map((s) => {
+            const isSelected = size === s;
+            const isRecommended = s === product.recommendedSize;
+
+            return (
+              <button
+                key={s}
+                onClick={() => handleSizeChange(s)}
+                aria-label={`Size ${s}${isRecommended ? ' (recommended)' : ''}`}
+                aria-pressed={isSelected}
+                className={`relative h-9 w-9 rounded-full flex items-center justify-center text-[13px] font-semibold transition-all duration-300 ${
+                  isSelected
+                    ? 'bg-white text-black scale-110'
+                    : 'text-white/50 hover:text-white hover:bg-white/5'
+                } ${isRecommended && !isSelected ? 'border border-[#e89b6b]/60 text-[#e89b6b]' : ''}`}
+              >
+                {s}
+                {isRecommended && !isSelected && (
+                  <div className="absolute -top-1 -right-1 h-2 w-2 bg-[#e89b6b] rounded-full"></div>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Bottom Actions */}
-      <div className="absolute bottom-0 left-0 right-0 z-50 p-6 bg-gradient-to-t from-[#0E0E0E] via-[#0E0E0E]/80 to-transparent">
+      <div className="absolute bottom-0 left-0 right-0 z-50 p-6 pb-8 pb-safe bg-gradient-to-t from-[#100d09] via-[#100d09]/85 to-transparent">
         <div className="flex flex-col gap-3 max-w-md mx-auto">
-          <button 
+          <button
             onClick={toggleWishlist}
-            className="w-full h-14 rounded-2xl bg-[#6157FF] text-white font-bold text-xs shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="w-full h-[54px] rounded-full bg-[#f1ede3] text-[#14120f] font-semibold text-[12px] uppercase tracking-[0.12em] active:scale-[0.97] transition-transform flex items-center justify-center gap-2"
           >
-            {isLiked ? 'Saved to Wishlist' : 'Add to Wishlist'}
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0", color: isLiked ? "black" : "inherit" }}>favorite</span>
+            {isLiked ? 'Saved to wishlist' : 'Add to wishlist'}
+            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
           </button>
-          <button 
+          <button
             onClick={() => navigate('/home')}
-            className="w-full h-12 rounded-2xl bg-white/5 border border-white/10 text-white/60 font-bold text-[12px] active:scale-95 transition-all"
+            className="w-full h-12 rounded-full border border-white/15 text-white/70 font-semibold text-[11px] uppercase tracking-[0.12em] active:scale-[0.97] transition-transform"
           >
-            Explore More Outfits
+            Explore more outfits
           </button>
         </div>
       </div>

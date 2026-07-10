@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { doc, setDoc } from 'firebase/firestore';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
+import { AppBar, Button, Eyebrow, Spinner } from '../components/ui';
 
 const DEMO_AUTH_KEY = 'zipright_demo_user';
 
@@ -159,6 +160,10 @@ function buildFirestoreMeasurements(measurements: SmartFitMeasurements) {
   return firestoreMeasurements;
 }
 
+/** Glass pill button used over the camera/preview surface. */
+const overlayPillCls =
+  'bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-white/15 cursor-pointer';
+
 const SmartFitScan: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -268,11 +273,11 @@ const SmartFitScan: React.FC = () => {
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext("2d");
-      
+
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
         const imageBase64 = canvas.toDataURL("image/jpeg");
-        
+
         if (step === 2) {
           setCapturedFrontImage(imageBase64);
           setFrontImage(null);
@@ -546,22 +551,23 @@ const SmartFitScan: React.FC = () => {
 
   if (step === 4) {
     return (
-      <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans">
-        <div className="flex items-center justify-center px-5 py-6 bg-surface-1 border-b border-line relative">
-          <button onClick={() => setStep(3)} className="absolute left-5 h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 active:scale-90 transition-transform">
-            <span className="material-symbols-outlined text-[20px] text-ink">close</span>
+      <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
+        <AppBar title="Your measure" hideBack trailing={
+          <button onClick={() => setStep(3)} aria-label="Close" className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform">
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
           </button>
-          <h1 className="text-lg font-bold">Your Fit Profile</h1>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-6 pb-32">
-          <p className="text-center text-[#6157FF] text-xs font-bold mb-2">Estimated via AI</p>
-          <h2 className="text-2xl font-bold mb-6 text-center">Body Measurements</h2>
+        } />
+        <div className="flex-1 overflow-y-auto px-6 py-8 pb-36">
+          <Eyebrow className="text-center mb-3">Estimated via AI</Eyebrow>
+          <h2 className="font-display text-[32px] font-light text-center mb-8">
+            Body <em className="font-medium">measurements.</em>
+          </h2>
           {showApproximateFitBadge && (
-            <div className="mb-6 rounded-2xl border border-[#6157FF]/25 bg-[#6157FF]/10 px-4 py-3 text-center text-sm text-[#E7D1AF]">
-              ⚠️ Approximate fit — improve posture for better accuracy
+            <div className="mb-6 rounded-2xl border border-warning/25 bg-warning-soft px-4 py-3 text-center text-[13px] text-warning">
+              Approximate fit — improve posture for better accuracy
             </div>
           )}
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col rounded-card border border-line bg-surface-1 px-5">
             {measurements ? (
               Object.entries({
                 Chest: measurements.chest,
@@ -571,105 +577,97 @@ const SmartFitScan: React.FC = () => {
                 Legs: measurements.legs ?? '--',
                 Torso: measurements.torso ?? '--'
               }).map(([label, val]) => (
-                <div key={label} className="bg-surface-1 border border-line rounded-2xl p-5 flex items-center justify-between">
-                  <span className="text-ink-soft font-bold">{label}</span>
-                  <span className="text-2xl font-bold text-ink">{val} <span className="text-sm font-normal text-ink-soft">cm</span></span>
+                <div key={label} className="py-4 flex items-baseline justify-between border-b border-line last:border-none">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">{label}</span>
+                  <span className="font-display text-[24px] font-medium text-ink">
+                    {val} <span className="text-[12px] font-sans font-normal text-ink-faint">cm</span>
+                  </span>
                 </div>
               ))
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center py-16 opacity-60">
-                <div className="h-10 w-10 border-2 border-line border-t-[#6157FF] rounded-full animate-spin mb-4"></div>
-                <p className="text-sm font-bold">Processing...</p>
+              <div className="flex-1 flex flex-col items-center justify-center py-16 opacity-70">
+                <Spinner size={28} className="text-ink-faint mb-4" />
+                <p className="eyebrow">Processing…</p>
               </div>
             )}
           </div>
-          <p className="text-center text-[11px] text-ink-faint mt-6 px-4">
+          <p className="text-center text-[11px] text-ink-faint mt-6 px-4 leading-relaxed">
             Measurements are estimated based on your input and images. Accuracy may vary depending on clothing and camera angle.
           </p>
         </div>
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full sm:max-w-[430px] px-5 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0 to-transparent">
-          <button 
-            onClick={handleUseMeasurements}
+        <div className="fixed bottom-0 inset-x-0 z-50 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
+          <Button
+            size="lg"
+            fullWidth
+            loading={savingMeasurements}
             disabled={!hasCompleteScan || savingMeasurements}
-            className={`w-full h-14 rounded-2xl font-bold text-[15px] shadow-xl transition-all flex items-center justify-center gap-2 ${hasCompleteScan && !savingMeasurements ? 'bg-gradient-to-r from-[#6157FF] to-[#6157FF] text-ink shadow-[#6157FF]/20 active:scale-[0.97]' : 'bg-surface-1 text-ink-soft border border-line cursor-not-allowed'}`}
+            onClick={handleUseMeasurements}
           >
-            {savingMeasurements ? (
-              <>
-                <div className="h-5 w-5 border-2 border-line border-t-white rounded-full animate-spin"></div>
-                Saving...
-              </>
-            ) : (
-              'Use These Measurements'
-            )}
-          </button>
+            Use these measurements
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans">
-      <div className="flex items-center justify-between px-5 py-4 bg-surface-0/95 backdrop-blur-xl border-b border-line">
-        <button aria-label="Go back" onClick={handleBack} disabled={loading} className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform disabled:opacity-50 z-10">
-          <span className="material-symbols-outlined text-[22px] text-ink">arrow_back</span>
-        </button>
-        <h1 className="text-base font-bold absolute w-full text-center left-0">Smart Fit Scan</h1>
-        <div className="w-10"></div>
-      </div>
+    <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
+      <AppBar title="Smart Fit Scan" onBack={handleBack} />
 
       {loading ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-5 py-6">
-          <div className="h-16 w-16 mb-6 rounded-full border-4 border-line border-t-[#6157FF] animate-spin"></div>
-          <h2 className="text-2xl font-bold mb-2">Analyzing your body...</h2>
-          <p className="text-ink-soft text-sm">Extracting keypoints and dimensions</p>
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 text-center">
+          <Spinner size={36} className="text-brand mb-7" />
+          <Eyebrow className="mb-3">The scan</Eyebrow>
+          <h2 className="font-display text-[28px] font-light mb-2">Reading your <em className="font-medium">geometry.</em></h2>
+          <p className="text-ink-soft text-[13.5px]">Extracting keypoints and dimensions</p>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col px-5 py-6">
-          <div className="text-center mb-6">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <p className="text-[#6157FF] text-xs font-bold">Step {step} of 3</p>
-              {step > 1 && <span className="material-symbols-outlined text-[#4ADE80] text-sm">check_circle</span>}
+        <div className="flex-1 flex flex-col px-6 py-6">
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Eyebrow>Step {step} of 3</Eyebrow>
+              {step > 1 && <span className="material-symbols-outlined filled text-success text-[15px]" aria-hidden="true">check_circle</span>}
             </div>
-            <h2 className="text-2xl font-bold mb-2">
-              {step === 1 ? 'What is your height?' : 'Get accurate body measurements'}
+            <h2 className="font-display text-[28px] leading-[1.08] font-light mb-2">
+              {step === 1 ? <>What is your <em className="font-medium">height?</em></> : <>Capture your <em className="font-medium">{step === 2 ? 'front.' : 'profile.'}</em></>}
             </h2>
-            <p className="text-ink-soft text-sm">
+            <p className="text-ink-soft text-[13.5px]">
               {step === 1 && 'We use this to scale your measurements accurately.'}
-              {step === 2 && 'Stand straight and capture front view'}
-              {step === 3 && 'Turn to the side and capture side view'}
+              {step === 2 && 'Stand straight and capture your front view.'}
+              {step === 3 && 'Turn to the side and capture your side view.'}
             </p>
           </div>
 
           {errorMsg && (
-            <div className="bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 rounded-xl p-4 mb-6">
-              <p className="text-[#FF4D6D] text-sm text-center font-bold">{errorMsg}</p>
+            <div className="bg-danger-soft border border-danger/25 rounded-2xl p-4 mb-6" role="alert">
+              <p className="text-danger text-[13px] text-center font-medium">{errorMsg}</p>
             </div>
           )}
 
           {step === 1 ? (
             <div className="flex-1 flex flex-col justify-center">
               <div className="relative mb-8">
-                <input 
-                  type="number" 
-                  value={heightCm} 
+                <input
+                  type="number"
+                  value={heightCm}
                   onChange={(e) => {
                     const nextHeight = e.target.value;
                     setHeightCm(nextHeight);
 
                     const parsedHeight = parseFloat(nextHeight);
                     updateHeight(Number.isFinite(parsedHeight) && parsedHeight > 0 ? parsedHeight : 0);
-                  }} 
-                  placeholder="e.g. 175"
-                  className="w-full h-16 bg-surface-1 border border-line rounded-2xl px-5 pr-16 text-ink font-bold text-xl placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors text-center" 
+                  }}
+                  placeholder="175"
+                  className="w-full h-20 bg-surface-1 border border-line rounded-card px-5 pr-16 text-ink font-display font-medium text-[34px] placeholder:text-ink-faint focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow] text-center"
                 />
-                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint font-bold">cm</span>
+                <span className="absolute right-6 top-1/2 -translate-y-1/2 text-ink-faint text-[13px] font-semibold uppercase tracking-[0.1em]">cm</span>
               </div>
             </div>
           ) : (
-            <div 
+            <div
               onClick={!isCameraOn && !currentImage ? startCamera : undefined}
-              className={`flex-1 bg-surface-1 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center relative overflow-hidden mb-8 transition-all ${
-                !isCameraOn && !currentImage ? 'border-line active:scale-[0.98] cursor-pointer' : 'border-transparent'
+              className={`flex-1 bg-surface-1 border border-dashed rounded-card flex flex-col items-center justify-center relative overflow-hidden mb-8 transition-all ${
+                !isCameraOn && !currentImage ? 'border-line-strong active:scale-[0.99] cursor-pointer' : 'border-transparent'
               }`}
             >
               <input
@@ -688,7 +686,7 @@ const SmartFitScan: React.FC = () => {
                 ref={currentUploadType === 'side' ? fileInputRef : undefined}
                 onChange={(e) => handleImageUpload("side", e)}
               />
-              
+
               {isCameraOn ? (
                 <div className="absolute inset-0 w-full h-full bg-black">
                   <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" />
@@ -699,14 +697,13 @@ const SmartFitScan: React.FC = () => {
                       <path d="M50 200 L 40 380 L 60 380 L 75 250 L 90 380 L 110 380 L 100 200" />
                     </svg>
                   </div>
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-                    <button onClick={handleCapture} className="h-16 w-16 bg-surface-3 backdrop-blur-md rounded-full flex items-center justify-center border-2 border-white shadow-xl active:scale-90 transition-transform cursor-pointer z-20">
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3">
+                    <button onClick={handleCapture} aria-label="Capture photo" className="h-16 w-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-2 border-white shadow-xl active:scale-90 transition-transform cursor-pointer z-20">
                       <div className="h-12 w-12 rounded-full bg-white shadow-inner"></div>
                     </button>
-                    <span className="text-ink text-xs font-bold bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">Capture</span>
-                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-line z-20 cursor-pointer">
-                      <span className="material-symbols-outlined text-ink text-sm">upload</span>
-                      <span className="text-[13px] font-bold text-ink">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
+                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className={`${overlayPillCls} z-20`}>
+                      <span className="material-symbols-outlined text-white text-[15px]" aria-hidden="true">upload</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white">{step === 2 ? 'Upload front photo' : 'Upload side photo'}</span>
                     </label>
                   </div>
                 </div>
@@ -715,36 +712,36 @@ const SmartFitScan: React.FC = () => {
                   <img src={currentImage} alt="Preview" className="w-full h-full object-cover transform -scale-x-100" />
                   <div className="absolute inset-0 bg-black/20 pointer-events-none"></div>
                   <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-20">
-                    <button onClick={handleRetake} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-line">
-                      <span className="material-symbols-outlined text-ink text-sm">refresh</span>
-                      <span className="text-[13px] font-bold text-ink">Retake Photo</span>
+                    <button onClick={handleRetake} className={overlayPillCls}>
+                      <span className="material-symbols-outlined text-white text-[15px]" aria-hidden="true">refresh</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white">Retake photo</span>
                     </button>
-                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-line cursor-pointer">
-                      <span className="material-symbols-outlined text-ink text-sm">upload</span>
-                      <span className="text-[13px] font-bold text-ink">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
+                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className={overlayPillCls}>
+                      <span className="material-symbols-outlined text-white text-[15px]" aria-hidden="true">upload</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white">{step === 2 ? 'Upload front photo' : 'Upload side photo'}</span>
                     </label>
                   </div>
                 </div>
               ) : (
                 <>
                   <div className="z-10 flex flex-col items-center">
-                    <div className="h-16 w-16 rounded-full bg-surface-2 flex items-center justify-center mb-4 border border-line shadow-lg">
-                      <span className="material-symbols-outlined text-3xl text-[#6157FF]">videocam</span>
+                    <div className="h-16 w-16 rounded-full border border-line-strong flex items-center justify-center mb-4">
+                      <span className="material-symbols-outlined text-[28px] text-ink-faint" aria-hidden="true">videocam</span>
                     </div>
-                    <p className="text-ink font-bold text-[15px] mb-1">Tap to Open Camera</p>
-                    <p className="text-ink-soft text-xs">Allow access when prompted</p>
+                    <p className="text-ink font-semibold text-[15px] mb-1">Tap to open camera</p>
+                    <p className="text-ink-faint text-[12px]">Allow access when prompted</p>
                     {cameraError && (
-                      <p className="text-[#FF4D6D] text-xs mt-3 bg-[#FF4D6D]/10 px-3 py-1 rounded-full border border-[#FF4D6D]/20">
+                      <p className="text-danger text-[12px] mt-3 bg-danger-soft px-3 py-1 rounded-full border border-danger/25">
                         Camera blocked. Tap to upload instead.
                       </p>
                     )}
-                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="mt-4 bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-line cursor-pointer">
-                      <span className="material-symbols-outlined text-ink text-sm">upload</span>
-                      <span className="text-[13px] font-bold text-ink">{step === 2 ? 'Upload Front Photo' : 'Upload Side Photo'}</span>
+                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="mt-5 border border-line-strong px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform cursor-pointer">
+                      <span className="material-symbols-outlined text-ink-soft text-[15px]" aria-hidden="true">upload</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft">{step === 2 ? 'Upload front photo' : 'Upload side photo'}</span>
                     </label>
                   </div>
-                  <div className="absolute inset-0 flex justify-center items-center pointer-events-none opacity-[0.1]">
-                    <svg width="150" height="400" viewBox="0 0 150 400" fill="none" stroke="white" strokeWidth="2" strokeDasharray="8 8">
+                  <div className="absolute inset-0 flex justify-center items-center pointer-events-none opacity-[0.08]">
+                    <svg width="150" height="400" viewBox="0 0 150 400" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="8 8">
                       <path d="M75 20 C 50 20, 50 70, 75 70 C 100 70, 100 20, 75 20" />
                       <path d="M50 70 L 20 150 L 30 150 L 50 100 L 50 200 L 75 250 L 100 200 L 100 100 L 120 150 L 130 150 L 100 70 Z" />
                       <path d="M50 200 L 40 380 L 60 380 L 75 250 L 90 380 L 110 380 L 100 200" />
@@ -756,24 +753,18 @@ const SmartFitScan: React.FC = () => {
           )}
 
           <div className="flex flex-col gap-3">
-            <button 
-              onClick={isReadyToProceed ? handleNextStep : (!isCameraOn && step > 1 ? startCamera : undefined)}
-              disabled={isCameraOn || (step === 1 && !heightCm)}
-              className={`w-full h-14 rounded-2xl font-bold text-[15px] transition-all flex items-center justify-center gap-2 ${
-                isReadyToProceed
-                  ? 'bg-gradient-to-r from-[#6157FF] to-[#6157FF] text-ink shadow-xl shadow-[#6157FF]/20 active:scale-[0.97]'
-                  : isCameraOn
-                  ? 'bg-transparent text-transparent'
-                  : 'bg-surface-1 text-ink-soft border border-line active:bg-[#222222]'
-              }`}
-            >
-              {!isCameraOn && (
-                <>
-                  {isReadyToProceed ? 'Continue' : (step === 1 ? 'Next' : step === 2 ? 'Capture Front View' : 'Capture Side View')}
-                  {isReadyToProceed && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
-                </>
-              )}
-            </button>
+            {!isCameraOn && (
+              <Button
+                size="lg"
+                fullWidth
+                variant={isReadyToProceed ? 'primary' : 'outline'}
+                trailingIcon={isReadyToProceed ? 'arrow_forward' : undefined}
+                disabled={step === 1 && !heightCm}
+                onClick={isReadyToProceed ? handleNextStep : (step > 1 ? startCamera : undefined)}
+              >
+                {isReadyToProceed ? 'Continue' : (step === 1 ? 'Next' : step === 2 ? 'Capture front view' : 'Capture side view')}
+              </Button>
+            )}
           </div>
         </div>
       )}

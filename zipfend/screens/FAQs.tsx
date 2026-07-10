@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { AppBar, Eyebrow, Button } from '../components/ui';
 
 const FAQ_ITEMS = [
   {
@@ -34,43 +35,33 @@ const FAQs: React.FC = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans">
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-6 bg-surface-0/80 backdrop-blur-xl border-b border-line">
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-          className="h-12 w-12 flex items-center justify-center rounded-full active:scale-90 transition-transform"
-        >
-          <span className="material-symbols-outlined text-[24px] text-[#6157FF]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h1 className="text-xs font-bold text-[#6157FF]">FAQs</h1>
-        <div className="w-12"></div>
-      </div>
+    <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
+      <AppBar title="FAQs" onBack={() => navigate(-1)} />
 
-      <div className="flex-1 px-5 py-8 pb-24 max-w-md mx-auto w-full">
-        <h2 className="font-sans text-[34px] leading-tight mb-2">
+      <div className="flex-1 px-6 py-8 pb-24 w-full">
+        <Eyebrow className="mb-3">Help</Eyebrow>
+        <h2 className="font-display text-[34px] leading-[1.06] font-light mb-2">
           Questions,
           <br />
-          <em className="text-[#6157FF]">answered.</em>
+          <em className="font-medium text-brand">answered.</em>
         </h2>
-        <p className="text-ink-soft text-sm mb-8">Everything about sizing, try-on, and your data.</p>
+        <p className="text-ink-soft text-[14px] mb-8">Everything about sizing, try-on, and your data.</p>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col">
           {FAQ_ITEMS.map((item, i) => {
             const open = openIndex === i;
             return (
-              <div key={i} className="rounded-2xl border border-line bg-surface-2 overflow-hidden">
+              <div key={i} className="border-b border-line">
                 <button
                   onClick={() => setOpenIndex(open ? null : i)}
                   aria-expanded={open}
-                  className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left active:bg-surface-2 transition-colors"
+                  className="w-full flex items-center justify-between gap-4 py-5 text-left"
                 >
-                  <span className="text-[14px] font-bold leading-snug">{item.q}</span>
+                  <span className="text-[15px] font-medium leading-snug text-ink">{item.q}</span>
                   <motion.span
                     animate={{ rotate: open ? 45 : 0 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    className="material-symbols-outlined text-[#6157FF] text-[20px] shrink-0"
+                    className="material-symbols-outlined text-ink-faint text-[20px] shrink-0"
                     aria-hidden="true"
                   >
                     add
@@ -85,7 +76,7 @@ const FAQs: React.FC = () => {
                       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                       className="overflow-hidden"
                     >
-                      <p className="px-5 pb-5 text-[13px] leading-relaxed text-ink-soft">{item.a}</p>
+                      <p className="pb-5 pr-8 text-[13.5px] leading-relaxed text-ink-soft">{item.a}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -94,14 +85,11 @@ const FAQs: React.FC = () => {
           })}
         </div>
 
-        <div className="mt-10 rounded-2xl border border-[#6157FF]/20 bg-[#6157FF]/5 p-5 text-center">
-          <p className="text-[13px] text-ink-soft mb-3">Still curious? The AI Stylist can answer styling questions any time.</p>
-          <button
-            onClick={() => navigate('/stylist')}
-            className="text-[#6157FF] text-xs font-bold active:scale-95 transition-transform"
-          >
-            Ask the Stylist →
-          </button>
+        <div className="mt-10 rounded-card border border-line bg-surface-1 p-6 text-center">
+          <p className="text-[13.5px] text-ink-soft mb-4 leading-relaxed">Still curious? The AI Stylist can answer styling questions any time.</p>
+          <Button variant="outline" trailingIcon="arrow_forward" onClick={() => navigate('/stylist')}>
+            Ask the stylist
+          </Button>
         </div>
       </div>
     </div>

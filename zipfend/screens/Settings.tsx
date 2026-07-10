@@ -15,6 +15,21 @@ import {
   adminSetSellerStatus,
   SellerProfile
 } from '../services/ziprightApi';
+import {
+  cn,
+  motion,
+  AppBar,
+  Button,
+  Input,
+  TextArea,
+  ListRow,
+  Eyebrow,
+  Divider,
+  Modal,
+  Sheet,
+  EmptyState,
+  SegmentedControl,
+} from '../components/ui';
 
 const DEMO_AUTH_KEY = 'zipright_demo_user';
 
@@ -98,16 +113,46 @@ interface FirestoreErrorInfo {
   }
 }
 
+/** Editorial hairline toggle — settings switches. */
+const Toggle: React.FC<{ on: boolean; onClick: () => void; label: string }> = ({ on, onClick, label }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={on}
+    aria-label={label}
+    onClick={onClick}
+    className={cn(
+      'w-11 h-[26px] rounded-full flex items-center px-0.5 shrink-0 transition-colors duration-200',
+      on ? 'bg-brand' : 'bg-surface-3 border border-line',
+    )}
+  >
+    <span
+      aria-hidden="true"
+      className={cn(
+        'w-[19px] h-[19px] rounded-full bg-surface-0 shadow-sm transition-transform duration-200',
+        on ? 'translate-x-[19px]' : 'translate-x-0',
+      )}
+    />
+  </button>
+);
+
+/** Grouped hairline menu container. */
+const MenuGroup: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <div className={cn('rounded-card border border-line bg-surface-1 px-4 divide-y divide-line overflow-hidden', className)}>
+    {children}
+  </div>
+);
+
 const Settings: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { userProfile, isHydrated, refreshProfile } = useUserProfile();
-  
+
   const [view, setView] = useState<ViewState>('main');
   const [addressStep, setAddressStep] = useState<'map' | 'form'>('map');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-  
+
   // Seller State
   const [userRole, setUserRoleState] = useState(getUserRole());
   const [sellerStatus, setSellerStatusState] = useState(getSellerStatus());
@@ -116,7 +161,7 @@ const Settings: React.FC = () => {
   const [adminReason, setAdminReason] = useState('');
   const [adminActionTarget, setAdminActionTarget] = useState<SellerProfile | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
-  
+
   const [sellerFormData, setSellerFormData] = useState({
       brandName: '',
       contactName: '',
@@ -126,7 +171,7 @@ const Settings: React.FC = () => {
       taxId: '',
       brandDescription: ''
   });
-  
+
   // Permissions State synced with localStorage
   const [permissionsState, setPermissionsState] = useState({
       camera: localStorage.getItem('zipright_camera') === 'granted',
@@ -144,7 +189,7 @@ const Settings: React.FC = () => {
     ((auth.currentUser as typeof auth.currentUser & { photoUrl?: string })?.photoUrl ?? '') ||
     'https://picsum.photos/seed/profile/200/200'
   );
-  
+
   const [userData, setUserData] = useState({
       firstName: '',
       lastName: '',
@@ -235,14 +280,14 @@ const Settings: React.FC = () => {
     const init = async () => {
         const user = auth.currentUser;
         const demoUser = readDemoUser();
-        
+
         if (!user && !demoUser) {
             navigate('/login');
             return;
         }
 
         setLoading(true);
-        
+
         // Sync Permissions
         const nextPerms = {
             camera: localStorage.getItem('zipright_camera') === 'granted',
@@ -356,7 +401,7 @@ const Settings: React.FC = () => {
             setAddresses([]);
             setSellerStatusState('none');
         }
-        
+
         setLoading(false);
     };
 
@@ -444,9 +489,9 @@ const Settings: React.FC = () => {
 
   // Addresses Functions
   const openAddAddress = () => {
-      setEditAddressData({ 
-          ...defaultAddressData, 
-          id: '', 
+      setEditAddressData({
+          ...defaultAddressData,
+          id: '',
           name: userData.firstName + ' ' + userData.lastName,
           phone: userData.phone.replace(/\s+/g, '')
       });
@@ -523,8 +568,8 @@ const Settings: React.FC = () => {
   const useCurrentLocation = () => {
       if ("geolocation" in navigator) {
           navigator.geolocation.getCurrentPosition((pos) => {
-                  setEditAddressData({ 
-                      ...editAddressData, 
+                  setEditAddressData({
+                      ...editAddressData,
                       coords: { lat: pos.coords.latitude, lng: pos.coords.longitude },
                       area: 'Current Location'
                   });
@@ -616,7 +661,7 @@ const Settings: React.FC = () => {
         'Community Support',
         'Save 3 favourite brands'
       ],
-      color: 'bg-gray-400',
+      color: 'bg-surface-2 text-ink-soft',
       planData: PLANS.FREE
     },
     {
@@ -634,7 +679,7 @@ const Settings: React.FC = () => {
         'Return Risk Score',
         'Early feature access'
       ],
-      color: 'bg-blue-500',
+      color: 'bg-info-soft text-info',
       planData: PLANS.STARTER
     },
     {
@@ -652,7 +697,7 @@ const Settings: React.FC = () => {
         'Priority Support',
         'Exclusive Brand Discounts'
       ],
-      color: 'bg-purple-500',
+      color: 'bg-brand text-on-brand',
       popular: true,
       planData: PLANS.PRO
     },
@@ -671,7 +716,7 @@ const Settings: React.FC = () => {
         'VIP Support & Free Returns',
         'Elite Rewards Program'
       ],
-      color: 'bg-black dark:bg-white',
+      color: 'bg-ink text-ink-invert',
       planData: PLANS.ELITE
     }
   ];
@@ -679,88 +724,77 @@ const Settings: React.FC = () => {
   // --- VIEW: SELLER APPLY ---
   if (view === 'seller-apply') {
     return (
-      <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden">
-        <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-          <button aria-label="Go back" onClick={() => setView('main')} className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"><span className="material-symbols-outlined">arrow_back</span></button>
-          <h2 className="text-lg font-bold text-[#6157FF]">Seller Application</h2>
-          <div className="w-8"></div>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 no-scrollbar">
-          <div className="flex flex-col gap-6">
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Brand / Store Name *</label>
-              <input 
-                type="text" 
-                value={sellerFormData.brandName}
-                onChange={(e) => setSellerFormData({...sellerFormData, brandName: e.target.value})}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                placeholder="e.g. ZipStyle"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Contact Person Name *</label>
-              <input 
-                type="text" 
-                value={sellerFormData.contactName}
-                onChange={(e) => setSellerFormData({...sellerFormData, contactName: e.target.value})}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                placeholder="e.g. John Doe"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Contact Email *</label>
-              <input 
-                type="email" 
-                value={sellerFormData.email}
-                onChange={(e) => setSellerFormData({...sellerFormData, email: e.target.value})}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                placeholder="seller@example.com"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Contact Phone *</label>
-              <input 
-                type="text" 
-                value={sellerFormData.phone}
-                onChange={(e) => setSellerFormData({...sellerFormData, phone: e.target.value})}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                placeholder="e.g. +91 90000 00000"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Website or Store Link</label>
-              <input 
-                type="text" 
-                value={sellerFormData.storeLink}
-                onChange={(e) => setSellerFormData({...sellerFormData, storeLink: e.target.value})}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                placeholder="https://yourstore.com"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Tax ID / GSTIN (Optional)</label>
-              <input 
-                type="text" 
-                value={sellerFormData.taxId}
-                onChange={(e) => setSellerFormData({...sellerFormData, taxId: e.target.value})}
-                className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                placeholder="e.g. 29AAAAA0000A1Z5"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Brand Description / Story (Optional)</label>
-              <textarea 
-                value={sellerFormData.brandDescription}
-                onChange={(e) => setSellerFormData({...sellerFormData, brandDescription: e.target.value})}
-                className="w-full h-24 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 py-3 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] resize-none"
-                placeholder="Describe your brand and products..."
-              />
-            </div>
-            <div className="pt-6 pb-8 flex flex-col gap-3">
-              <p className="text-[12px] text-[#555555] dark:text-ink-soft font-bold text-center leading-tight">By submitting, you agree to the ZipRIGHT Seller Terms of Use.</p>
-              <button onClick={handleSellerApply} className="w-full h-14 rounded-2xl bg-surface-0 text-ink dark:bg-white dark:text-[#111111] font-bold text-lg shadow-xl active:scale-95">Submit Application</button>
-            </div>
+      <div className="flex flex-col h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-hidden">
+        <AppBar title="Seller Application" onBack={() => setView('main')} />
+        <div className="flex-1 overflow-y-auto px-6 pt-8 pb-40 no-scrollbar">
+          <div className="mb-8">
+            <Eyebrow>Become a partner</Eyebrow>
+            <h1 className="font-display text-[32px] leading-[1.05] font-light text-ink mt-3">
+              Open your <em className="font-medium">house.</em>
+            </h1>
+            <p className="text-ink-soft text-[14px] leading-relaxed mt-4 max-w-[88%]">
+              Tell us about your label. We review every application to keep the marketplace considered.
+            </p>
           </div>
+
+          <div className="flex flex-col gap-6">
+            <Input
+              label="Brand / Store Name"
+              required
+              value={sellerFormData.brandName}
+              onChange={(e) => setSellerFormData({...sellerFormData, brandName: e.target.value})}
+              placeholder="e.g. ZipStyle"
+            />
+            <Input
+              label="Contact Person Name"
+              required
+              value={sellerFormData.contactName}
+              onChange={(e) => setSellerFormData({...sellerFormData, contactName: e.target.value})}
+              placeholder="e.g. John Doe"
+            />
+            <Input
+              label="Contact Email"
+              required
+              type="email"
+              value={sellerFormData.email}
+              onChange={(e) => setSellerFormData({...sellerFormData, email: e.target.value})}
+              placeholder="seller@example.com"
+            />
+            <Input
+              label="Contact Phone"
+              required
+              value={sellerFormData.phone}
+              onChange={(e) => setSellerFormData({...sellerFormData, phone: e.target.value})}
+              placeholder="e.g. +91 90000 00000"
+            />
+            <Input
+              label="Website or Store Link"
+              value={sellerFormData.storeLink}
+              onChange={(e) => setSellerFormData({...sellerFormData, storeLink: e.target.value})}
+              placeholder="https://yourstore.com"
+            />
+            <Input
+              label="Tax ID / GSTIN (Optional)"
+              value={sellerFormData.taxId}
+              onChange={(e) => setSellerFormData({...sellerFormData, taxId: e.target.value})}
+              placeholder="e.g. 29AAAAA0000A1Z5"
+            />
+            <TextArea
+              label="Brand Description / Story (Optional)"
+              rows={4}
+              value={sellerFormData.brandDescription}
+              onChange={(e) => setSellerFormData({...sellerFormData, brandDescription: e.target.value})}
+              placeholder="Describe your brand and products..."
+            />
+            <p className="text-[12px] text-ink-faint text-center leading-relaxed mt-1">
+              By submitting, you agree to the ZipRIGHT Seller Terms of Use.
+            </p>
+          </div>
+        </div>
+        <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+          <Button size="lg" fullWidth loading={loading} trailingIcon="send" onClick={handleSellerApply}>
+            Submit application
+          </Button>
         </div>
       </div>
     );
@@ -770,106 +804,78 @@ const Settings: React.FC = () => {
   // --- VIEW: EDIT PROFILE ---
   if (view === 'edit-profile') {
       return (
-        <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden">
-            <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-            <button aria-label="Go back" onClick={() => setView('main')} className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"><span className="material-symbols-outlined">arrow_back</span></button>
-            <h2 className="text-lg font-bold text-[#6157FF]">Edit Profile</h2>
-            <div className="w-8"></div>
-        </div>
-            <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 no-scrollbar">
-                <div className="flex flex-col items-center mb-8">
-                    <div className="relative cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
-                        <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-black/5 dark:border-line">
+        <div className="flex flex-col h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-hidden">
+            <AppBar title="Edit Profile" onBack={() => setView('main')} />
+            <div className="flex-1 overflow-y-auto px-6 pt-8 pb-40 no-scrollbar">
+                <div className="flex flex-col items-center mb-10">
+                    <button
+                        type="button"
+                        aria-label="Change photo"
+                        className="relative group"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <div className="h-24 w-24 rounded-full overflow-hidden border border-line">
                             <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
                         </div>
-                        <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0">
-                            <span className="material-symbols-outlined text-ink">edit</span>
+                        <div className="absolute bottom-0 right-0 bg-ink text-ink-invert h-8 w-8 rounded-full flex items-center justify-center border-2 border-surface-0">
+                            <span className="material-symbols-outlined text-[15px]" aria-hidden="true">photo_camera</span>
                         </div>
-                        <div className="absolute bottom-0 right-0 bg-surface-0 dark:bg-white text-ink dark:text-[#111111] h-8 w-8 rounded-full flex items-center justify-center border-2 border-[#FAF9F6] dark:border-[#121212]">
-                            <span className="material-symbols-outlined text-sm">photo_camera</span>
-                        </div>
-                    </div>
-                    <p className="text-xs font-bold text-[#6157FF] dark:text-[#6157FF] mt-3 tracking-wide">Change Photo</p>
+                    </button>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand mt-4">Change Photo</p>
                 </div>
 
                 <div className="flex flex-col gap-6">
-                    <div>
-                        <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">First Name</label>
-                        <input 
-                            type="text" 
-                            value={editUserData.firstName} 
-                            onChange={(e) => setEditUserData({...editUserData, firstName: e.target.value})}
-                            className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
+                    <Input
+                        label="First Name"
+                        value={editUserData.firstName}
+                        onChange={(e) => setEditUserData({...editUserData, firstName: e.target.value})}
+                    />
+                    <Input
+                        label="Last Name"
+                        value={editUserData.lastName}
+                        onChange={(e) => setEditUserData({...editUserData, lastName: e.target.value})}
+                    />
+                    <Input
+                        label="Email Address"
+                        type="email"
+                        value={editUserData.email}
+                        onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
+                    />
+                    <Input
+                        label="Phone Number"
+                        type="tel"
+                        value={editUserData.phone}
+                        onChange={(e) => setEditUserData({...editUserData, phone: e.target.value})}
+                    />
+
+                    {/* Gender */}
+                    <div className="flex flex-col gap-2.5">
+                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">Gender</label>
+                        <SegmentedControl
+                            aria-label="Gender"
+                            value={editUserData.gender}
+                            onChange={(v) => setEditUserData({...editUserData, gender: v})}
+                            options={[
+                                { value: 'Male', label: 'Male' },
+                                { value: 'Female', label: 'Female' },
+                                { value: 'Other', label: 'Other' },
+                            ]}
                         />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Last Name</label>
-                        <input 
-                            type="text" 
-                            value={editUserData.lastName} 
-                            onChange={(e) => setEditUserData({...editUserData, lastName: e.target.value})}
-                            className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Email Address</label>
-                        <input 
-                            type="email" 
-                            value={editUserData.email} 
-                            onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
-                            className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Phone Number</label>
-                        <input 
-                            type="tel" 
-                            value={editUserData.phone} 
-                            onChange={(e) => setEditUserData({...editUserData, phone: e.target.value})}
-                            className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                        />
-                    </div>
-                    
-                    {/* Gender Radio Buttons */}
-                    <div>
-                        <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-3 block">Gender</label>
-                        <div className="flex gap-6">
-                            {['Male', 'Female', 'Other'].map((g) => (
-                                <label key={g} className="flex items-center gap-2 cursor-pointer group">
-                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${editUserData.gender === g ? 'border-surface-0 dark:border-white' : 'border-black/10 dark:border-line'}`}>
-                                        {editUserData.gender === g && <div className="w-2.5 h-2.5 rounded-full bg-surface-0 dark:bg-white"></div>}
-                                    </div>
-                                    <input 
-                                        type="radio" 
-                                        name="gender" 
-                                        value={g} 
-                                        checked={editUserData.gender === g} 
-                                        onChange={(e) => setEditUserData({...editUserData, gender: e.target.value})}
-                                        className="hidden"
-                                    />
-                                    <span className={`font-bold text-sm ${editUserData.gender === g ? 'text-[#111111] dark:text-ink' : 'text-[#555555] dark:text-ink-soft'}`}>{g}</span>
-                                </label>
-                            ))}
-                        </div>
                     </div>
 
                     {/* Date of Birth */}
-                    <div>
-                        <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Date of Birth <span className="text-[#555555]/60 dark:text-ink-soft/60 normal-case tracking-normal">(Optional)</span></label>
-                        <input 
-                            type="date" 
-                            value={editUserData.dob} 
-                            onChange={(e) => setEditUserData({...editUserData, dob: e.target.value})}
-                            className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                            style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
-                        />
-                    </div>
-
-                    {/* Save Button in Scroll View */}
-                    <div className="pt-6 pb-8">
-                        <button onClick={saveUserProfile} className="w-full h-14 rounded-2xl bg-surface-0 text-ink dark:bg-white dark:text-[#111111] font-bold text-lg shadow-xl active:scale-95">Save Changes</button>
-                    </div>
+                    <Input
+                        label="Date of Birth"
+                        hint="Optional"
+                        type="date"
+                        value={editUserData.dob}
+                        onChange={(e) => setEditUserData({...editUserData, dob: e.target.value})}
+                        style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+                    />
                 </div>
+            </div>
+            <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+                <Button size="lg" fullWidth onClick={saveUserProfile}>Save changes</Button>
             </div>
         </div>
       );
@@ -878,95 +884,73 @@ const Settings: React.FC = () => {
   // --- VIEW: EDIT ADDRESS ---
   if (view === 'edit-address') {
     return (
-        <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden">
+        <div className="flex flex-col h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-hidden">
             {addressStep === 'map' && (
-                <div className="relative flex-1 flex flex-col animate-in fade-in duration-300">
-                    <div className="absolute top-0 left-0 right-0 z-10 flex items-center p-4">
-                        <button aria-label="Go back" onClick={() => setView('addresses')} className="h-10 w-10 rounded-full bg-white dark:bg-surface-1 shadow-lg flex items-center justify-center border border-black/5 dark:border-line text-[#6157FF]"><span className="material-symbols-outlined">arrow_back</span></button>
+                <div className="relative flex-1 flex flex-col">
+                    <div className="absolute top-0 left-0 right-0 z-10 flex items-center p-4 pt-safe">
+                        <button aria-label="Go back" onClick={() => setView('addresses')} className="h-10 w-10 rounded-full bg-surface-1 shadow-lift flex items-center justify-center border border-line text-ink"><span className="material-symbols-outlined" aria-hidden="true">arrow_back</span></button>
                     </div>
-                    <div className="flex-1 bg-gray-200 dark:bg-gray-800 relative">
+                    <div className="flex-1 bg-surface-2 relative">
                          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                             <div className="flex flex-col items-center mb-8 drop-shadow-2xl">
-                                 <div className="px-3 py-1 bg-surface-0 dark:bg-white text-ink dark:text-[#111111] text-[12px] font-bold rounded-lg mb-1 animate-bounce">I'm here</div>
-                                 <span className="material-symbols-outlined text-4xl text-[#6157FF] dark:text-[#6157FF] filled" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+                             <div className="flex flex-col items-center mb-8">
+                                 <div className="px-3 py-1 bg-ink text-ink-invert text-[11px] font-semibold uppercase tracking-[0.1em] rounded-lg mb-1 animate-bounce">I'm here</div>
+                                 <span className="material-symbols-outlined text-4xl text-brand" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">location_on</span>
                              </div>
                          </div>
                     </div>
-                    <div className="absolute bottom-40 right-4 flex flex-col gap-3">
-                        <button onClick={useCurrentLocation} className="h-12 w-12 rounded-full bg-white dark:bg-surface-1 shadow-xl flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line"><span className="material-symbols-outlined">my_location</span></button>
+                    <div className="absolute bottom-44 right-4 flex flex-col gap-3">
+                        <button onClick={useCurrentLocation} aria-label="Use current location" className="h-12 w-12 rounded-full bg-surface-1 shadow-float flex items-center justify-center text-brand border border-line"><span className="material-symbols-outlined" aria-hidden="true">my_location</span></button>
                     </div>
-                    <div className="bg-white dark:bg-surface-1 rounded-t-[2.5rem] p-6 shadow-2xl z-20 border-t border-black/5 dark:border-line">
+                    <div className="bg-surface-1 rounded-t-sheet px-6 pt-6 pb-8 shadow-float z-20 border-t border-line">
                         <div className="flex items-start gap-4 mb-6">
-                            <span className="material-symbols-outlined text-[#6157FF] dark:text-[#6157FF] text-3xl mt-1">location_on</span>
+                            <span className="material-symbols-outlined text-brand text-3xl mt-1" aria-hidden="true">location_on</span>
                             <div>
-                                <h3 className="text-xl font-bold text-[#111111] dark:text-ink">{editAddressData.area || 'Select Location'}</h3>
-                                <p className="text-sm text-[#555555] dark:text-ink-soft font-medium leading-relaxed mt-1">{editAddressData.city}, {editAddressData.state}</p>
+                                <h3 className="font-display text-[22px] font-light text-ink">{editAddressData.area || 'Select Location'}</h3>
+                                <p className="text-[13px] text-ink-soft leading-relaxed mt-1">{editAddressData.city}, {editAddressData.state}</p>
                             </div>
                         </div>
-                        <button onClick={() => setAddressStep('form')} className="w-full h-14 rounded-2xl bg-surface-0 text-ink dark:bg-white dark:text-[#111111] font-bold text-lg shadow-xl active:scale-95">Confirm & Proceed</button>
+                        <Button size="lg" fullWidth trailingIcon="arrow_forward" onClick={() => setAddressStep('form')}>Confirm & proceed</Button>
                     </div>
                 </div>
             )}
             {addressStep === 'form' && (
-                <div className="flex flex-col flex-1 bg-[#FAF9F6] dark:bg-surface-0 animate-in slide-in-from-right duration-300 overflow-y-auto no-scrollbar">
-                    <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-                        <button aria-label="Go back" onClick={() => setAddressStep('map')} className="material-symbols-outlined p-2 -ml-2 rounded-full transition-colors text-[#6157FF]">arrow_back</button>
-                        <h2 className="text-lg font-bold text-[#6157FF]">Edit Address</h2>
-                        <button onClick={saveAddress} className="text-[#6157FF] dark:text-[#6157FF] font-bold text-sm">SAVE</button>
-                    </div>
-                    <div className="p-6 flex flex-col gap-8 pb-32">
+                <div className="flex flex-col flex-1 bg-surface-0 overflow-y-auto no-scrollbar">
+                    <AppBar
+                      title="Edit Address"
+                      onBack={() => setAddressStep('map')}
+                      trailing={<button onClick={saveAddress} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand px-2">Save</button>}
+                    />
+                    <div className="px-6 pt-8 flex flex-col gap-10 pb-40">
                          <div className="flex flex-col gap-6">
-                            <div className="border-b border-black/10 dark:border-line">
-                                <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft">FULL NAME</label>
-                                <input type="text" value={editAddressData.name} onChange={(e) => setEditAddressData({...editAddressData, name: e.target.value})} className="w-full h-10 bg-transparent border-none outline-none font-bold p-0 pb-2 text-[#111111] dark:text-ink" placeholder="Enter recipient name" />
-                            </div>
-                            <div className="border-b border-black/10 dark:border-line">
-                                <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft">PHONE NUMBER</label>
-                                <input type="tel" value={editAddressData.phone} onChange={(e) => setEditAddressData({...editAddressData, phone: e.target.value})} className="w-full h-10 bg-transparent border-none outline-none font-bold p-0 pb-2 text-[#111111] dark:text-ink" placeholder="Enter 10-digit number" />
-                            </div>
-                            <div className="border-b border-black/10 dark:border-line">
-                                <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft">HOUSE / FLAT / BLOCK NO.</label>
-                                <input type="text" value={editAddressData.houseNo} onChange={(e) => setEditAddressData({...editAddressData, houseNo: e.target.value})} className="w-full h-10 bg-transparent border-none outline-none font-bold p-0 pb-2 text-[#111111] dark:text-ink" placeholder="Enter details" />
-                            </div>
-                            <div className="border-b border-black/10 dark:border-line">
-                                <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft">APARTMENT / ROAD / AREA</label>
-                                <input type="text" value={editAddressData.area} onChange={(e) => setEditAddressData({...editAddressData, area: e.target.value})} className="w-full h-10 bg-transparent border-none outline-none font-bold p-0 pb-2 text-[#111111] dark:text-ink" placeholder="Enter details" />
-                            </div>
-                            <div className="border-b border-black/10 dark:border-line">
-                                <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft">LANDMARK (OPTIONAL)</label>
-                                <input type="text" value={editAddressData.landmark} onChange={(e) => setEditAddressData({...editAddressData, landmark: e.target.value})} className="w-full h-10 bg-transparent border-none outline-none font-bold p-0 pb-2 text-[#111111] dark:text-ink" placeholder="e.g. Near Central Mall" />
-                            </div>
+                            <Input label="Full Name" value={editAddressData.name} onChange={(e) => setEditAddressData({...editAddressData, name: e.target.value})} placeholder="Enter recipient name" />
+                            <Input label="Phone Number" type="tel" value={editAddressData.phone} onChange={(e) => setEditAddressData({...editAddressData, phone: e.target.value})} placeholder="Enter 10-digit number" />
+                            <Input label="House / Flat / Block No." value={editAddressData.houseNo} onChange={(e) => setEditAddressData({...editAddressData, houseNo: e.target.value})} placeholder="Enter details" />
+                            <Input label="Apartment / Road / Area" value={editAddressData.area} onChange={(e) => setEditAddressData({...editAddressData, area: e.target.value})} placeholder="Enter details" />
+                            <Input label="Landmark (Optional)" value={editAddressData.landmark} onChange={(e) => setEditAddressData({...editAddressData, landmark: e.target.value})} placeholder="e.g. Near Central Mall" />
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="border-b border-black/10 dark:border-line">
-                                    <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft">CITY</label>
-                                    <input type="text" value={editAddressData.city} onChange={(e) => setEditAddressData({...editAddressData, city: e.target.value})} className="w-full h-10 bg-transparent border-none outline-none font-bold p-0 pb-2 text-[#111111] dark:text-ink" placeholder="Enter city" />
-                                </div>
-                                <div className="border-b border-black/10 dark:border-line">
-                                    <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft">ZIP CODE</label>
-                                    <input type="text" value={editAddressData.zip} onChange={(e) => setEditAddressData({...editAddressData, zip: e.target.value})} className="w-full h-10 bg-transparent border-none outline-none font-bold p-0 pb-2 text-[#111111] dark:text-ink" placeholder="Enter zip" />
-                                </div>
+                                <Input label="City" value={editAddressData.city} onChange={(e) => setEditAddressData({...editAddressData, city: e.target.value})} placeholder="Enter city" />
+                                <Input label="ZIP Code" value={editAddressData.zip} onChange={(e) => setEditAddressData({...editAddressData, zip: e.target.value})} placeholder="Enter zip" />
                             </div>
                          </div>
-                         <div className="flex flex-col gap-4">
-                            <label className="text-[12px] font-bold text-[#555555] dark:text-ink-soft">SAVE AS</label>
+                         <div className="flex flex-col gap-3">
+                            <Eyebrow>Save as</Eyebrow>
                             <div className="flex flex-wrap gap-2">
                                 {['Home', 'Work', 'Friends', 'Other'].map((type) => (
-                                    <button key={type} onClick={() => setEditAddressData({...editAddressData, type: type as any})} className={`px-5 py-2 rounded-full text-xs font-bold transition-all border ${editAddressData.type === type ? 'bg-[#6157FF] text-ink border-transparent' : 'bg-white dark:bg-surface-1 text-[#555555] dark:text-ink-soft border-black/5 dark:border-line'}`}>{type}</button>
+                                    <button key={type} onClick={() => setEditAddressData({...editAddressData, type: type as any})} className={cn('px-5 py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors border', editAddressData.type === type ? 'bg-ink text-ink-invert border-ink' : 'bg-surface-1 text-ink-soft border-line')}>{type}</button>
                                 ))}
                             </div>
                          </div>
-                         <div className="flex items-center gap-3">
-                            <button 
+                         <div className="flex items-center justify-between">
+                            <span className="text-[13px] text-ink-soft">Make this my default address</span>
+                            <Toggle
+                                label="Make this my default address"
+                                on={editAddressData.isDefault}
                                 onClick={() => setEditAddressData({...editAddressData, isDefault: !editAddressData.isDefault})}
-                                className={`w-12 h-6 rounded-full flex items-center px-1 transition-all ${editAddressData.isDefault ? 'bg-[#6157FF] dark:bg-[#6157FF]' : 'bg-black/10 dark:bg-surface-2'}`}
-                            >
-                                <div className={`w-4 h-4 bg-white dark:bg-surface-0 rounded-full shadow-sm transition-transform ${editAddressData.isDefault ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                            </button>
-                            <span className="text-xs font-bold text-[#555555] dark:text-ink-soft">Make this my default address</span>
+                            />
                          </div>
                     </div>
-                    <div className="fixed bottom-0 left-0 right-0 p-6 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-t border-black/5 dark:border-line z-30 max-w-md mx-auto">
-                        <button onClick={saveAddress} className="w-full h-14 rounded-2xl bg-[#6157FF] dark:bg-[#6157FF] text-ink dark:text-[#111111] font-bold text-lg shadow-xl shadow-[#6157FF]/20 active:scale-95 transition-all">Save Address</button>
+                    <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+                        <Button size="lg" fullWidth variant="accent" onClick={saveAddress}>Save address</Button>
                     </div>
                 </div>
             )}
@@ -977,70 +961,51 @@ const Settings: React.FC = () => {
   // --- VIEW: ADDRESSES LIST ---
   if (view === 'addresses') {
       return (
-        <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden">
-             <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-                <button aria-label="Go back" onClick={() => setView('main')} className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"><span className="material-symbols-outlined">arrow_back</span></button>
-                <h2 className="text-lg font-bold text-[#6157FF]">Saved Addresses</h2>
-                <button onClick={openAddAddress} className="text-[#6157FF] dark:text-[#6157FF] font-bold text-sm">ADD NEW</button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 pt-4 pb-20 no-scrollbar">
+        <div className="flex flex-col h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-hidden">
+            <AppBar
+              title="Saved Addresses"
+              onBack={() => setView('main')}
+              trailing={<button onClick={openAddAddress} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand px-2">Add new</button>}
+            />
+            <div className="flex-1 overflow-y-auto px-6 pt-6 pb-24 no-scrollbar">
                 <div className="flex flex-col gap-4">
                     {addresses.map((addr) => {
                         if (!addr) return null;
-                        const typeColors = {
-                            Home: 'bg-[#6157FF]/10 text-[#6157FF] dark:bg-[#6157FF]/10 dark:text-[#6157FF]',
-                            Work: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-                            Friends: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
-                            Other: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                        };
                         return (
-                        <div key={addr.id} className="flex flex-col p-5 rounded-[2rem] bg-white dark:bg-surface-1 border border-black/5 dark:border-line shadow-sm relative group">
-                            <div className="flex justify-between items-start mb-2">
-                                <span className={`px-3 py-1 rounded-lg text-[12px] font-bold ${typeColors[addr.type] || typeColors.Other}`}>{addr.type}</span>
+                        <div key={addr.id} className="flex flex-col p-5 rounded-card bg-surface-1 border border-line">
+                            <div className="flex justify-between items-start mb-3">
+                                <span className="px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.12em] bg-brand-soft text-brand">{addr.type}</span>
                                 <div className="flex gap-2">
-                                    <button onClick={() => openEditAddress(addr)} className="h-8 w-8 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] transition-colors"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                                    <button onClick={() => setShowDeleteAddressConfirm(addr.id)} className="h-8 w-8 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-red-500 transition-colors"><span className="material-symbols-outlined text-[18px]">delete</span></button>
+                                    <button onClick={() => openEditAddress(addr)} aria-label="Edit address" className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-ink-soft"><span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span></button>
+                                    <button onClick={() => setShowDeleteAddressConfirm(addr.id)} aria-label="Delete address" className="h-8 w-8 rounded-full border border-danger/30 flex items-center justify-center text-danger"><span className="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span></button>
                                 </div>
                             </div>
-                            <h3 className="font-bold text-base mb-1 text-[#111111] dark:text-ink">{addr.name}</h3>
-                            <p className="text-sm text-[#555555] dark:text-ink-soft leading-relaxed">{addr.houseNo}, {addr.area}</p>
-                            <p className="text-sm text-[#555555] dark:text-ink-soft leading-relaxed">{addr.city}, {addr.state} - {addr.zip}</p>
-                            <p className="text-xs text-[#555555]/60 dark:text-ink-soft/60 mt-2 font-mono">{addr.phone}</p>
+                            <h3 className="font-display text-[17px] font-medium mb-1 text-ink">{addr.name}</h3>
+                            <p className="text-[13px] text-ink-soft leading-relaxed">{addr.houseNo}, {addr.area}</p>
+                            <p className="text-[13px] text-ink-soft leading-relaxed">{addr.city}, {addr.state} - {addr.zip}</p>
+                            <p className="text-[12px] text-ink-faint mt-2 font-mono">{addr.phone}</p>
                         </div>
                         );
                     })}
                     {addresses.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-20 opacity-50">
-                            <span className="material-symbols-outlined text-4xl mb-2">location_off</span>
-                            <p className="font-bold text-sm">No saved addresses</p>
-                        </div>
+                        <EmptyState icon="location_off" title="No saved addresses" description="Add a delivery address to speed up checkout." action={<Button variant="outline" icon="add" onClick={openAddAddress}>Add address</Button>} />
                     )}
                 </div>
             </div>
 
             {/* Delete Address Confirmation Modal */}
-            {showDeleteAddressConfirm && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
-                    <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-[#1C1C1E] p-6 shadow-2xl animate-in fade-in zoom-in duration-300">
-                        <h3 className="text-xl font-bold text-black dark:text-ink mb-2">Delete Address?</h3>
-                        <p className="text-gray-500 dark:text-gray-400 mb-6">Are you sure you want to delete this address? This action cannot be undone.</p>
-                        <div className="flex gap-3">
-                            <button 
-                                onClick={() => setShowDeleteAddressConfirm(null)}
-                                className="flex-1 py-3 rounded-2xl bg-gray-100 dark:bg-surface-2 text-black dark:text-ink font-bold active:scale-95 transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                onClick={() => deleteAddress(showDeleteAddressConfirm)}
-                                className="flex-1 py-3 rounded-2xl bg-red-500 text-ink font-bold active:scale-95 transition-all"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <Modal
+                open={!!showDeleteAddressConfirm}
+                onClose={() => setShowDeleteAddressConfirm(null)}
+                title="Delete address?"
+                description="Are you sure you want to delete this address? This action cannot be undone."
+                actions={
+                    <>
+                        <Button variant="secondary" fullWidth onClick={() => setShowDeleteAddressConfirm(null)}>Cancel</Button>
+                        <Button variant="danger" fullWidth onClick={() => showDeleteAddressConfirm && deleteAddress(showDeleteAddressConfirm)}>Delete</Button>
+                    </>
+                }
+            />
         </div>
       );
   }
@@ -1048,89 +1013,75 @@ const Settings: React.FC = () => {
   // --- VIEW: MANAGE FITS ---
   if (view === 'manage-fits') {
       return (
-        <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden">
-             <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-6 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-                <button aria-label="Go back" onClick={() => setView('main')} className="flex items-center justify-center h-12 w-12 -ml-2 rounded-full transition-colors text-[#6157FF]">
-                    <span className="material-symbols-outlined text-2xl">arrow_back</span>
-                </button>
-                <h2 className="text-xl font-bold tracking-tight text-[#6157FF]">Manage Profiles</h2>
-                <div className="w-10"></div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 pt-6 pb-20 no-scrollbar">
-                <div className="flex flex-col gap-5">
+        <div className="flex flex-col h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-hidden">
+            <AppBar title="Manage Profiles" onBack={() => setView('main')} />
+            <div className="flex-1 overflow-y-auto px-6 pt-6 pb-24 no-scrollbar">
+                <div className="flex flex-col gap-4">
                     {members.map(member => (
-                        <div 
-                            key={member.id} 
+                        <div
+                            key={member.id}
                             onClick={() => navigate('/fit-profile', { state: { mode: 'edit', memberId: member.id } })}
-                            className="flex items-center justify-between p-6 rounded-[2rem] bg-white dark:bg-surface-1 border border-black/5 dark:border-line shadow-sm cursor-pointer active:scale-[0.98] transition-all"
+                            className="flex items-center justify-between p-5 rounded-card bg-surface-1 border border-line cursor-pointer active:scale-[0.99] transition-transform"
                         >
-                            <div className="flex items-center gap-5">
-                                <div className="h-14 w-14 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#111111] dark:text-ink border border-black/5 dark:border-line">
-                                    <span className="material-symbols-outlined text-2xl">person</span>
+                            <div className="flex items-center gap-4">
+                                <div className="h-14 w-14 rounded-full bg-ink text-ink-invert flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-2xl" aria-hidden="true">person</span>
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-lg text-[#111111] dark:text-ink leading-tight">{member.name}</h3>
-                                    <p className="text-sm text-[#555555] dark:text-ink-soft font-bold mt-1">
+                                <div className="min-w-0">
+                                    <h3 className="font-display text-[18px] font-medium text-ink leading-tight truncate">{member.name}</h3>
+                                    <p className="text-[12px] text-ink-soft mt-1">
                                         {member.fitData?.heightFt}'{member.fitData?.heightIn}" • {member.fitData?.weight}kg
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button 
+                            <div className="flex items-center gap-2 shrink-0">
+                                <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         navigate('/fit-profile', { state: { mode: 'edit', memberId: member.id } });
                                     }}
-                                    className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] transition-colors"
+                                    aria-label="Edit profile"
+                                    className="h-10 w-10 rounded-full border border-line flex items-center justify-center text-ink-soft"
                                 >
-                                    <span className="material-symbols-outlined text-[20px]">edit</span>
+                                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
                                 </button>
                                 {!member.isPrimary && (
-                                    <button 
+                                    <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setShowDeleteMemberConfirm(member.id);
                                         }}
-                                        className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-red-500 transition-colors"
+                                        aria-label="Delete profile"
+                                        className="h-10 w-10 rounded-full border border-danger/30 flex items-center justify-center text-danger"
                                     >
-                                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                                        <span className="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
                                     </button>
                                 )}
                             </div>
                         </div>
                     ))}
-                    
+
                     {/* Delete Member Confirmation Modal */}
-                    {showDeleteMemberConfirm && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
-                            <div className="w-full max-w-sm rounded-[2rem] bg-white dark:bg-surface-1 p-6 shadow-2xl animate-in fade-in zoom-in duration-300">
-                                <h3 className="text-xl font-bold text-[#111111] dark:text-ink mb-2">Delete Profile?</h3>
-                                <p className="text-[#555555] dark:text-ink-soft mb-6">Are you sure you want to delete this fit profile? This action cannot be undone.</p>
-                                <div className="flex gap-3">
-                                    <button 
-                                        onClick={() => setShowDeleteMemberConfirm(null)}
-                                        className="flex-1 py-3 rounded-2xl bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-bold active:scale-95 transition-all border border-black/5 dark:border-line"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button 
-                                        onClick={() => deleteMember(showDeleteMemberConfirm)}
-                                        className="flex-1 py-3 rounded-2xl bg-red-500 text-ink font-bold active:scale-95 transition-all"
-                                    >
-                                        Delete
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    
+                    <Modal
+                        open={!!showDeleteMemberConfirm}
+                        onClose={() => setShowDeleteMemberConfirm(null)}
+                        title="Delete profile?"
+                        description="Are you sure you want to delete this fit profile? This action cannot be undone."
+                        actions={
+                            <>
+                                <Button variant="secondary" fullWidth onClick={() => setShowDeleteMemberConfirm(null)}>Cancel</Button>
+                                <Button variant="danger" fullWidth onClick={() => showDeleteMemberConfirm && deleteMember(showDeleteMemberConfirm)}>Delete</Button>
+                            </>
+                        }
+                    />
+
                     {(() => {
                         const currentPlan = plans.find(p => p.id === userData.planId)?.planData || PLANS.FREE;
                         const limit = currentPlan.limits.profiles || 1;
                         const isLimitReached = members.length >= limit;
 
                         return (
-                            <button 
+                            <button
                                 onClick={() => {
                                     if (isLimitReached) {
                                         setShowPremiumModal(true);
@@ -1138,19 +1089,18 @@ const Settings: React.FC = () => {
                                     }
                                     navigate('/fit-profile', { state: { mode: 'add' } });
                                 }}
-                                className={`flex items-center justify-center gap-3 p-8 rounded-[2rem] border-2 border-dashed transition-all ${
-                                    isLimitReached 
-                                    ? 'border-black/10 dark:border-line text-[#555555]/40 dark:text-ink-soft/40 bg-black/5 dark:bg-surface-2' 
-                                    : 'border-black/10 dark:border-line text-[#555555] dark:text-ink-soft font-bold'
-                                }`}
+                                className={cn(
+                                    'flex items-center justify-center gap-3 p-7 rounded-card border border-dashed transition-colors',
+                                    isLimitReached ? 'border-line text-ink-faint bg-surface-2' : 'border-line-strong text-ink-soft hover:bg-surface-2',
+                                )}
                             >
-                                <span className="material-symbols-outlined text-2xl">{isLimitReached ? 'lock' : 'add_circle'}</span>
-                                <span className="text-lg">Add New Profile</span>
+                                <span className="material-symbols-outlined text-[22px]" aria-hidden="true">{isLimitReached ? 'lock' : 'add_circle'}</span>
+                                <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Add new profile</span>
                                 {isLimitReached && (
-                                    <div className="ml-1 flex items-center gap-1 bg-[#6157FF] text-ink px-2 py-1 rounded-lg">
-                                        <span className="material-symbols-outlined text-[12px]">verified</span>
-                                        <span className="text-[12px] font-bold tracking-tighter">UPGRADE</span>
-                                    </div>
+                                    <span className="ml-1 flex items-center gap-1 bg-brass text-ink px-2 py-1 rounded-full">
+                                        <span className="material-symbols-outlined text-[12px]" aria-hidden="true">verified</span>
+                                        <span className="text-[10px] font-semibold tracking-[0.1em]">UPGRADE</span>
+                                    </span>
                                 )}
                             </button>
                         );
@@ -1172,27 +1122,22 @@ const Settings: React.FC = () => {
     ];
 
     return (
-      <div className="flex flex-col min-h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans relative overflow-x-hidden">
-        <div className="sticky top-0 z-50 flex items-center gap-4 px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-          <button aria-label="Go back" onClick={() => setView('main')} className="material-symbols-outlined p-2 -ml-2 rounded-full text-[#6157FF]">arrow_back</button>
-          <h2 className="text-lg font-bold text-[#6157FF]">Permissions</h2>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 pt-4 pb-32 no-scrollbar">
+      <div className="flex flex-col min-h-screen min-h-dvh w-full bg-surface-0 text-ink relative overflow-x-hidden">
+        <AppBar title="Permissions" onBack={() => setView('main')} />
+        <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 no-scrollbar">
              <div className="flex flex-col gap-3">
                 {permissionsList.map(p => {
                      const isAllowed = permissionsState[p.id as keyof typeof permissionsState];
                      return (
-                        <div key={p.id} className="flex items-start gap-4 p-5 bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line shadow-sm">
-                            <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${isAllowed ? 'bg-[#6157FF]/10 dark:bg-[#6157FF]/10' : 'bg-[#FAF9F6] dark:bg-surface-0'}`}>
-                                <span className={`material-symbols-outlined ${isAllowed ? 'text-[#6157FF] dark:text-[#6157FF]' : 'text-[#555555] dark:text-ink-soft'}`}>{p.icon}</span>
+                        <div key={p.id} className="flex items-start gap-4 p-5 bg-surface-1 rounded-card border border-line">
+                            <div className={cn('h-10 w-10 rounded-full flex items-center justify-center shrink-0 border', isAllowed ? 'bg-brand-soft border-brand/20 text-brand' : 'border-line text-ink-faint')}>
+                                <span className="material-symbols-outlined" aria-hidden="true">{p.icon}</span>
                             </div>
                             <div className="flex-1">
-                                <p className="font-bold text-sm text-[#111111] dark:text-ink">{p.title}</p>
-                                <p className="text-[11px] text-[#555555] dark:text-ink-soft mt-1 leading-relaxed">{p.desc}</p>
+                                <p className="text-[15px] font-medium text-ink">{p.title}</p>
+                                <p className="text-[12px] text-ink-soft mt-1 leading-relaxed">{p.desc}</p>
                             </div>
-                            <button onClick={() => togglePermission(p.id)} className={`w-12 h-6 rounded-full flex items-center px-1 transition-all ${isAllowed ? 'bg-[#6157FF] dark:bg-[#6157FF]' : 'bg-black/10 dark:bg-surface-2'}`}>
-                                <div className={`w-4 h-4 bg-white dark:bg-surface-0 rounded-full shadow-sm transition-transform ${isAllowed ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                            </button>
+                            <Toggle label={p.title} on={!!isAllowed} onClick={() => togglePermission(p.id)} />
                         </div>
                      );
                 })}
@@ -1205,34 +1150,20 @@ const Settings: React.FC = () => {
   // --- VIEW: APP SETTINGS ---
   if (view === 'app-settings') {
       return (
-        <div className="flex flex-col min-h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans relative overflow-x-hidden">
-            <div className="sticky top-0 z-50 flex items-center gap-4 px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-                <button aria-label="Go back" onClick={() => setView('main')} className="material-symbols-outlined p-2 -ml-2 rounded-full text-[#6157FF]">arrow_back</button>
-                <h2 className="text-lg font-bold text-[#6157FF]">App Settings</h2>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 pt-4 pb-32 no-scrollbar">
-                <div className="flex flex-col gap-6">
-                    <div>
-                        <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft mb-4 ml-2">Notifications</h3>
-                        <div className="flex flex-col bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line overflow-hidden shadow-sm">
-                            <div className="flex items-center justify-between p-5">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-10 w-10 rounded-full bg-[#6157FF]/10 dark:bg-[#6157FF]/10 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF]">
-                                        <span className="material-symbols-outlined">notifications</span>
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-sm text-[#111111] dark:text-ink">Push Notifications</p>
-                                        <p className="text-[11px] text-[#555555] dark:text-ink-soft mt-0.5">Alerts for orders and fits.</p>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => togglePermission('notifications')}
-                                    className={`w-12 h-6 rounded-full flex items-center px-1 transition-all ${permissionsState.notifications ? 'bg-[#6157FF] dark:bg-[#6157FF]' : 'bg-black/10 dark:bg-surface-2'}`}
-                                >
-                                    <div className={`w-4 h-4 bg-white dark:bg-surface-0 rounded-full shadow-sm transition-transform ${permissionsState.notifications ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                                </button>
-                            </div>
+        <div className="flex flex-col min-h-screen min-h-dvh w-full bg-surface-0 text-ink relative overflow-x-hidden">
+            <AppBar title="App Settings" onBack={() => setView('main')} />
+            <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 no-scrollbar">
+                <div className="flex flex-col gap-4">
+                    <Eyebrow>Notifications</Eyebrow>
+                    <div className="flex items-center gap-4 p-5 bg-surface-1 rounded-card border border-line">
+                        <div className="h-10 w-10 rounded-full bg-brand-soft border border-brand/20 flex items-center justify-center text-brand shrink-0">
+                            <span className="material-symbols-outlined" aria-hidden="true">notifications</span>
                         </div>
+                        <div className="flex-1">
+                            <p className="text-[15px] font-medium text-ink">Push Notifications</p>
+                            <p className="text-[12px] text-ink-soft mt-0.5">Alerts for orders and fits.</p>
+                        </div>
+                        <Toggle label="Push Notifications" on={permissionsState.notifications} onClick={() => togglePermission('notifications')} />
                     </div>
                 </div>
             </div>
@@ -1243,39 +1174,35 @@ const Settings: React.FC = () => {
   // --- VIEW: SELLER PROFILE (EDIT/VIEW BRAND DETAILS) ---
   if (view === 'seller-profile') {
     return (
-      <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden">
-        <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-          <button aria-label="Go back" onClick={() => setView('main')} className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"><span className="material-symbols-outlined">arrow_back</span></button>
-          <h2 className="text-lg font-bold text-[#6157FF]">Seller Profile & Settings</h2>
-          <div className="w-8"></div>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 no-scrollbar">
+      <div className="flex flex-col h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-hidden">
+        <AppBar title="Seller Profile" onBack={() => setView('main')} />
+        <div className="flex-1 overflow-y-auto px-6 pt-8 pb-40 no-scrollbar">
           <div className="flex flex-col gap-6">
-            
+
             {/* Logo Upload Section */}
-            <div className="flex flex-col items-center gap-4 bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm">
-              <label className="text-xs font-bold text-[#555555] dark:text-ink-soft text-center">Brand Logo</label>
-              <div className="relative group cursor-pointer" onClick={() => {
+            <div className="flex flex-col items-center gap-4 bg-surface-1 p-6 rounded-card border border-line">
+              <Eyebrow>Brand Logo</Eyebrow>
+              <button type="button" aria-label="Upload brand logo" className="relative group" onClick={() => {
                 const el = document.getElementById('logo-file-input');
                 el?.click();
               }}>
-                <div className="h-24 w-24 rounded-full overflow-hidden border-[3px] border-[#FAF9F6] dark:border-[#121212] shadow-md bg-gray-100 dark:bg-black flex items-center justify-center">
+                <div className="h-24 w-24 rounded-full overflow-hidden border border-line bg-surface-2 flex items-center justify-center">
                   {sellerProfile?.brand_logo_url ? (
                     <img src={sellerProfile.brand_logo_url} alt="Logo" className="h-full w-full object-cover"/>
                   ) : (
-                    <span className="material-symbols-outlined text-4xl text-[#6157FF]">storefront</span>
+                    <span className="material-symbols-outlined text-4xl text-brand" aria-hidden="true">storefront</span>
                   )}
                 </div>
                 {logoUploading && (
-                  <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
-                    <span className="h-6 w-6 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <div className="absolute inset-0 bg-scrim rounded-full flex items-center justify-center">
+                    <span className="h-6 w-6 border-2 border-ink-invert border-t-transparent rounded-full animate-spin"></span>
                   </div>
                 )}
-                <div className="absolute bottom-0 right-0 bg-surface-0 dark:bg-white text-ink dark:text-[#111111] h-7 w-7 rounded-full flex items-center justify-center border-[2px] border-[#FAF9F6] dark:border-[#121212] shadow-md">
-                  <span className="material-symbols-outlined text-[14px] font-bold">upload</span>
+                <div className="absolute bottom-0 right-0 bg-ink text-ink-invert h-7 w-7 rounded-full flex items-center justify-center border-2 border-surface-1">
+                  <span className="material-symbols-outlined text-[14px]" aria-hidden="true">upload</span>
                 </div>
-              </div>
-              <input 
+              </button>
+              <input
                 id="logo-file-input"
                 type="file"
                 accept="image/*"
@@ -1296,76 +1223,22 @@ const Settings: React.FC = () => {
                   }
                 }}
               />
-              <p className="text-[12px] text-[#555555] dark:text-ink-soft font-medium text-center">Supports PNG, JPG, or WebP. Max 5MB.</p>
+              <p className="text-[12px] text-ink-faint text-center">Supports PNG, JPG, or WebP. Max 5MB.</p>
             </div>
 
             {/* Business Info Form */}
-            <div className="flex flex-col bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm gap-6">
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Brand Name</label>
-                <input 
-                  type="text" 
-                  value={sellerFormData.brandName}
-                  onChange={(e) => setSellerFormData({...sellerFormData, brandName: e.target.value})}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Contact Person Name</label>
-                <input 
-                  type="text" 
-                  value={sellerFormData.contactName}
-                  onChange={(e) => setSellerFormData({...sellerFormData, contactName: e.target.value})}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Contact Email</label>
-                <input 
-                  type="email" 
-                  value={sellerFormData.email}
-                  onChange={(e) => setSellerFormData({...sellerFormData, email: e.target.value})}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Contact Phone</label>
-                <input 
-                  type="text" 
-                  value={sellerFormData.phone}
-                  onChange={(e) => setSellerFormData({...sellerFormData, phone: e.target.value})}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Website Link</label>
-                <input 
-                  type="text" 
-                  value={sellerFormData.storeLink}
-                  onChange={(e) => setSellerFormData({...sellerFormData, storeLink: e.target.value})}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                  placeholder="https://..."
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">GSTIN / Tax ID</label>
-                <input 
-                  type="text" 
-                  value={sellerFormData.taxId}
-                  onChange={(e) => setSellerFormData({...sellerFormData, taxId: e.target.value})}
-                  className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Brand Description / Story</label>
-                <textarea 
-                  value={sellerFormData.brandDescription}
-                  onChange={(e) => setSellerFormData({...sellerFormData, brandDescription: e.target.value})}
-                  className="w-full h-24 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 py-3 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] resize-none"
-                />
-              </div>
-              
-              <button 
+            <div className="flex flex-col bg-surface-1 p-6 rounded-card border border-line gap-6">
+              <Input label="Brand Name" value={sellerFormData.brandName} onChange={(e) => setSellerFormData({...sellerFormData, brandName: e.target.value})} />
+              <Input label="Contact Person Name" value={sellerFormData.contactName} onChange={(e) => setSellerFormData({...sellerFormData, contactName: e.target.value})} />
+              <Input label="Contact Email" type="email" value={sellerFormData.email} onChange={(e) => setSellerFormData({...sellerFormData, email: e.target.value})} />
+              <Input label="Contact Phone" value={sellerFormData.phone} onChange={(e) => setSellerFormData({...sellerFormData, phone: e.target.value})} />
+              <Input label="Website Link" value={sellerFormData.storeLink} onChange={(e) => setSellerFormData({...sellerFormData, storeLink: e.target.value})} placeholder="https://..." />
+              <Input label="GSTIN / Tax ID" value={sellerFormData.taxId} onChange={(e) => setSellerFormData({...sellerFormData, taxId: e.target.value})} />
+              <TextArea label="Brand Description / Story" rows={4} value={sellerFormData.brandDescription} onChange={(e) => setSellerFormData({...sellerFormData, brandDescription: e.target.value})} />
+
+              <Button
+                fullWidth
+                loading={loading}
                 onClick={async () => {
                   try {
                     setLoading(true);
@@ -1388,12 +1261,11 @@ const Settings: React.FC = () => {
                     setLoading(false);
                   }
                 }}
-                className="w-full h-14 bg-surface-0 text-ink dark:bg-white dark:text-[#111111] rounded-2xl font-bold text-sm active:scale-95 shadow-md animate-in duration-300"
               >
-                Save Changes
-              </button>
+                Save changes
+              </Button>
             </div>
-            
+
           </div>
         </div>
       </div>
@@ -1403,77 +1275,73 @@ const Settings: React.FC = () => {
   // --- VIEW: ADMIN PENDING APPROVALS ---
   if (view === 'admin-approvals') {
     return (
-      <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden">
-        <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-          <button aria-label="Go back" onClick={() => setView('main')} className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"><span className="material-symbols-outlined">arrow_back</span></button>
-          <h2 className="text-lg font-bold text-[#6157FF]">Seller Applications</h2>
-          <div className="w-8"></div>
-        </div>
-        
+      <div className="flex flex-col h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-hidden">
+        <AppBar title="Seller Applications" onBack={() => setView('main')} />
+
         <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 no-scrollbar">
           {pendingSellers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-[#555555] dark:text-ink-soft">
-              <span className="material-symbols-outlined text-5xl mb-3 animate-bounce">check_circle</span>
-              <p className="font-bold text-sm">All caught up! No pending applications.</p>
-            </div>
+            <EmptyState icon="check_circle" title="All caught up" description="No pending applications right now." />
           ) : (
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-5">
               {pendingSellers.map((seller) => (
-                <div key={seller.uid} className="bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm flex flex-col gap-4">
+                <div key={seller.uid} className="bg-surface-1 p-6 rounded-card border border-line flex flex-col gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line flex items-center justify-center text-[#6157FF] dark:text-[#6157FF]">
-                      <span className="material-symbols-outlined">storefront</span>
+                    <div className="h-11 w-11 rounded-full bg-surface-2 border border-line flex items-center justify-center text-brand shrink-0">
+                      <span className="material-symbols-outlined" aria-hidden="true">storefront</span>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-[#111111] dark:text-ink">{seller.store_name}</h4>
-                      <p className="text-[12px] text-[#555555] dark:text-ink-soft mt-0.5">UID: {seller.uid}</p>
+                    <div className="min-w-0">
+                      <h4 className="font-display text-[17px] font-medium text-ink truncate">{seller.store_name}</h4>
+                      <p className="text-[11px] text-ink-faint mt-0.5 font-mono truncate">UID: {seller.uid}</p>
                     </div>
                   </div>
-                  
-                  <div className="h-[1px] bg-black/5 dark:bg-surface-2"></div>
-                  
+
+                  <Divider />
+
                   <div className="grid grid-cols-1 gap-2.5">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-[#555555] dark:text-ink-soft font-bold">Contact</span>
-                      <span className="font-bold text-[#111111] dark:text-ink">{seller.contact_name}</span>
+                    <div className="flex justify-between items-center text-[13px]">
+                      <span className="text-ink-faint">Contact</span>
+                      <span className="font-medium text-ink">{seller.contact_name}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-[#555555] dark:text-ink-soft font-bold">Email</span>
-                      <span className="font-bold text-[#111111] dark:text-ink">{seller.email}</span>
+                    <div className="flex justify-between items-center text-[13px]">
+                      <span className="text-ink-faint">Email</span>
+                      <span className="font-medium text-ink truncate max-w-[180px]">{seller.email}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-[#555555] dark:text-ink-soft font-bold">Phone</span>
-                      <span className="font-bold text-[#111111] dark:text-ink">{seller.phone}</span>
+                    <div className="flex justify-between items-center text-[13px]">
+                      <span className="text-ink-faint">Phone</span>
+                      <span className="font-medium text-ink">{seller.phone}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-[#555555] dark:text-ink-soft font-bold">Website</span>
-                      <span className="font-bold text-[#111111] dark:text-ink truncate max-w-[180px]">{seller.website || 'N/A'}</span>
+                    <div className="flex justify-between items-center text-[13px]">
+                      <span className="text-ink-faint">Website</span>
+                      <span className="font-medium text-ink truncate max-w-[180px]">{seller.website || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-[#555555] dark:text-ink-soft font-bold">GSTIN</span>
-                      <span className="font-bold text-[#111111] dark:text-ink">{seller.gst || 'N/A'}</span>
+                    <div className="flex justify-between items-center text-[13px]">
+                      <span className="text-ink-faint">GSTIN</span>
+                      <span className="font-medium text-ink">{seller.gst || 'N/A'}</span>
                     </div>
                     {seller.brand_description && (
-                      <div className="flex flex-col gap-1 mt-1 text-xs">
-                        <span className="text-[#555555] dark:text-ink-soft font-bold">Description</span>
-                        <p className="p-3 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl font-bold text-[#111111] dark:text-ink leading-relaxed">{seller.brand_description}</p>
+                      <div className="flex flex-col gap-1.5 mt-1 text-[13px]">
+                        <span className="text-ink-faint">Description</span>
+                        <p className="p-3 bg-surface-2 rounded-xl text-ink leading-relaxed">{seller.brand_description}</p>
                       </div>
                     )}
                   </div>
-                  
-                  <div className="h-[1px] bg-black/5 dark:bg-surface-2 mt-2"></div>
-                  
+
+                  <Divider className="mt-1" />
+
                   <div className="flex gap-3">
-                    <button 
+                    <Button
+                      variant="secondary"
+                      fullWidth
                       onClick={() => {
                         setAdminActionTarget(seller);
                         setAdminReason('');
                       }}
-                      className="flex-1 py-3 rounded-2xl bg-red-100 dark:bg-red-950/20 text-red-500 font-bold active:scale-95 transition-all text-xs"
                     >
                       Reject
-                    </button>
-                    <button 
+                    </Button>
+                    <Button
+                      variant="primary"
+                      fullWidth
                       onClick={async () => {
                         try {
                           setLoading(true);
@@ -1487,10 +1355,9 @@ const Settings: React.FC = () => {
                           setLoading(false);
                         }
                       }}
-                      className="flex-1 py-3 rounded-2xl bg-green-500 text-ink font-bold active:scale-95 transition-all text-xs"
                     >
                       Approve
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1499,637 +1366,528 @@ const Settings: React.FC = () => {
         </div>
 
         {/* Reject Dialog */}
-        {adminActionTarget && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
-            <div className="w-full max-w-sm rounded-[2rem] bg-white dark:bg-surface-1 p-6 shadow-2xl animate-in fade-in zoom-in duration-300">
-              <h3 className="text-xl font-bold text-[#111111] dark:text-ink mb-2">Reject Application</h3>
-              <p className="text-xs text-[#555555] dark:text-ink-soft mb-4">Provide a reason for rejecting the application for {adminActionTarget.store_name}:</p>
-              
-              <textarea 
-                value={adminReason}
-                onChange={(e) => setAdminReason(e.target.value)}
-                placeholder="e.g. Invalid GSTIN, incomplete business proof..."
-                className="w-full h-24 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 py-3 text-xs font-bold focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] resize-none mb-6 text-[#111111] dark:text-ink"
-              />
-
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setAdminActionTarget(null)}
-                  className="flex-1 py-3 rounded-2xl bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-bold active:scale-95 transition-all border border-black/5 dark:border-line text-xs"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={async () => {
-                    try {
-                      setLoading(true);
-                      await adminSetSellerStatus(adminActionTarget.uid, 'rejected', adminReason || undefined);
-                      setPendingSellers(prev => prev.filter(s => s.uid !== adminActionTarget.uid));
-                      showToast(`Rejected ${adminActionTarget.store_name} application.`, "success");
-                      setAdminActionTarget(null);
-                    } catch (err: any) {
-                      console.error(err);
-                      showToast(err.message || "Failed to reject seller.", "error");
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                  className="flex-1 py-3 rounded-2xl bg-red-500 text-ink font-bold active:scale-95 transition-all text-xs"
-                >
-                  Yes, Reject
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          open={!!adminActionTarget}
+          onClose={() => setAdminActionTarget(null)}
+          title="Reject application"
+          description={adminActionTarget ? `Provide a reason for rejecting the application for ${adminActionTarget.store_name}:` : undefined}
+          actions={
+            <>
+              <Button variant="secondary" fullWidth onClick={() => setAdminActionTarget(null)}>Cancel</Button>
+              <Button
+                variant="danger"
+                fullWidth
+                onClick={async () => {
+                  if (!adminActionTarget) return;
+                  try {
+                    setLoading(true);
+                    await adminSetSellerStatus(adminActionTarget.uid, 'rejected', adminReason || undefined);
+                    setPendingSellers(prev => prev.filter(s => s.uid !== adminActionTarget.uid));
+                    showToast(`Rejected ${adminActionTarget.store_name} application.`, "success");
+                    setAdminActionTarget(null);
+                  } catch (err: any) {
+                    console.error(err);
+                    showToast(err.message || "Failed to reject seller.", "error");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                Yes, reject
+              </Button>
+            </>
+          }
+        >
+          <TextArea
+            value={adminReason}
+            onChange={(e) => setAdminReason(e.target.value)}
+            placeholder="e.g. Invalid GSTIN, incomplete business proof..."
+            rows={3}
+          />
+        </Modal>
       </div>
     );
   }
 
   // --- MAIN VIEW ---
   return (
-    <div className="relative flex h-full min-h-screen w-full flex-col bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-x-hidden">
+    <div className="relative flex h-full min-h-screen min-h-dvh w-full flex-col bg-surface-0 text-ink overflow-x-hidden">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload}/>
-      
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line">
-        <button aria-label="Go back" onClick={() => navigate('/home')} className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"><span className="material-symbols-outlined text-[24px]">arrow_back</span></button>
-        <h2 className="text-lg font-bold text-[#6157FF]">Profile & Settings</h2>
-        <div className="w-8"></div>
-      </div>
+
+      <AppBar title="Profile" onBack={() => navigate('/home')} />
 
       <div className="flex-1 overflow-y-auto pb-32 no-scrollbar">
-        {/* Profile Card */}
-        <div className="px-6 py-6">
-            <div className="relative p-8 bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line shadow-sm overflow-hidden group">
-                 
-                 {/* Decorative Background Blobs */}
-                 <div className="absolute top-[-20%] right-[-10%] w-48 h-48 bg-[#6157FF]/10 rounded-full blur-[60px] pointer-events-none"></div>
-                 <div className="absolute bottom-[-10%] left-[-5%] w-32 h-32 bg-[#6157FF]/10 rounded-full blur-[40px] pointer-events-none"></div>
+        {/* Profile masthead */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-6 pt-8 pb-6"
+        >
+          <Eyebrow>Account</Eyebrow>
+          <div className="mt-5 flex items-center gap-5">
+            <button
+              type="button"
+              aria-label="Change profile photo"
+              className="relative shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <div className="h-20 w-20 rounded-full overflow-hidden border border-line">
+                <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
+              </div>
+              <div className="absolute bottom-0 right-0 bg-ink text-ink-invert h-7 w-7 rounded-full flex items-center justify-center border-2 border-surface-0">
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">edit</span>
+              </div>
+            </button>
 
-                 <div className="relative z-10 flex items-center gap-4">
-                    {/* Profile Image - Smaller */}
-                    <div className="relative shrink-0 cursor-pointer group/img" onClick={() => fileInputRef.current?.click()}>
-                        <div className="h-20 w-20 rounded-full overflow-hidden border-[3px] border-[#FAF9F6] dark:border-[#121212] shadow-sm transition-all duration-500">
-                            <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
-                        </div>
-                         <div className="absolute bottom-0 right-0 bg-surface-0 dark:bg-white text-ink dark:text-[#111111] h-7 w-7 rounded-full flex items-center justify-center border-[2px] border-[#FAF9F6] dark:border-[#121212] shadow-md transition-all duration-300">
-                            <span className="material-symbols-outlined text-[14px] font-bold">edit</span>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                            <h2 className="text-xl font-bold text-[#111111] dark:text-ink leading-tight tracking-tight truncate">
-                                {userData.firstName} {userData.lastName}
-                            </h2>
-                            <button 
-                                onClick={() => {
-                                    setEditUserData(userData);
-                                    setView('edit-profile');
-                                }}
-                                className="text-[#555555] dark:text-ink-soft transition-colors"
-                            >
-                                <span className="material-symbols-outlined text-[18px]">edit</span>
-                            </button>
-                        </div>
-                        <p className="text-xs font-bold text-[#555555] dark:text-ink-soft mt-0.5 truncate opacity-80">
-                            {userData.email}
-                        </p>
-                        
-                        <div className="flex flex-wrap items-center gap-2 mt-3">
-                             {sellerStatus === 'active' && (
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleUserRole();
-                                    }}
-                                    className="inline-flex items-center justify-center gap-1.5 bg-[#FAF9F6] dark:bg-surface-0 px-3 py-1.5 rounded-full shadow-sm active:scale-95 transition-all border border-black/5 dark:border-line"
-                                >
-                                    <span className="material-symbols-outlined text-[#111111] dark:text-ink text-[12px]">swap_horiz</span>
-                                    <span className="text-[12px] font-bold text-[#111111] dark:text-ink">
-                                        {userRole === 'user' ? 'Seller Mode' : 'User Mode'}
-                                    </span>
-                                </button>
-                            )}
-
-                            <button 
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowPremiumModal(true);
-                                }}
-                                className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#6157FF] to-[#6157FF] px-3 py-1.5 rounded-full shadow-lg shadow-[#6157FF]/20 active:scale-95 transition-all"
-                            >
-                                <span className="material-symbols-outlined text-ink text-[12px] filled" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
-                                <span className="text-[12px] font-bold text-ink">Premium</span>
-                            </button>
-                        </div>
-                    </div>
-                 </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="font-display text-[26px] leading-[1.1] font-light text-ink truncate">
+                  {userData.firstName} <em className="font-medium">{userData.lastName}</em>
+                </h1>
+                <button
+                  onClick={() => {
+                    setEditUserData(userData);
+                    setView('edit-profile');
+                  }}
+                  aria-label="Edit profile"
+                  className="text-ink-faint shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
+                </button>
+              </div>
+              <p className="text-[12px] text-ink-soft mt-1 truncate">{userData.email}</p>
             </div>
-        </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-5">
+            {sellerStatus === 'active' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleUserRole();
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-line-strong text-ink active:scale-95 transition-transform"
+              >
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">swap_horiz</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
+                  {userRole === 'user' ? 'Seller Mode' : 'User Mode'}
+                </span>
+              </button>
+            )}
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPremiumModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand text-on-brand shadow-glow active:scale-95 transition-transform"
+            >
+              <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">verified</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">Premium</span>
+            </button>
+          </div>
+        </motion.div>
 
         {/* Wallet Section */}
         {userRole !== 'seller' && (
-            <div className="px-6 mb-2">
-                <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft mb-4 ml-2">Wallet & Rewards</h3>
-                <div className="flex flex-col bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line overflow-hidden shadow-sm">
-                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-[#6157FF] to-[#6157FF] text-ink">
-                        <div>
-                            <p className="text-xs font-bold opacity-90 tracking-wide">ZipCoins Balance</p>
-                            <h2 className="text-3xl font-bold mt-1">{userData.zipPoints}</h2>
-                        </div>
-                        <div className="h-12 w-12 rounded-full bg-surface-3 backdrop-blur-md flex items-center justify-center">
-                            <span className="material-symbols-outlined text-2xl filled" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                        </div>
-                    </div>
-                    
-                    {!showRedeemInput ? (
-                        <div onClick={() => {
-                            if (userData.zipPoints < 100) {
-                                showToast("Minimum 100 ZipCoins required to redeem.", "error");
-                                return;
-                            }
-                            setShowRedeemInput(true);
-                        }} className="flex items-center gap-4 p-4 cursor-pointer transition-colors border-b border-black/5 dark:border-line">
-                            <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line"><span className="material-symbols-outlined">payments</span></div>
-                            <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Redeem to Bank</div>
-                            <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                        </div>
-                    ) : (
-                        <div className="p-6 bg-[#FAF9F6] dark:bg-surface-0 animate-in fade-in slide-in-from-top-2 duration-300 border-b border-black/5 dark:border-line">
-                            <p className="text-[12px] font-bold text-[#555555] dark:text-ink-soft mb-3">Redeem ₹{(userData.zipPoints / 100).toFixed(2)}</p>
-                            <input 
-                                type="text"
-                                value={redeemInput}
-                                onChange={(e) => setRedeemInput(e.target.value)}
-                                placeholder="Enter UPI ID (e.g., user@upi)"
-                                className="w-full bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-all mb-4 text-[#111111] dark:text-ink"
-                            />
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={() => setShowRedeemInput(false)}
-                                    className="flex-1 py-3 rounded-2xl text-[12px] font-bold text-[#555555] dark:text-ink-soft border border-black/5 dark:border-line bg-white dark:bg-surface-1"
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    disabled={isRedeeming}
-                                    onClick={async () => {
-                                        if (!redeemInput) {
-                                            showToast("Please enter UPI ID", "error");
-                                            return;
-                                        }
-                                        setIsRedeeming(true);
-                                        try {
-                                            const user = auth.currentUser;
-                                            if (user) {
-                                                await setDoc(doc(db, 'users', user.uid), {
-                                                    zipPoints: 0
-                                                }, { merge: true });
-                                                showToast(`Redemption request of ₹${(userData.zipPoints / 100).toFixed(2)} sent to ${redeemInput} successfully!`, "success");
-                                                setUserData(prev => ({ ...prev, zipPoints: 0 }));
-                                                setShowRedeemInput(false);
-                                                setRedeemInput('');
-                                            }
-                                        } catch (error) {
-                                            console.error("Redemption failed:", error);
-                                            showToast("Redemption failed. Try again.", "error");
-                                        } finally {
-                                            setIsRedeeming(false);
-                                        }
-                                    }}
-                                    className="flex-[2] bg-surface-0 dark:bg-white text-ink dark:text-[#111111] py-3 rounded-2xl text-[12px] font-bold shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    {isRedeeming ? (
-                                        <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                                    ) : 'Confirm'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-    
-                    {/* Ways to Earn */}
-                    <div className="p-6 bg-[#FAF9F6] dark:bg-surface-0">
-                        <h4 className="text-[12px] font-bold text-[#555555] dark:text-ink-soft mb-4">Ways to Earn</h4>
-                        <div className="space-y-3">
-                            {[
-                                { icon: 'shopping_bag', title: 'Shop & Earn', desc: 'Up to 5000 coins per order' },
-                                { icon: 'group_add', title: 'Refer a Friend', desc: '500 coins per referral' },
-                                { icon: 'rate_review', title: 'Write a Review', desc: '100 coins per review' }
-                            ].map((item, i) => (
-                                <div key={i} className="flex items-center gap-3">
-                                    <div className="h-8 w-8 rounded-full bg-white dark:bg-surface-1 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line shrink-0">
-                                        <span className="material-symbols-outlined text-base">{item.icon}</span>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-[#111111] dark:text-ink leading-none">{item.title}</p>
-                                        <p className="text-[12px] text-[#555555] dark:text-ink-soft mt-1">{item.desc}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+          <div className="px-6 mb-8">
+            <Eyebrow className="mb-4 ml-1">Wallet & Rewards</Eyebrow>
+            <div className="rounded-card border border-line bg-surface-1 overflow-hidden">
+              <div className="flex items-center justify-between p-6 bg-brass-soft">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brass">ZipCoins Balance</p>
+                  <h2 className="font-display text-[38px] font-light text-ink leading-none mt-2">{userData.zipPoints}</h2>
                 </div>
+                <div className="h-12 w-12 rounded-full bg-brass text-ink flex items-center justify-center">
+                  <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">stars</span>
+                </div>
+              </div>
+
+              {!showRedeemInput ? (
+                <button onClick={() => {
+                  if (userData.zipPoints < 100) {
+                    showToast("Minimum 100 ZipCoins required to redeem.", "error");
+                    return;
+                  }
+                  setShowRedeemInput(true);
+                }} className="flex items-center gap-4 p-4 w-full text-left border-t border-line active:scale-[0.99] transition-transform">
+                  <div className="h-10 w-10 rounded-full border border-line flex items-center justify-center text-ink-soft shrink-0"><span className="material-symbols-outlined text-[19px]" aria-hidden="true">payments</span></div>
+                  <div className="flex-1 text-[15px] font-medium text-ink">Redeem to Bank</div>
+                  <span className="material-symbols-outlined text-ink-faint text-[18px]" aria-hidden="true">arrow_forward_ios</span>
+                </button>
+              ) : (
+                <div className="p-6 bg-surface-2 border-t border-line">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft mb-3">Redeem ₹{(userData.zipPoints / 100).toFixed(2)}</p>
+                  <input
+                    type="text"
+                    value={redeemInput}
+                    onChange={(e) => setRedeemInput(e.target.value)}
+                    placeholder="Enter UPI ID (e.g., user@upi)"
+                    className="w-full bg-surface-1 border border-line rounded-ctl px-4 h-12 text-[15px] text-ink placeholder:text-ink-faint focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow] mb-4"
+                  />
+                  <div className="flex gap-3">
+                    <Button variant="secondary" fullWidth onClick={() => setShowRedeemInput(false)}>Cancel</Button>
+                    <Button
+                      fullWidth
+                      loading={isRedeeming}
+                      disabled={isRedeeming}
+                      onClick={async () => {
+                        if (!redeemInput) {
+                          showToast("Please enter UPI ID", "error");
+                          return;
+                        }
+                        setIsRedeeming(true);
+                        try {
+                          const user = auth.currentUser;
+                          if (user) {
+                            await setDoc(doc(db, 'users', user.uid), {
+                              zipPoints: 0
+                            }, { merge: true });
+                            showToast(`Redemption request of ₹${(userData.zipPoints / 100).toFixed(2)} sent to ${redeemInput} successfully!`, "success");
+                            setUserData(prev => ({ ...prev, zipPoints: 0 }));
+                            setShowRedeemInput(false);
+                            setRedeemInput('');
+                          }
+                        } catch (error) {
+                          console.error("Redemption failed:", error);
+                          showToast("Redemption failed. Try again.", "error");
+                        } finally {
+                          setIsRedeeming(false);
+                        }
+                      }}
+                    >
+                      Confirm
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Ways to Earn */}
+              <div className="p-6 bg-surface-2 border-t border-line">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-soft mb-4">Ways to Earn</p>
+                <div className="flex flex-col gap-3.5">
+                  {[
+                    { icon: 'shopping_bag', title: 'Shop & Earn', desc: 'Up to 5000 coins per order' },
+                    { icon: 'group_add', title: 'Refer a Friend', desc: '500 coins per referral' },
+                    { icon: 'rate_review', title: 'Write a Review', desc: '100 coins per review' }
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-surface-1 flex items-center justify-center text-brand border border-line shrink-0">
+                        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{item.icon}</span>
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-medium text-ink leading-none">{item.title}</p>
+                        <p className="text-[12px] text-ink-soft mt-1">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
+          </div>
         )}
 
         {/* Seller Hub Section */}
         {userRole === 'seller' && (
-            <div className="px-6 mb-2">
-                <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft mb-4 ml-2">Seller Hub</h3>
-                <div className="flex flex-col bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line overflow-hidden shadow-sm">
-                    <div onClick={() => setView('seller-profile')} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                        <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-[#6157FF]/10 dark:border-[#6157FF]/10 shadow-sm shrink-0"><span className="material-symbols-outlined">storefront</span></div>
-                        <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Seller Profile & Settings</div>
-                        <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                    </div>
-                    <div onClick={() => navigate('/seller/dashboard')} className="flex items-center gap-4 p-4 cursor-pointer transition-colors">
-                        <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-[#6157FF]/10 dark:border-[#6157FF]/10 shadow-sm shrink-0"><span className="material-symbols-outlined">dashboard</span></div>
-                        <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Seller Dashboard</div>
-                        <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                    </div>
-                </div>
-            </div>
+          <div className="px-6 mb-8">
+            <Eyebrow className="mb-4 ml-1">Seller Hub</Eyebrow>
+            <MenuGroup>
+              <ListRow icon="storefront" title="Seller Profile & Settings" onClick={() => setView('seller-profile')} />
+              <ListRow icon="dashboard" title="Seller Dashboard" onClick={() => navigate('/seller/dashboard')} />
+            </MenuGroup>
+          </div>
         )}
 
         {/* Seller Tools Section */}
         {userRole !== 'seller' && (
-          <div className="px-6 mb-2 mt-6">
-              <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft mb-4 ml-2">Seller Tools</h3>
-              <div className="flex flex-col bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line overflow-hidden shadow-sm">
-                  {sellerStatus === 'none' && (
-                      <div onClick={() => setView('seller-apply')} className="flex items-center gap-4 p-4 cursor-pointer transition-colors">
-                          <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line"><span className="material-symbols-outlined">storefront</span></div>
-                          <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Apply to Become a Seller</div>
-                          <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                      </div>
-                  )}
-                  {sellerStatus === 'pending' && (
-                      <div className="p-6 bg-[#FAF9F6] dark:bg-surface-0 transition-colors">
-                          <div className="flex items-center gap-4 mb-6">
-                              <div className="h-12 w-12 rounded-2xl bg-white dark:bg-surface-1 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] shadow-sm border border-black/5 dark:border-line">
-                                  <span className="material-symbols-outlined text-2xl">pending</span>
-                              </div>
-                              <div className="flex-1">
-                                  <p className="font-bold text-lg text-[#111111] dark:text-ink leading-tight">Pending Review</p>
-                                  <p className="text-[11px] font-bold text-[#555555] dark:text-ink-soft mt-1">Your application is currently being verified. This usually takes 24-48 hours.</p>
-                              </div>
-                          </div>
+          <div className="px-6 mb-8">
+            <Eyebrow className="mb-4 ml-1">Seller Tools</Eyebrow>
+            {sellerStatus === 'none' && (
+              <MenuGroup>
+                <ListRow icon="storefront" title="Apply to Become a Seller" onClick={() => setView('seller-apply')} />
+              </MenuGroup>
+            )}
+            {sellerStatus === 'pending' && (
+              <div className="rounded-card border border-line bg-surface-1 p-6">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="h-12 w-12 rounded-full bg-warning-soft flex items-center justify-center text-warning shrink-0">
+                    <span className="material-symbols-outlined text-2xl" aria-hidden="true">pending</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-display text-[19px] font-medium text-ink leading-tight">Pending Review</p>
+                    <p className="text-[12px] text-ink-soft mt-1 leading-relaxed">Your application is currently being verified. This usually takes 24-48 hours.</p>
+                  </div>
+                </div>
 
-                          <div className="bg-white dark:bg-surface-1 rounded-2xl p-4 border border-black/5 dark:border-line mb-6">
-                              <h4 className="text-[12px] font-bold text-[#555555] dark:text-ink-soft mb-3">Application Details</h4>
-                              <div className="grid grid-cols-1 gap-3">
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-[12px] font-bold text-[#555555] dark:text-ink-soft">Brand</span>
-                                      <span className="text-xs font-bold text-[#111111] dark:text-ink">{sellerFormData.brandName}</span>
-                                  </div>
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-[12px] font-bold text-[#555555] dark:text-ink-soft">Contact</span>
-                                      <span className="text-xs font-bold text-[#111111] dark:text-ink">{sellerFormData.contactName}</span>
-                                  </div>
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-[12px] font-bold text-[#555555] dark:text-ink-soft">Phone</span>
-                                      <span className="text-xs font-bold text-[#111111] dark:text-ink">{sellerFormData.phone}</span>
-                                  </div>
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-[12px] font-bold text-[#555555] dark:text-ink-soft">Email</span>
-                                      <span className="text-xs font-bold text-[#111111] dark:text-ink">{sellerFormData.email}</span>
-                                  </div>
-                              </div>
-                          </div>
+                <div className="bg-surface-2 rounded-2xl p-4 border border-line mb-6">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-soft mb-3">Application Details</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[12px] text-ink-faint">Brand</span>
+                      <span className="text-[13px] font-medium text-ink">{sellerFormData.brandName}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[12px] text-ink-faint">Contact</span>
+                      <span className="text-[13px] font-medium text-ink">{sellerFormData.contactName}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[12px] text-ink-faint">Phone</span>
+                      <span className="text-[13px] font-medium text-ink">{sellerFormData.phone}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[12px] text-ink-faint">Email</span>
+                      <span className="text-[13px] font-medium text-ink">{sellerFormData.email}</span>
+                    </div>
+                  </div>
+                </div>
 
-                          <div className="flex gap-3">
-                              <button 
-                                  onClick={() => setView('seller-apply')}
-                                  className="flex-1 h-12 rounded-xl border border-black/5 dark:border-line text-[#111111] dark:text-ink font-bold text-xs transition-all active:scale-95 bg-white dark:bg-surface-1"
-                              >
-                                  Edit
-                              </button>
-                              <button 
-                                  onClick={() => setShowCancelApplyConfirm(true)}
-                                  className="flex-1 h-12 rounded-xl border border-red-200 dark:border-red-900/50 text-red-500 font-bold text-xs transition-all active:scale-95 bg-white dark:bg-surface-1"
-                              >
-                                  Cancel
-                              </button>
-                          </div>
-                      </div>
-                  )}
-                  {sellerStatus === 'rejected' && (
-                      <div className="p-6 bg-red-50 dark:bg-red-950/10 transition-colors">
-                          <div className="flex items-center gap-4 mb-6">
-                              <div className="h-12 w-12 rounded-2xl bg-white dark:bg-surface-1 flex items-center justify-center text-red-500 shadow-sm border border-red-100 dark:border-red-900/50">
-                                  <span className="material-symbols-outlined text-2xl">error</span>
-                              </div>
-                              <div className="flex-1">
-                                  <p className="font-bold text-lg text-red-500 leading-tight">Application Rejected</p>
-                                  <p className="text-[11px] font-bold text-[#555555] dark:text-ink-soft mt-1">Your seller registration application was declined. You can update your details and submit again.</p>
-                              </div>
-                          </div>
-                          <button 
-                              onClick={() => setView('seller-apply')}
-                              className="w-full h-12 rounded-xl bg-white dark:bg-surface-1 border border-black/5 dark:border-line text-[#111111] dark:text-ink font-bold text-xs transition-all active:scale-95"
-                          >
-                              Re-Apply
-                          </button>
-                      </div>
-                  )}
-                  {sellerStatus === 'suspended' && (
-                      <div className="p-6 bg-yellow-50 dark:bg-yellow-950/10 transition-colors">
-                          <div className="flex items-center gap-4">
-                              <div className="h-12 w-12 rounded-2xl bg-white dark:bg-surface-1 flex items-center justify-center text-yellow-600 shadow-sm border border-yellow-100 dark:border-yellow-900/50">
-                                  <span className="material-symbols-outlined text-2xl">block</span>
-                              </div>
-                              <div className="flex-1">
-                                  <p className="font-bold text-lg text-yellow-600 leading-tight">Account Suspended</p>
-                                  <p className="text-[11px] font-bold text-[#555555] dark:text-ink-soft mt-1">Your seller privileges have been suspended. Please contact support at partner@zipright.in for assistance.</p>
-                              </div>
-                          </div>
-                      </div>
-                  )}
-                  {sellerStatus === 'active' && (
-                      <div onClick={() => setView('seller-profile')} className="flex items-center gap-4 p-4 cursor-pointer transition-colors">
-                          <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-[#6157FF]/10 dark:border-[#6157FF]/10 shadow-sm shrink-0"><span className="material-symbols-outlined">storefront</span></div>
-                          <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Seller Profile & Settings</div>
-                          <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                      </div>
-                  )}
+                <div className="flex gap-3">
+                  <Button variant="outline" fullWidth onClick={() => setView('seller-apply')}>Edit</Button>
+                  <Button variant="secondary" fullWidth onClick={() => setShowCancelApplyConfirm(true)}>Cancel</Button>
+                </div>
               </div>
+            )}
+            {sellerStatus === 'rejected' && (
+              <div className="rounded-card border border-danger/25 bg-danger-soft p-6">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="h-12 w-12 rounded-full bg-surface-1 flex items-center justify-center text-danger shrink-0 border border-danger/20">
+                    <span className="material-symbols-outlined text-2xl" aria-hidden="true">error</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-display text-[19px] font-medium text-danger leading-tight">Application Rejected</p>
+                    <p className="text-[12px] text-ink-soft mt-1 leading-relaxed">Your seller registration application was declined. You can update your details and submit again.</p>
+                  </div>
+                </div>
+                <Button variant="outline" fullWidth onClick={() => setView('seller-apply')}>Re-apply</Button>
+              </div>
+            )}
+            {sellerStatus === 'suspended' && (
+              <div className="rounded-card border border-warning/25 bg-warning-soft p-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-surface-1 flex items-center justify-center text-warning shrink-0 border border-warning/20">
+                    <span className="material-symbols-outlined text-2xl" aria-hidden="true">block</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-display text-[19px] font-medium text-warning leading-tight">Account Suspended</p>
+                    <p className="text-[12px] text-ink-soft mt-1 leading-relaxed">Your seller privileges have been suspended. Please contact support at partner@zipright.in for assistance.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {sellerStatus === 'active' && (
+              <MenuGroup>
+                <ListRow icon="storefront" title="Seller Profile & Settings" onClick={() => setView('seller-profile')} />
+              </MenuGroup>
+            )}
           </div>
         )}
 
         {/* Cancel Application Confirmation Modal */}
-        {showCancelApplyConfirm && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
-                <div className="w-full max-w-sm rounded-[2rem] bg-white dark:bg-surface-1 p-6 shadow-2xl animate-in fade-in zoom-in duration-300">
-                    <h3 className="text-xl font-bold text-[#111111] dark:text-ink mb-2">Cancel Application?</h3>
-                    <p className="text-[#555555] dark:text-ink-soft mb-6">Are you sure you want to cancel your seller application? You will need to apply again later.</p>
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={() => setShowCancelApplyConfirm(false)}
-                            className="flex-1 py-3 rounded-2xl bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-bold active:scale-95 transition-all border border-black/5 dark:border-line"
-                        >
-                            No, Keep it
-                        </button>
-                        <button 
-                            onClick={async () => {
-                                setSellerStatusState('none');
-                                setSellerStatus('none');
-                                showToast('Application Cancelled', 'success');
-                                setShowCancelApplyConfirm(false);
-                            }}
-                            className="flex-1 py-3 rounded-2xl bg-red-500 text-ink font-bold active:scale-95 transition-all"
-                        >
-                            Yes, Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
+        <Modal
+          open={showCancelApplyConfirm}
+          onClose={() => setShowCancelApplyConfirm(false)}
+          title="Cancel application?"
+          description="Are you sure you want to cancel your seller application? You will need to apply again later."
+          actions={
+            <>
+              <Button variant="secondary" fullWidth onClick={() => setShowCancelApplyConfirm(false)}>No, keep it</Button>
+              <Button
+                variant="danger"
+                fullWidth
+                onClick={async () => {
+                  setSellerStatusState('none');
+                  setSellerStatus('none');
+                  showToast('Application Cancelled', 'success');
+                  setShowCancelApplyConfirm(false);
+                }}
+              >
+                Yes, cancel
+              </Button>
+            </>
+          }
+        />
 
         {/* Account Section */}
         {userRole !== 'seller' && (
-            <div className="px-6 mb-2">
-                <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft mb-4 ml-2">My Account</h3>
-                <div className="flex flex-col bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line overflow-hidden shadow-sm">
-                    <div onClick={() => navigate('/order-history')} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                        <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line"><span className="material-symbols-outlined">shopping_bag</span></div>
-                        <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">My Orders</div>
-                        <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                    </div>
-                    <div onClick={() => navigate('/wishlist')} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                        <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line"><span className="material-symbols-outlined">favorite</span></div>
-                        <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Wishlist</div>
-                        <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                    </div>
-                    <div onClick={() => setView('addresses')} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                        <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line"><span className="material-symbols-outlined">location_on</span></div>
-                        <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Addresses</div>
-                        <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                    </div>
-                    <div onClick={() => setView('manage-fits')} className="flex items-center gap-4 p-4 cursor-pointer transition-colors">
-                        <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line"><span className="material-symbols-outlined">straighten</span></div>
-                        <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">My Fits & Measurements</div>
-                        <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                    </div>
-                </div>
-            </div>
+          <div className="px-6 mb-8">
+            <Eyebrow className="mb-4 ml-1">My Account</Eyebrow>
+            <MenuGroup>
+              <ListRow icon="shopping_bag" title="My Orders" onClick={() => navigate('/order-history')} />
+              <ListRow icon="favorite" title="Wishlist" onClick={() => navigate('/wishlist')} />
+              <ListRow icon="location_on" title="Addresses" onClick={() => setView('addresses')} />
+              <ListRow icon="straighten" title="My Fits & Measurements" onClick={() => setView('manage-fits')} />
+            </MenuGroup>
+          </div>
         )}
 
         {/* Admin Tools Section */}
         {userRole === 'admin' && (
-            <div className="px-6 mb-2 mt-6">
-                <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft mb-4 ml-2">Admin Tools</h3>
-                <div className="flex flex-col bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line overflow-hidden shadow-sm">
-                    <div onClick={async () => {
-                        try {
-                            setLoading(true);
-                            const list = await adminListSellers('pending');
-                            setPendingSellers(list);
-                            setView('admin-approvals');
-                        } catch (err: any) {
-                            console.error(err);
-                            showToast(err.message || "Failed to list applications.", "error");
-                        } finally {
-                            setLoading(false);
-                        }
-                    }} className="flex items-center gap-4 p-4 cursor-pointer transition-colors">
-                        <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#6157FF] dark:text-[#6157FF] border border-black/5 dark:border-line"><span className="material-symbols-outlined">gavel</span></div>
-                        <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Pending Seller Applications</div>
-                        <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                    </div>
-                </div>
-            </div>
+          <div className="px-6 mb-8">
+            <Eyebrow className="mb-4 ml-1">Admin Tools</Eyebrow>
+            <MenuGroup>
+              <ListRow
+                icon="gavel"
+                title="Pending Seller Applications"
+                onClick={async () => {
+                  try {
+                    setLoading(true);
+                    const list = await adminListSellers('pending');
+                    setPendingSellers(list);
+                    setView('admin-approvals');
+                  } catch (err: any) {
+                    console.error(err);
+                    showToast(err.message || "Failed to list applications.", "error");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              />
+            </MenuGroup>
+          </div>
         )}
 
         {/* Preferences Section */}
-        <div className="px-6 mb-2 mt-6">
-            <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft mb-4 ml-2">Preferences</h3>
-            <div className="flex flex-col bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line overflow-hidden shadow-sm">
-                <div onClick={toggleDarkMode} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                    <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#111111] dark:text-ink border border-black/5 dark:border-line"><span className="material-symbols-outlined">dark_mode</span></div>
-                    <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Dark Mode</div>
-                    <div className={`w-12 h-6 rounded-full flex items-center px-1 transition-all ${isDarkMode ? 'bg-[#6157FF] dark:bg-[#6157FF]' : 'bg-black/10 dark:bg-surface-2'}`}>
-                        <div className={`w-4 h-4 rounded-full shadow-md transition-all ${isDarkMode ? 'bg-white dark:bg-surface-0 translate-x-6' : 'bg-white translate-x-0'}`}></div>
-                    </div>
-                </div>
-                <div onClick={() => setView('app-settings')} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                    <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#111111] dark:text-ink border border-black/5 dark:border-line"><span className="material-symbols-outlined">settings</span></div>
-                    <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">App Settings</div>
-                    <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                </div>
-                <div onClick={() => setView('permissions')} className="flex items-center gap-4 p-4 cursor-pointer transition-colors">
-                    <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#111111] dark:text-ink border border-black/5 dark:border-line"><span className="material-symbols-outlined">security</span></div>
-                    <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Permissions</div>
-                    <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                </div>
-            </div>
+        <div className="px-6 mb-8">
+          <Eyebrow className="mb-4 ml-1">Preferences</Eyebrow>
+          <MenuGroup>
+            <ListRow
+              icon="dark_mode"
+              title="Dark Mode"
+              onClick={toggleDarkMode}
+              trailing={<Toggle label="Dark Mode" on={isDarkMode} onClick={toggleDarkMode} />}
+            />
+            <ListRow icon="settings" title="App Settings" onClick={() => setView('app-settings')} />
+            <ListRow icon="security" title="Permissions" onClick={() => setView('permissions')} />
+          </MenuGroup>
         </div>
 
         {/* Support Section */}
-        <div className="px-6 mb-2 mt-6">
-            <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft mb-4 ml-2">Support & Legal</h3>
-            <div className="flex flex-col bg-white dark:bg-surface-1 rounded-[2rem] border border-black/5 dark:border-line overflow-hidden shadow-sm">
-                <div onClick={() => navigate('/faqs')} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                    <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#111111] dark:text-ink border border-black/5 dark:border-line"><span className="material-symbols-outlined">help</span></div>
-                    <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Help & FAQs</div>
-                    <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                </div>
-                <div onClick={() => navigate('/about-us')} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                    <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#111111] dark:text-ink border border-black/5 dark:border-line"><span className="material-symbols-outlined">info</span></div>
-                    <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">About Us</div>
-                    <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                </div>
-                <div onClick={() => navigate('/privacy-policy')} className="flex items-center gap-4 p-4 cursor-pointer border-b border-black/5 dark:border-line transition-colors">
-                    <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#111111] dark:text-ink border border-black/5 dark:border-line"><span className="material-symbols-outlined">policy</span></div>
-                    <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Privacy Policy</div>
-                    <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                </div>
-                 <div onClick={() => navigate('/terms-of-use')} className="flex items-center gap-4 p-4 cursor-pointer transition-colors">
-                    <div className="h-10 w-10 rounded-full bg-[#FAF9F6] dark:bg-surface-0 flex items-center justify-center text-[#111111] dark:text-ink border border-black/5 dark:border-line"><span className="material-symbols-outlined">gavel</span></div>
-                    <div className="flex-1 font-bold text-sm text-[#111111] dark:text-ink">Terms of Use</div>
-                    <span className="material-symbols-outlined text-[#555555] dark:text-ink-soft">chevron_right</span>
-                </div>
-            </div>
+        <div className="px-6 mb-8">
+          <Eyebrow className="mb-4 ml-1">Support & Legal</Eyebrow>
+          <MenuGroup>
+            <ListRow icon="help" title="Help & FAQs" onClick={() => navigate('/faqs')} />
+            <ListRow icon="info" title="About Us" onClick={() => navigate('/about-us')} />
+            <ListRow icon="policy" title="Privacy Policy" onClick={() => navigate('/privacy-policy')} />
+            <ListRow icon="gavel" title="Terms of Use" onClick={() => navigate('/terms-of-use')} />
+          </MenuGroup>
         </div>
 
-        <div className="px-6 py-8">
-            <button onClick={async () => {
-                await auth.signOut();
-                navigate('/welcome');
-            }} className="w-full h-12 rounded-2xl border border-red-200 dark:border-red-900/50 text-red-500 font-bold text-sm active:scale-95 transition-all bg-white dark:bg-surface-1">
-                Log Out
-            </button>
-            <p className="text-[11px] text-center text-[#555555] dark:text-ink-soft mt-6 font-bold opacity-80">
-                <span className="text-[#111111] dark:text-ink">Zip</span><span className="text-[#6157FF]">RIGHT</span> v1.0
-            </p>
+        <div className="px-6 py-4">
+          <Button
+            variant="outline"
+            fullWidth
+            className="!text-danger !border-danger/30"
+            onClick={async () => {
+              await auth.signOut();
+              navigate('/welcome');
+            }}
+          >
+            Log out
+          </Button>
+          <p className="text-[11px] text-center text-ink-faint mt-8">
+            <span className="text-ink font-medium">Zip</span><span className="text-brand font-medium">RIGHT</span> v1.0
+          </p>
         </div>
       </div>
 
-      {/* Premium Membership Modal */}
-      {showPremiumModal && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-300">
-            <div 
-                className="bg-[#FAF9F6] dark:bg-surface-0 w-full max-w-lg sm:rounded-[2.5rem] rounded-t-[2.5rem] max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl animate-in slide-in-from-bottom duration-300 relative"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="p-6 pb-24 sm:pb-6 relative">
-                    <div className="w-12 h-1.5 bg-black/10 dark:bg-surface-2 rounded-full mx-auto mb-6 sm:hidden"></div>
-                    
-                    <button 
-                        onClick={() => setShowPremiumModal(false)}
-                        className="absolute top-6 right-6 h-8 w-8 rounded-full bg-black/5 flex items-center justify-center"
-                    >
-                        <span className="material-symbols-outlined text-[#111111] dark:text-ink">close</span>
-                    </button>
-
-                    <div className="text-center mb-8">
-                        <span className="inline-block px-3 py-1 rounded-full bg-[#6157FF]/10 text-[#6157FF] dark:bg-[#6157FF]/10 dark:text-[#6157FF] text-[12px] font-bold mb-2">Upgrade Now</span>
-                        <h2 className="text-3xl font-bold text-[#111111] dark:text-ink mb-2">
-                            <span className="text-[#111111] dark:text-ink">Zip</span><span className="text-[#6157FF]">RIGHT</span> Premium
-                        </h2>
-                        <p className="text-sm text-[#555555] dark:text-ink-soft font-medium max-w-xs mx-auto">Unlock advanced fit analysis and exclusive rewards for shoppers & sellers.</p>
-                    </div>
-
-                    {/* Toggle */}
-                    <div className="flex justify-center mb-8">
-                        <div className="flex bg-black/5 dark:bg-surface-2 p-1 rounded-2xl relative">
-                            <button 
-                                onClick={() => setBillingCycle('monthly')}
-                                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all z-10 ${billingCycle === 'monthly' ? 'bg-white dark:bg-surface-1 text-[#111111] dark:text-ink shadow-sm' : 'text-[#555555] dark:text-ink-soft'}`}
-                            >
-                                Monthly
-                            </button>
-                            <button 
-                                onClick={() => setBillingCycle('yearly')}
-                                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all z-10 flex items-center gap-1 ${billingCycle === 'yearly' ? 'bg-white dark:bg-surface-1 text-[#111111] dark:text-ink shadow-sm' : 'text-[#555555] dark:text-ink-soft'}`}
-                            >
-                                Yearly
-                                <span className="text-[11px] bg-green-500 text-ink px-1.5 py-0.5 rounded ml-1">-16%</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Plans Grid */}
-                    <div className="flex flex-col gap-4">
-                        {plans.map((plan) => {
-                            if (!plan) return null;
-                            const isYearly = billingCycle === 'yearly';
-                            const monthlyRate = plan.monthlyPrice;
-                            
-                            // Calculate yearly cost with discount
-                            const yearlyTotal = Math.round(monthlyRate * 12 * (1 - (plan.discountPercent / 100)));
-                            const priceToDisplay = isYearly ? yearlyTotal : monthlyRate;
-                            
-                            return (
-                                <div 
-                                    key={plan.name} 
-                                    className={`relative p-5 rounded-[2rem] border-2 transition-all cursor-pointer overflow-hidden group ${plan.popular ? 'border-[#6157FF] dark:border-[#6157FF] bg-white dark:bg-surface-1' : 'border-black/5 dark:border-line bg-white dark:bg-surface-1'}`}
-                                >
-                                    {plan.popular && (
-                                        <div className="absolute top-0 right-0 bg-[#6157FF] dark:bg-[#6157FF] text-ink dark:text-[#111111] text-[12px] font-bold px-3 py-1 rounded-bl-xl">
-                                            Most Popular
-                                        </div>
-                                    )}
-
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-[#111111] dark:text-ink">{plan.name}</h3>
-                                            <div className="flex items-baseline gap-1 mt-1">
-                                                <span className="text-2xl font-bold text-[#111111] dark:text-ink">
-                                                    {priceToDisplay === 0 ? 'Free' : `₹${priceToDisplay.toLocaleString()}`}
-                                                </span>
-                                                {priceToDisplay !== 0 && <span className="text-xs font-bold text-[#555555] dark:text-ink-soft">/{isYearly ? 'yr' : 'mo'}</span>}
-                                            </div>
-                                            {isYearly && (
-                                                <p className="text-xs font-bold text-green-600 dark:text-green-400 mt-1">
-                                                    Save {plan.discountPercent}% (₹{Math.round(monthlyRate * 12 * (plan.discountPercent/100)).toLocaleString()})
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className={`h-10 w-10 rounded-full flex items-center justify-center text-ink ${plan.color}`}>
-                                            <span className="material-symbols-outlined text-lg">star</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="h-[1px] bg-black/5 dark:bg-surface-2 mb-4"></div>
-
-                                    <ul className="flex flex-col gap-2 mb-4">
-                                        {plan.features.map((feature, idx) => (
-                                            <li key={idx} className="flex items-center gap-2 text-sm text-[#555555] dark:text-ink-soft font-medium">
-                                                <span className="material-symbols-outlined text-green-500 text-base">check</span>
-                                                {feature}
-                                            </li>
-                                        ))}
-                                    </ul>
-
-                                    <button 
-                                        onClick={() => {
-                                            if (plan.id === userPlan.id) return;
-                                            handleSelectPlan(plan.planData);
-                                        }}
-                                        className={`w-full h-12 rounded-2xl font-bold text-sm tracking-wide transition-all active:scale-[0.98] ${
-                                            plan.id === userPlan.id
-                                            ? 'bg-black/5 dark:bg-surface-2 text-[#555555] dark:text-ink-soft cursor-default'
-                                            : plan.popular 
-                                                ? 'bg-[#6157FF] dark:bg-[#6157FF] text-ink dark:text-[#111111] shadow-lg shadow-[#6157FF]/20' 
-                                                : 'bg-surface-0 dark:bg-white text-ink dark:text-[#111111]'
-                                        }`}
-                                    >
-                                        {plan.id === userPlan.id ? 'Current Plan' : `Choose ${plan.name}`}
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    <p className="text-center text-[12px] text-[#555555] dark:text-ink-soft mt-6 font-medium">
-                        Recurring billing. Cancel anytime. Terms apply.
-                    </p>
-                </div>
-            </div>
+      {/* Premium Membership Sheet */}
+      <Sheet open={showPremiumModal} onClose={() => setShowPremiumModal(false)} title="ZipRIGHT Premium">
+        <div className="text-center mb-8 -mt-1">
+          <span className="inline-block px-3 py-1 rounded-full bg-brand-soft text-brand text-[10px] font-semibold uppercase tracking-[0.14em] mb-3">Upgrade Now</span>
+          <p className="text-[13px] text-ink-soft leading-relaxed max-w-xs mx-auto">Unlock advanced fit analysis and exclusive rewards for shoppers & sellers.</p>
         </div>
-      )}
+
+        {/* Billing toggle */}
+        <div className="flex justify-center mb-8">
+          <div className="flex bg-surface-2 p-1 rounded-full relative">
+            <button
+              onClick={() => setBillingCycle('monthly')}
+              className={cn('px-6 py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors', billingCycle === 'monthly' ? 'bg-surface-1 text-ink shadow-sm' : 'text-ink-faint')}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingCycle('yearly')}
+              className={cn('px-6 py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors flex items-center gap-1.5', billingCycle === 'yearly' ? 'bg-surface-1 text-ink shadow-sm' : 'text-ink-faint')}
+            >
+              Yearly
+              <span className="text-[10px] bg-brass text-ink px-1.5 py-0.5 rounded-full">-16%</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Plans Grid */}
+        <div className="flex flex-col gap-4">
+          {plans.map((plan) => {
+            if (!plan) return null;
+            const isYearly = billingCycle === 'yearly';
+            const monthlyRate = plan.monthlyPrice;
+
+            const yearlyTotal = Math.round(monthlyRate * 12 * (1 - (plan.discountPercent / 100)));
+            const priceToDisplay = isYearly ? yearlyTotal : monthlyRate;
+
+            return (
+              <div
+                key={plan.name}
+                className={cn('relative p-5 rounded-card border bg-surface-1 overflow-hidden', plan.popular ? 'border-brand' : 'border-line')}
+              >
+                {plan.popular && (
+                  <div className="absolute top-0 right-0 bg-brand text-on-brand text-[9px] font-semibold uppercase tracking-[0.12em] px-3 py-1 rounded-bl-xl">
+                    Most Popular
+                  </div>
+                )}
+
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="font-display text-[20px] font-medium text-ink">{plan.name}</h3>
+                    <div className="flex items-baseline gap-1 mt-1">
+                      <span className="font-display text-[26px] font-light text-ink">
+                        {priceToDisplay === 0 ? 'Free' : `₹${priceToDisplay.toLocaleString()}`}
+                      </span>
+                      {priceToDisplay !== 0 && <span className="text-[12px] text-ink-faint">/{isYearly ? 'yr' : 'mo'}</span>}
+                    </div>
+                    {isYearly && (
+                      <p className="text-[12px] font-medium text-success mt-1">
+                        Save {plan.discountPercent}% (₹{Math.round(monthlyRate * 12 * (plan.discountPercent/100)).toLocaleString()})
+                      </p>
+                    )}
+                  </div>
+                  <div className={cn('h-10 w-10 rounded-full flex items-center justify-center', plan.color)}>
+                    <span className="material-symbols-outlined text-lg" aria-hidden="true">star</span>
+                  </div>
+                </div>
+
+                <Divider className="mb-4" />
+
+                <ul className="flex flex-col gap-2 mb-5">
+                  {plan.features.map((feature, idx) => (
+                    <li key={idx} className="flex items-center gap-2 text-[13px] text-ink-soft">
+                      <span className="material-symbols-outlined text-success text-[17px]" aria-hidden="true">check</span>
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  fullWidth
+                  variant={plan.id === userPlan.id ? 'secondary' : plan.popular ? 'accent' : 'primary'}
+                  disabled={plan.id === userPlan.id}
+                  onClick={() => {
+                    if (plan.id === userPlan.id) return;
+                    handleSelectPlan(plan.planData);
+                  }}
+                >
+                  {plan.id === userPlan.id ? 'Current Plan' : `Choose ${plan.name}`}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="text-center text-[12px] text-ink-faint mt-6">
+          Recurring billing. Cancel anytime. Terms apply.
+        </p>
+      </Sheet>
     </div>
   );
 };

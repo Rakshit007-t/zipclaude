@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { importProduct, createProduct, ProductPreview, ProductDraft } from '../services/ziprightApi';
+import { AppBar, Button, Eyebrow, SegmentedControl, Spinner, cn } from '../components/ui';
 
 interface SizeRow {
   size: string;
@@ -11,7 +12,7 @@ interface SizeRow {
 const SellerAddProduct: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  
+
   // UI Navigation
   const [activeTab, setActiveTab] = useState<'url' | 'image'>('url');
   const [loading, setLoading] = useState(false);
@@ -71,7 +72,7 @@ const SellerAddProduct: React.FC = () => {
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    
+
     Array.from(files).forEach((file) => {
       if (imagesList.length >= 6) {
         showToast('Maximum 6 images allowed.', 'error');
@@ -131,7 +132,7 @@ const SellerAddProduct: React.FC = () => {
     setTagsInput(p.tags ? p.tags.join(', ') : '');
     setSourceUrl(p.source_url || '');
     setProductImages(p.images || []);
-    
+
     // Map backend dict to size rows
     if (p.size_chart) {
       const rows = Object.entries(p.size_chart).map(([size, value]) => ({
@@ -154,7 +155,7 @@ const SellerAddProduct: React.FC = () => {
       showToast('Enter a valid measurement value', 'error');
       return;
     }
-    
+
     const sizeName = newSizeName.trim().toUpperCase();
     if (sizeChart.some(r => r.size === sizeName)) {
       showToast('Size already exists in chart.', 'error');
@@ -181,7 +182,7 @@ const SellerAddProduct: React.FC = () => {
     try {
       setLoading(true);
       setLoadingText('Saving product to repository...');
-      
+
       const sizeChartDict: Record<string, number> = {};
       sizeChart.forEach((row) => {
         sizeChartDict[row.size] = row.value;
@@ -221,176 +222,187 @@ const SellerAddProduct: React.FC = () => {
     }
   };
 
-  // Helper component for AI field badge
+  // Helper component for AI field badge — gold / brass editorial slip
   const AiBadge: React.FC<{ fieldName: string }> = ({ fieldName }) => {
     if (!previewData?.generated_fields.includes(fieldName)) return null;
     return (
-      <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-[#6157FF] dark:text-[#6157FF] bg-[#6157FF]/10 dark:bg-[#6157FF]/10 px-2 py-0.5 rounded-full scale-90">
-        <span className="material-symbols-outlined text-[12px] filled" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-        AI Estimated
+      <span className="inline-flex items-center gap-1 rounded-full bg-brass-soft px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-brass">
+        <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">auto_awesome</span>
+        AI
       </span>
     );
   };
 
+  // Input chrome — brass hairline when the value was AI-estimated
+  const fieldCls = (ai: boolean) =>
+    cn(
+      'w-full h-12 rounded-ctl bg-surface-2 px-4 text-[15px] text-ink placeholder:text-ink-faint',
+      'border focus:outline-none focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow]',
+      ai ? 'border-brass/45 focus:border-brass' : 'border-line focus:border-ink',
+    );
+
+  // Field wrapper — eyebrow label + optional AI badge
+  const FieldShell: React.FC<{ label: string; fieldName?: string; required?: boolean; children: React.ReactNode }> = ({ label, fieldName, required, children }) => (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
+          {label}
+          {required && <span className="text-danger ml-0.5" aria-hidden="true">*</span>}
+        </label>
+        {fieldName && <AiBadge fieldName={fieldName} />}
+      </div>
+      {children}
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden relative">
-      
+    <div className="relative flex min-h-screen min-h-dvh w-full flex-col bg-surface-0 text-ink">
+
       {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-[1000] flex flex-col items-center justify-center p-6">
-          <div className="bg-white dark:bg-surface-1 p-8 rounded-[2.5rem] border border-black/5 dark:border-line flex flex-col items-center max-w-sm text-center shadow-2xl">
-            <div className="h-16 w-16 border-4 border-[#6157FF] dark:border-[#6157FF] border-t-transparent rounded-full animate-spin mb-6"></div>
-            <h3 className="text-lg font-bold mb-2">Analyzing Product</h3>
-            <p className="text-xs text-[#555555] dark:text-ink-soft font-medium leading-relaxed">{loadingText}</p>
+        <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-scrim p-6 backdrop-blur-md">
+          <div className="flex max-w-sm flex-col items-center rounded-card border border-line bg-surface-1 p-8 text-center shadow-float">
+            <Spinner size={40} className="mb-6 text-brand" />
+            <p className="eyebrow mb-2">Working</p>
+            <h3 className="mb-2 font-display text-[22px] font-light text-ink">Analyzing<em className="font-medium">.</em></h3>
+            <p className="text-[13px] leading-relaxed text-ink-soft">{loadingText}</p>
           </div>
         </div>
       )}
 
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line shrink-0">
-        <button 
-          onClick={() => {
-            if (previewData) {
-              setPreviewData(null);
-            } else {
-              navigate('/settings');
-            }
-          }} 
-          aria-label="Go back" className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"
-        >
-          <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h2 className="text-lg font-bold text-[#6157FF]">{previewData ? 'Approve Product' : 'Import Product'}</h2>
-        <div className="w-8"></div>
-      </div>
+      {/* Header */}
+      <AppBar
+        title={previewData ? 'Approve Product' : 'Import Product'}
+        onBack={() => {
+          if (previewData) {
+            setPreviewData(null);
+          } else {
+            navigate('/settings');
+          }
+        }}
+      />
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar">
-        
+      <div className="flex-1">
+
         {!previewData ? (
           /* SECTION 1: INGESTION CONTROLS */
-          <div className="p-6 max-w-md mx-auto flex flex-col gap-6">
-            <div className="text-center">
-              <span className="inline-block px-3 py-1 rounded-full bg-[#6157FF]/10 text-[#6157FF] dark:bg-[#6157FF]/10 dark:text-[#6157FF] text-[12px] font-bold mb-2">New Product Ingestion</span>
-              <h1 className="text-2xl font-bold mb-1">Add to Catalog</h1>
-              <p className="text-xs text-[#555555] dark:text-ink-soft font-medium max-w-xs mx-auto">Analyze details automatically from a product listing URL or pictures.</p>
+          <div className="mx-auto flex max-w-md flex-col gap-8 px-6 pt-8 pb-40">
+            <div>
+              <Eyebrow className="mb-3">New product ingestion</Eyebrow>
+              <h1 className="font-display text-[34px] font-light leading-[1.05] text-ink">Add to <em className="font-medium">catalog.</em></h1>
+              <p className="mt-4 max-w-[90%] text-[14px] leading-relaxed text-ink-soft">
+                Analyze details automatically from a product listing URL or pictures.
+              </p>
             </div>
 
             {/* TAB SELECTOR */}
-            <div className="flex bg-black/5 dark:bg-surface-2 p-1 rounded-2xl relative w-full">
-              <button 
-                onClick={() => setActiveTab('url')}
-                className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'url' ? 'bg-white dark:bg-surface-1 text-[#111111] dark:text-ink shadow-sm' : 'text-[#555555] dark:text-ink-soft'}`}
-              >
-                <span className="material-symbols-outlined text-sm">link</span>
-                URL Import
-              </button>
-              <button 
-                onClick={() => setActiveTab('image')}
-                className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'image' ? 'bg-white dark:bg-surface-1 text-[#111111] dark:text-ink shadow-sm' : 'text-[#555555] dark:text-ink-soft'}`}
-              >
-                <span className="material-symbols-outlined text-sm">image</span>
-                Image Upload
-              </button>
-            </div>
+            <SegmentedControl
+              aria-label="Ingestion method"
+              value={activeTab}
+              onChange={(v) => setActiveTab(v)}
+              options={[
+                { value: 'url', label: 'URL import', icon: 'link' },
+                { value: 'image', label: 'Image upload', icon: 'image' },
+              ]}
+            />
 
             {/* URL PANEL */}
             {activeTab === 'url' && (
-              <div className="bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm flex flex-col gap-5">
-                <div>
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Product Store URL</label>
-                  <input 
-                    type="url" 
+              <div className="flex flex-col gap-6 rounded-card border border-line bg-surface-1 p-6">
+                <FieldShell label="Product store URL">
+                  <input
+                    type="url"
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
                     placeholder="https://example.com/product/123"
-                    className="w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none focus:border-[#6157FF] dark:focus:border-[#6157FF] transition-colors text-sm"
+                    className={fieldCls(false)}
                   />
-                </div>
-                <button 
-                  onClick={handleUrlImport}
-                  className="w-full h-14 bg-surface-0 text-ink dark:bg-white dark:text-[#111111] rounded-2xl font-bold text-sm active:scale-95 shadow-md flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-lg">auto_awesome</span>
-                  Analyze Listing
-                </button>
+                </FieldShell>
+                <Button size="lg" fullWidth icon="auto_awesome" onClick={handleUrlImport}>
+                  Analyze listing
+                </Button>
               </div>
             )}
 
             {/* IMAGE PANEL */}
             {activeTab === 'image' && (
-              <div className="bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm flex flex-col gap-6">
-                <div>
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Upload Images (Max 6)</label>
-                  <div 
+              <div className="flex flex-col gap-6 rounded-card border border-line bg-surface-1 p-6">
+                <FieldShell label="Upload images (max 6)">
+                  <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-black/10 dark:border-line hover:border-[#6157FF] rounded-[1.5rem] py-8 px-4 flex flex-col items-center justify-center cursor-pointer transition-colors"
+                    className="flex cursor-pointer flex-col items-center justify-center rounded-card border border-dashed border-line-strong bg-surface-2 py-10 px-4 transition-colors hover:border-brand"
                   >
-                    <span className="material-symbols-outlined text-3xl text-[#6157FF] mb-2">upload_file</span>
-                    <span className="text-xs font-bold">Select Files</span>
-                    <span className="text-[12px] text-[#555555] dark:text-ink-soft mt-1">PNG, JPG or WebP</span>
+                    <span className="material-symbols-outlined mb-2 text-[32px] text-brand" aria-hidden="true">upload_file</span>
+                    <span className="text-[13px] font-semibold text-ink">Select files</span>
+                    <span className="mt-1 text-[11px] uppercase tracking-[0.12em] text-ink-faint">PNG, JPG or WebP</span>
                   </div>
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     ref={fileInputRef}
                     accept="image/*"
                     multiple
                     className="hidden"
                     onChange={handleImageFileChange}
                   />
-                </div>
+                </FieldShell>
 
                 {/* THUMBNAILS GRID */}
                 {imagesList.length > 0 && (
                   <div className="grid grid-cols-3 gap-3">
                     {imagesList.map((imgUrl, index) => (
-                      <div key={index} className="relative aspect-square rounded-xl overflow-hidden border border-black/5 dark:border-line group">
-                        <img src={imgUrl} alt="Upload Preview" className="h-full w-full object-cover"/>
-                        <button 
+                      <div key={index} className="group relative aspect-square overflow-hidden rounded-xl border border-line">
+                        <img src={imgUrl} alt="Upload preview" className="h-full w-full object-cover"/>
+                        <button
                           onClick={() => removeUploadImage(index)}
-                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300"
+                          aria-label="Remove image"
+                          className="absolute inset-0 flex items-center justify-center bg-scrim opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                         >
-                          <span className="material-symbols-outlined text-ink text-xl">delete</span>
+                          <span className="material-symbols-outlined text-[22px] text-ink-invert" aria-hidden="true">delete</span>
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <button 
-                  onClick={handleImageImport}
+                <Button
+                  size="lg"
+                  fullWidth
+                  icon="auto_awesome"
                   disabled={imagesList.length === 0}
-                  className="w-full h-14 bg-surface-0 text-ink dark:bg-white dark:text-[#111111] rounded-2xl font-bold text-sm active:scale-95 shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                  onClick={handleImageImport}
                 >
-                  <span className="material-symbols-outlined text-lg">auto_awesome</span>
-                  Analyze Pictures
-                </button>
+                  Analyze pictures
+                </Button>
               </div>
             )}
 
           </div>
         ) : (
           /* SECTION 2: EDITABLE PREVIEW FORM */
-          <div className="p-6 max-w-md mx-auto flex flex-col gap-6 pb-36">
-            
+          <div className="mx-auto flex max-w-md flex-col gap-6 px-6 pt-8 pb-40">
+
             <div>
-              <span className="inline-block px-3 py-1 rounded-full bg-green-500/10 text-green-600 text-[12px] font-bold mb-2">Extraction Loaded</span>
-              <h1 className="text-2xl font-bold mb-1">Verify Details</h1>
-              <p className="text-xs text-[#555555] dark:text-ink-soft font-medium leading-relaxed">
+              <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-success">
+                <span className="material-symbols-outlined text-[13px]" aria-hidden="true">check_circle</span>
+                Extraction loaded
+              </span>
+              <h1 className="font-display text-[30px] font-light leading-[1.05] text-ink">Verify <em className="font-medium">details.</em></h1>
+              <p className="mt-3 text-[13.5px] leading-relaxed text-ink-soft">
                 Review, correct, and populate catalog details below. AI generated fields are badged in gold.
               </p>
             </div>
 
             {/* PREVIEW: BASIC CARD */}
-            <div className="flex flex-col bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm gap-5">
-              
+            <div className="flex flex-col gap-5 rounded-card border border-line bg-surface-1 p-6">
+
               {/* Product Images View */}
               {productImages.length > 0 && (
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide">Imported Images</label>
-                  <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">Imported images</label>
+                  <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
                     {productImages.map((img, idx) => (
-                      <div key={idx} className="h-20 w-20 rounded-xl overflow-hidden border border-black/5 dark:border-line shrink-0">
+                      <div key={idx} className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-line">
                         <img src={img} alt={`Preview ${idx}`} className="h-full w-full object-cover"/>
                       </div>
                     ))}
@@ -399,238 +411,192 @@ const SellerAddProduct: React.FC = () => {
               )}
 
               {/* Title Input */}
-              <div className="relative">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Title *</label>
-                  <AiBadge fieldName="title" />
-                </div>
-                <input 
-                  type="text" 
+              <FieldShell label="Title" required fieldName="title">
+                <input
+                  type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-sm ${previewData.generated_fields.includes('title') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                  className={fieldCls(previewData.generated_fields.includes('title'))}
                 />
-              </div>
+              </FieldShell>
 
               {/* Brand Input */}
-              <div className="relative">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Brand</label>
-                  <AiBadge fieldName="brand" />
-                </div>
-                <input 
-                  type="text" 
+              <FieldShell label="Brand" fieldName="brand">
+                <input
+                  type="text"
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
-                  className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-sm ${previewData.generated_fields.includes('brand') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                  className={fieldCls(previewData.generated_fields.includes('brand'))}
                 />
-              </div>
+              </FieldShell>
 
               {/* Category & Gender */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Category</label>
-                    <AiBadge fieldName="category" />
-                  </div>
-                  <input 
-                    type="text" 
+                <FieldShell label="Category" fieldName="category">
+                  <input
+                    type="text"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     placeholder="e.g. tshirt"
-                    className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-sm ${previewData.generated_fields.includes('category') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                    className={fieldCls(previewData.generated_fields.includes('category'))}
                   />
-                </div>
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Gender</label>
-                    <AiBadge fieldName="gender" />
-                  </div>
-                  <input 
-                    type="text" 
+                </FieldShell>
+                <FieldShell label="Gender" fieldName="gender">
+                  <input
+                    type="text"
                     value={gender}
                     onChange={(e) => setGender(e.target.value)}
-                    placeholder="e.g. men, women, unisex"
-                    className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-sm ${previewData.generated_fields.includes('gender') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                    placeholder="e.g. men, women"
+                    className={fieldCls(previewData.generated_fields.includes('gender'))}
                   />
-                </div>
+                </FieldShell>
               </div>
 
               {/* Price & Pattern */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Price</label>
-                    <AiBadge fieldName="price" />
-                  </div>
-                  <input 
-                    type="text" 
+                <FieldShell label="Price" fieldName="price">
+                  <input
+                    type="text"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="e.g. Rs. 999"
-                    className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-sm ${previewData.generated_fields.includes('price') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                    className={fieldCls(previewData.generated_fields.includes('price'))}
                   />
-                </div>
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Pattern</label>
-                    <AiBadge fieldName="pattern" />
-                  </div>
-                  <input 
-                    type="text" 
+                </FieldShell>
+                <FieldShell label="Pattern" fieldName="pattern">
+                  <input
+                    type="text"
                     value={pattern}
                     onChange={(e) => setPattern(e.target.value)}
                     placeholder="e.g. solid, striped"
-                    className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-sm ${previewData.generated_fields.includes('pattern') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                    className={fieldCls(previewData.generated_fields.includes('pattern'))}
                   />
-                </div>
+                </FieldShell>
               </div>
 
               {/* Description */}
-              <div className="relative">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Description</label>
-                  <AiBadge fieldName="description" />
-                </div>
-                <textarea 
+              <FieldShell label="Description" fieldName="description">
+                <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className={`w-full h-24 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 py-3 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-xs resize-none ${previewData.generated_fields.includes('description') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                  rows={4}
+                  className={cn(
+                    'w-full rounded-ctl bg-surface-2 p-4 text-[14px] text-ink placeholder:text-ink-faint resize-none',
+                    'border focus:outline-none focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow]',
+                    previewData.generated_fields.includes('description') ? 'border-brass/45 focus:border-brass' : 'border-line focus:border-ink',
+                  )}
                 />
-              </div>
+              </FieldShell>
 
             </div>
 
             {/* PREVIEW: FABRIC SPEC SHEET CARD */}
-            <div className="flex flex-col bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm gap-5">
-              <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft">Garment Specs</h3>
+            <div className="flex flex-col gap-5 rounded-card border border-line bg-surface-1 p-6">
+              <Eyebrow>Garment specs</Eyebrow>
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Fabric */}
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Fabric</label>
-                    <AiBadge fieldName="fabric" />
-                  </div>
-                  <input 
-                    type="text" 
+                <FieldShell label="Fabric" fieldName="fabric">
+                  <input
+                    type="text"
                     value={fabric}
                     onChange={(e) => setFabric(e.target.value)}
                     placeholder="e.g. Cotton"
-                    className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-xs ${previewData.generated_fields.includes('fabric') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                    className={fieldCls(previewData.generated_fields.includes('fabric'))}
                   />
-                </div>
+                </FieldShell>
                 {/* Fit Type */}
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Fit Type</label>
-                    <AiBadge fieldName="fit_type" />
-                  </div>
-                  <input 
-                    type="text" 
+                <FieldShell label="Fit type" fieldName="fit_type">
+                  <input
+                    type="text"
                     value={fitType}
                     onChange={(e) => setFitType(e.target.value)}
-                    placeholder="e.g. regular, oversized"
-                    className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-xs ${previewData.generated_fields.includes('fit_type') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                    placeholder="e.g. regular"
+                    className={fieldCls(previewData.generated_fields.includes('fit_type'))}
                   />
-                </div>
+                </FieldShell>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Sleeve Type */}
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Sleeve Type</label>
-                    <AiBadge fieldName="sleeve_type" />
-                  </div>
-                  <input 
-                    type="text" 
+                <FieldShell label="Sleeve type" fieldName="sleeve_type">
+                  <input
+                    type="text"
                     value={sleeveType}
                     onChange={(e) => setSleeveType(e.target.value)}
                     placeholder="e.g. short sleeve"
-                    className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-xs ${previewData.generated_fields.includes('sleeve_type') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                    className={fieldCls(previewData.generated_fields.includes('sleeve_type'))}
                   />
-                </div>
+                </FieldShell>
                 {/* Neck Type */}
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Neck Type</label>
-                    <AiBadge fieldName="neck_type" />
-                  </div>
-                  <input 
-                    type="text" 
+                <FieldShell label="Neck type" fieldName="neck_type">
+                  <input
+                    type="text"
                     value={neckType}
                     onChange={(e) => setNeckType(e.target.value)}
                     placeholder="e.g. crew neck"
-                    className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-xs ${previewData.generated_fields.includes('neck_type') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                    className={fieldCls(previewData.generated_fields.includes('neck_type'))}
                   />
-                </div>
+                </FieldShell>
               </div>
 
               {/* Colors (comma separated list) */}
-              <div className="relative">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Colors (comma separated)</label>
-                  <AiBadge fieldName="colors" />
-                </div>
-                <input 
-                  type="text" 
+              <FieldShell label="Colors (comma separated)" fieldName="colors">
+                <input
+                  type="text"
                   value={colorsInput}
                   onChange={(e) => setColorsInput(e.target.value)}
                   placeholder="e.g. black, white"
-                  className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-xs ${previewData.generated_fields.includes('colors') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                  className={fieldCls(previewData.generated_fields.includes('colors'))}
                 />
-              </div>
+              </FieldShell>
 
               {/* Tags */}
-              <div className="relative">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide block">Tags (comma separated)</label>
-                  <AiBadge fieldName="tags" />
-                </div>
-                <input 
-                  type="text" 
+              <FieldShell label="Tags (comma separated)" fieldName="tags">
+                <input
+                  type="text"
                   value={tagsInput}
                   onChange={(e) => setTagsInput(e.target.value)}
-                  className={`w-full h-12 bg-[#FAF9F6] dark:bg-surface-0 border rounded-2xl px-4 font-bold text-[#111111] dark:text-ink focus:outline-none transition-colors text-xs ${previewData.generated_fields.includes('tags') ? 'border-amber-200 dark:border-amber-900/50 focus:border-[#6157FF]' : 'border-black/5 dark:border-line focus:border-[#6157FF]'}`}
+                  className={fieldCls(previewData.generated_fields.includes('tags'))}
                 />
-              </div>
+              </FieldShell>
 
               {/* Source URL (Hidden input/display) */}
               {sourceUrl && (
-                <div>
-                  <label className="text-xs font-bold text-[#555555] dark:text-ink-soft tracking-wide mb-2 block">Source URL</label>
-                  <p className="text-[12px] text-[#555555] dark:text-ink-soft truncate max-w-[320px] font-bold">{sourceUrl}</p>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">Source URL</label>
+                  <p className="max-w-[320px] truncate text-[12.5px] text-ink-soft">{sourceUrl}</p>
                 </div>
               )}
 
             </div>
 
             {/* PREVIEW: SIZE CHART BUILDER CARD */}
-            <div className="flex flex-col bg-white dark:bg-surface-1 p-6 rounded-[2rem] border border-black/5 dark:border-line shadow-sm gap-4">
-              <h3 className="text-xs font-bold text-[#555555] dark:text-ink-soft">Sizing Specifications</h3>
-              
+            <div className="flex flex-col gap-4 rounded-card border border-line bg-surface-1 p-6">
+              <Eyebrow>Sizing specifications</Eyebrow>
+
               {/* CURRENT SIZE TABLE */}
               {sizeChart.length === 0 ? (
-                <p className="text-[11px] text-[#555555] dark:text-ink-soft font-bold text-center py-4 bg-[#FAF9F6] dark:bg-surface-0 rounded-2xl">
+                <p className="rounded-ctl bg-surface-2 py-4 text-center text-[12px] text-ink-faint">
                   No sizes defined yet. Add standard sizes below.
                 </p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  <div className="flex justify-between items-center text-[12px] font-bold text-[#555555] dark:text-ink-soft px-2 border-b border-black/5 dark:border-line pb-2">
+                  <div className="flex items-center justify-between border-b border-line px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
                     <span>Size</span>
-                    <span>Chest Value (cm)</span>
+                    <span>Chest value (cm)</span>
                     <span className="w-8"></span>
                   </div>
                   {sizeChart.map((row) => (
-                    <div key={row.size} className="flex justify-between items-center text-xs font-bold text-[#111111] dark:text-ink px-2 py-2.5 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl">
-                      <span>{row.size}</span>
+                    <div key={row.size} className="flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2.5 text-[13px] font-medium text-ink">
+                      <span className="font-display">{row.size}</span>
                       <span>{row.value}</span>
-                      <button 
+                      <button
                         onClick={() => handleRemoveSizeRow(row.size)}
-                        className="text-red-500 hover:text-red-700 flex items-center justify-center"
+                        aria-label={`Remove size ${row.size}`}
+                        className="flex items-center justify-center text-danger transition-opacity hover:opacity-70"
                       >
-                        <span className="material-symbols-outlined text-sm">close</span>
+                        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
                       </button>
                     </div>
                   ))}
@@ -638,35 +604,32 @@ const SellerAddProduct: React.FC = () => {
               )}
 
               {/* ADD SIZE ROW INLINE FORM */}
-              <div className="h-[1px] bg-black/5 dark:bg-surface-2 my-2"></div>
-              
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
-                  <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-1">Size Name</label>
-                  <input 
-                    type="text" 
+              <div className="h-px bg-line my-2"></div>
+
+              <div className="flex items-end gap-3">
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-soft">Size name</label>
+                  <input
+                    type="text"
                     value={newSizeName}
                     onChange={(e) => setNewSizeName(e.target.value)}
                     placeholder="e.g. M"
-                    className="w-full h-10 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-3 font-bold text-[#111111] dark:text-ink text-xs focus:outline-none"
+                    className="h-11 w-full rounded-ctl border border-line bg-surface-2 px-3 text-[14px] text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10"
                   />
                 </div>
-                <div className="flex-1">
-                  <label className="text-[11px] font-bold text-[#555555] dark:text-ink-soft tracking-wide block mb-1">Chest Value</label>
-                  <input 
-                    type="number" 
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-soft">Chest value</label>
+                  <input
+                    type="number"
                     value={newSizeValue === '' ? '' : newSizeValue}
                     onChange={(e) => setNewSizeValue(e.target.value === '' ? '' : Number(e.target.value))}
                     placeholder="e.g. 100"
-                    className="w-full h-10 bg-[#FAF9F6] dark:bg-surface-0 border border-black/5 dark:border-line rounded-xl px-3 font-bold text-[#111111] dark:text-ink text-xs focus:outline-none"
+                    className="h-11 w-full rounded-ctl border border-line bg-surface-2 px-3 text-[14px] text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10"
                   />
                 </div>
-                <button 
-                  onClick={handleAddSizeRow}
-                  className="h-10 bg-[#6157FF] dark:bg-[#6157FF] text-ink px-4 rounded-xl flex items-center justify-center font-bold text-xs active:scale-95 shrink-0"
-                >
-                  Add Size
-                </button>
+                <Button size="sm" className="h-11 shrink-0" onClick={handleAddSizeRow}>
+                  Add size
+                </Button>
               </div>
 
             </div>
@@ -678,21 +641,14 @@ const SellerAddProduct: React.FC = () => {
 
       {/* STICKY BOTTOM ACTIONS FOR REVIEW */}
       {previewData && (
-        <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[#FAF9F6] via-[#FAF9F6] to-transparent dark:from-[#121212] dark:via-[#121212] dark:to-transparent z-40 shrink-0">
-          <div className="flex gap-4 max-w-md mx-auto bg-white/40 dark:bg-black/40 backdrop-blur-xl p-4 rounded-3xl border border-black/5 dark:border-line shadow-lg">
-            <button 
-              onClick={() => setPreviewData(null)}
-              className="flex-1 h-14 rounded-2xl border border-black/10 dark:border-line text-[#555555] dark:text-ink-soft bg-white dark:bg-surface-1 font-bold text-sm transition-all active:scale-95"
-            >
+        <div className="fixed bottom-0 inset-x-0 z-50 w-full bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent px-6 pb-8 pt-6 phone-fixed-bottom">
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1" size="lg" onClick={() => setPreviewData(null)}>
               Discard
-            </button>
-            <button 
-              onClick={handleSaveProduct}
-              className="flex-[2] h-14 rounded-2xl bg-green-500 text-ink font-bold text-sm transition-all active:scale-95 shadow-md flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-lg">check_circle</span>
+            </Button>
+            <Button className="flex-[2]" size="lg" icon="check_circle" onClick={handleSaveProduct}>
               Approve & Save
-            </button>
+            </Button>
           </div>
         </div>
       )}

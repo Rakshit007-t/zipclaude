@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { useToast } from '../contexts/ToastContext';
 import {
   getSellerIntegrationStatus,
@@ -8,6 +9,7 @@ import {
   SellerProduct,
 } from '../services/ziprightApi';
 import { startTryOn, getTryOnJob, TryOnJobStatus } from '../services/tryonService';
+import { AppBar, Button, Input, Field, Eyebrow, Divider, Sheet, Spinner } from '../components/ui';
 
 const SellerIntegrationSandbox: React.FC = () => {
   const navigate = useNavigate();
@@ -151,7 +153,7 @@ const SellerIntegrationSandbox: React.FC = () => {
       setTryonStatus('starting');
       setTryonProgress(5);
       const productImageUrl = product.images?.[0] || '';
-      
+
       const jobId = await startTryOn({
         productImageUrl,
         clothType: 'upper_body',
@@ -196,370 +198,341 @@ const SellerIntegrationSandbox: React.FC = () => {
     }, 2500);
   };
 
+  const selectClass =
+    'w-full h-12 rounded-ctl bg-surface-1 text-ink border border-line px-3 text-[15px] ' +
+    'transition-[border-color,box-shadow] duration-200 focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10';
+
   return (
-    <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden relative">
-      
+    <div className="relative flex flex-col min-h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-x-hidden">
+
       {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-[1000] flex flex-col items-center justify-center p-6">
-          <div className="bg-white dark:bg-surface-1 p-8 rounded-[2.5rem] border border-black/5 dark:border-line flex flex-col items-center max-w-sm text-center shadow-2xl">
-            <div className="h-16 w-16 border-4 border-[#6157FF] dark:border-[#6157FF] border-t-transparent rounded-full animate-spin mb-6"></div>
-            <h3 className="text-lg font-bold mb-2">Resolving</h3>
-            <p className="text-xs text-[#555555] dark:text-ink-soft font-medium leading-relaxed">{loadingText}</p>
+        <div className="absolute inset-0 z-[1000] bg-scrim backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-surface-1 border border-line rounded-card shadow-float p-8 flex flex-col items-center text-center max-w-sm gap-5">
+            <Spinner size={40} className="text-brand" />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-faint">Resolving</span>
+              <p className="font-display text-[18px] font-light text-ink leading-snug">{loadingText}</p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Header Panel */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line shrink-0">
-        <button 
-          onClick={() => navigate('/seller/integration')} 
-          aria-label="Go back" className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"
-        >
-          <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h2 className="text-lg font-bold text-[#6157FF]">Storefront Sandbox</h2>
-        <div className="w-8"></div>
-      </div>
+      <AppBar title="Storefront Sandbox" onBack={() => navigate('/seller/integration')} />
 
-      {/* Sandbox Controller Banner */}
-      {!product && (
-        <div className="bg-[#6157FF]/10 dark:bg-[#6157FF]/10 border-b border-[#6157FF]/10 p-4 shrink-0 flex flex-col gap-4 max-w-md mx-auto w-full my-4 rounded-3xl">
-          <h3 className="text-xs font-bold text-[#6157FF]">Handshake Settings</h3>
-          <div className="flex flex-col gap-3">
-            <input
-              type="text"
-              value={storeUrl}
-              onChange={(e) => setStoreUrl(e.target.value)}
-              placeholder="E-commerce Store Domain"
-              className="w-full h-10 bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-xl px-3 font-bold text-xs"
-            />
-            <input
-              type="text"
-              value={productTitle}
-              onChange={(e) => setProductTitle(e.target.value)}
-              placeholder="Catalog Product Title"
-              className="w-full h-10 bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-xl px-3 font-bold text-xs"
-            />
-            <button
-              onClick={loadPDPProduct}
-              className="h-10 bg-[#6157FF] dark:bg-[#6157FF] text-ink rounded-xl text-xs font-bold transition-all"
-            >
-              Simulate Storefront PDP
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="flex-1 overflow-y-auto no-scrollbar">
 
-      {/* PDP Simulated Page */}
-      {product && (
-        <div className="flex-1 overflow-y-auto no-scrollbar p-6 flex flex-col gap-6">
-          
-          {/* Breadcrumb Reset */}
-          <div className="flex justify-between items-center max-w-md mx-auto w-full">
-            <span className="text-[12px] text-gray-400 font-bold">Simulated Brand Storefront PDP</span>
-            <button
-              onClick={() => { setProduct(null); setRecommendation(null); }}
-              className="text-[12px] text-[#6157FF] font-bold flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[12px]">settings</span>
-              Change Target Product
-            </button>
-          </div>
+        {/* Sandbox Controller — Handshake settings */}
+        {!product && (
+          <div className="px-6 pt-8 pb-32">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+              <Eyebrow className="mb-3">Integration</Eyebrow>
+              <h1 className="font-display text-[32px] leading-[1.05] font-light text-ink">
+                Storefront <em className="font-medium">sandbox.</em>
+              </h1>
+              <p className="text-ink-soft text-[14px] leading-relaxed max-w-[90%] mt-4">
+                Simulate a live product page and preview the ZipRIGHT widget handshake end-to-end.
+              </p>
+            </motion.div>
 
-          <div className="max-w-md mx-auto w-full bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2.5rem] p-6 shadow-md flex flex-col gap-6">
-            
-            {/* Upper Images Gallery */}
-            <div className="relative aspect-square w-full rounded-3xl overflow-hidden bg-gray-100 dark:bg-surface-0 border border-black/5 dark:border-line">
-              <img
-                src={tryonResultUrl || product.images?.[0]}
-                alt="Product"
-                className="h-full w-full object-cover"
+            <div className="mt-9 rounded-card border border-line bg-surface-1 p-6 flex flex-col gap-5">
+              <Eyebrow>Handshake settings</Eyebrow>
+              <Input
+                label="Store domain"
+                value={storeUrl}
+                onChange={(e) => setStoreUrl(e.target.value)}
+                placeholder="E-commerce store domain"
+                icon="storefront"
               />
-              {tryonResultUrl && (
-                <div className="absolute top-4 left-4 bg-green-500 text-ink font-bold text-[11px] px-2.5 py-1 rounded-full shadow-md animate-pulse">
-                  ✨ VTON Active
-                </div>
-              )}
+              <Input
+                label="Product title"
+                value={productTitle}
+                onChange={(e) => setProductTitle(e.target.value)}
+                placeholder="Catalog product title"
+                icon="sell"
+              />
+              <Button fullWidth onClick={loadPDPProduct} trailingIcon="arrow_forward">
+                Simulate storefront PDP
+              </Button>
             </div>
-
-            {/* Info Row */}
-            <div className="flex flex-col gap-2">
-              <span className="text-[12px] text-gray-400 font-bold">{product.brand}</span>
-              <h3 className="text-xl font-bold leading-tight">{product.title}</h3>
-              <p className="text-lg font-bold text-[#6157FF] dark:text-[#6157FF]">{product.price || '₹1,499.00'}</p>
-            </div>
-
-            <p className="text-xs text-gray-400 font-medium leading-relaxed">{product.description}</p>
-
-            {/* Simulated Store standard Sizes selector */}
-            <div className="flex flex-col gap-3">
-              <span className="text-[12px] text-gray-400 font-bold">Select Size</span>
-              <div className="flex gap-2 flex-wrap">
-                {Object.keys(product.size_chart || {}).map((sz) => (
-                  <button
-                    key={sz}
-                    className="h-10 px-4 border border-black/10 dark:border-line rounded-xl text-xs font-bold"
-                  >
-                    {sz}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="h-[1px] bg-black/5 dark:bg-surface-2 my-1"></div>
-
-            {/* Embedded ZipRIGHT Widget Sizing Action Row */}
-            <div className="flex flex-col gap-3">
-              
-              <button
-                onClick={() => { setShowWidget(true); setWidgetStep('input'); }}
-                className="h-12 border-2 border-[#6157FF] hover:bg-[#6157FF]/5 text-[#6157FF] font-bold text-xs rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
-              >
-                <span className="material-symbols-outlined text-[16px]">view_in_ar</span>
-                ✨ Find My Size & Try On
-              </button>
-
-              <button className="h-12 bg-black text-ink dark:bg-white dark:text-black font-bold text-xs rounded-2xl">
-                Add to Cart
-              </button>
-
-            </div>
-
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Shopper Sizing Modal Overlay */}
-      {showWidget && (
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-[200] flex flex-col justify-end">
-          
-          <div className="bg-white dark:bg-surface-1 rounded-t-[3rem] p-6 max-h-[85vh] overflow-y-auto no-scrollbar flex flex-col gap-6 relative border-t border-black/5 dark:border-line max-w-md mx-auto w-full">
-            
-            {/* Modal Exit */}
-            <button
-              onClick={() => setShowWidget(false)}
-              className="absolute top-4 right-4 h-8 w-8 bg-black/5 dark:bg-surface-2 rounded-full flex items-center justify-center text-gray-400"
-            >
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
+        {/* PDP Simulated Page */}
+        {product && (
+          <div className="px-6 pt-6 pb-32 flex flex-col gap-6">
 
-            {/* Widget Brand Title */}
-            <div className="flex items-center gap-2">
-              <span className="h-6 w-6 rounded-lg bg-[#6157FF] flex items-center justify-center text-ink font-bold text-[12px]">Z</span>
-              <h4 className="text-xs font-bold text-[#6157FF]">ZipRIGHT Size Assistant</h4>
+            {/* Breadcrumb Reset */}
+            <div className="flex items-center justify-between">
+              <Eyebrow>Simulated PDP</Eyebrow>
+              <button
+                onClick={() => { setProduct(null); setRecommendation(null); }}
+                className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-faint underline underline-offset-4 hover:text-ink transition-colors"
+              >
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">settings</span>
+                Change product
+              </button>
             </div>
 
-            {/* STEP 1: INPUT WIDGET */}
-            {widgetStep === 'input' && (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h3 className="text-base font-bold">Enter Your Dimensions</h3>
-                  <p className="text-xs text-gray-400 font-medium mt-0.5">Let's find the correct fit for this '{product?.title}' garment.</p>
-                </div>
+            <div className="rounded-card border border-line bg-surface-1 overflow-hidden">
 
-                <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[12px] font-bold text-gray-400 block mb-1">Height (cm)</label>
-                      <input
-                        type="number"
-                        value={height}
-                        onChange={(e) => setHeight(Number(e.target.value))}
-                        className="w-full h-11 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl px-3 font-bold text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-bold text-gray-400 block mb-1">Weight (kg)</label>
-                      <input
-                        type="number"
-                        value={weight}
-                        onChange={(e) => setWeight(Number(e.target.value))}
-                        className="w-full h-11 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl px-3 font-bold text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[12px] font-bold text-gray-400 block mb-1">Standard Chest (cm)</label>
-                      <input
-                        type="number"
-                        value={chest}
-                        onChange={(e) => setChest(Number(e.target.value))}
-                        className="w-full h-11 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl px-3 font-bold text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-bold text-gray-400 block mb-1">Waist (cm)</label>
-                      <input
-                        type="number"
-                        value={waist}
-                        onChange={(e) => setWaist(Number(e.target.value))}
-                        className="w-full h-11 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl px-3 font-bold text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[12px] font-bold text-gray-400 block mb-1">Base Size Option</label>
-                      <select
-                        value={baseSize}
-                        onChange={(e) => setBaseSize(e.target.value)}
-                        className="w-full h-11 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl px-2 font-bold text-xs"
-                      >
-                        {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((sz) => (
-                          <option key={sz} value={sz}>{sz}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-bold text-gray-400 block mb-1">Fit Preference</label>
-                      <select
-                        value={fitPreference}
-                        onChange={(e) => setFitPreference(e.target.value)}
-                        className="w-full h-11 bg-[#FAF9F6] dark:bg-surface-0 rounded-xl px-2 font-bold text-xs"
-                      >
-                        {['slim', 'regular', 'relaxed', 'loose', 'baggy'].map((fp) => (
-                          <option key={fp} value={fp}>{fp}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleFetchRecommendation}
-                  className="h-12 bg-[#6157FF] dark:bg-[#6157FF] text-ink font-bold text-xs rounded-2xl mt-2 active:scale-95 transition-all"
-                >
-                  Find Recommended Size
-                </button>
-              </div>
-            )}
-
-            {/* STEP 2: RECOMMENDATION RESOLVED RESULT */}
-            {widgetStep === 'result' && recommendation && (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h3 className="text-base font-bold">Your Perfect Fit</h3>
-                  <p className="text-xs text-gray-400 font-medium mt-0.5">ZipRIGHT sizing algorithms computed the following suggest.</p>
-                </div>
-
-                {/* Sizing Indicator Badge */}
-                <div className="bg-[#FAF9F6] dark:bg-surface-0 rounded-3xl p-6 flex flex-col gap-4 border border-black/5 dark:border-line items-center justify-center text-center shadow-inner">
-                  <span className="text-[12px] font-bold text-[#6157FF]">Recommended size</span>
-                  <h2 className="text-5xl font-bold text-[#6157FF] dark:text-[#6157FF]">{recommendation.size}</h2>
-                  
-                  <div className="flex items-center gap-1.5 mt-2 bg-green-500/10 text-green-600 px-3 py-1 rounded-full text-[12px] font-bold">
-                    <span className="material-symbols-outlined text-xs">done_all</span>
-                    {(recommendation.confidence * 100).toFixed(0)}% accuracy kept ratio
-                  </div>
-                </div>
-
-                {/* Fit Explanation Description */}
-                <div className="bg-black/5 dark:bg-surface-2 rounded-2xl p-4 flex flex-col gap-1.5 text-xs">
-                  <span className="font-bold text-gray-400 block text-[11px]">Sizing Details</span>
-                  <p className="font-medium leading-relaxed">{recommendation.reason}</p>
-                </div>
-
-                {/* Navigation links */}
-                <div className="flex gap-3 mt-2">
-                  <button
-                    onClick={() => setWidgetStep('tryon')}
-                    className="flex-1 h-12 bg-[#6157FF] dark:bg-[#6157FF] text-ink font-bold text-xs rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
-                  >
-                    <span className="material-symbols-outlined text-sm">view_in_ar</span>
-                    Virtual Try-On
-                  </button>
-                  <button
-                    onClick={() => setWidgetStep('input')}
-                    className="h-12 px-4 bg-black/5 dark:bg-surface-2 text-gray-400 font-bold text-xs rounded-2xl"
-                  >
-                    Edit Info
-                  </button>
-                </div>
-
-              </div>
-            )}
-
-            {/* STEP 3: VIRTUAL TRY-ON OVERLAY */}
-            {widgetStep === 'tryon' && (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h3 className="text-base font-bold">Virtual Try-On</h3>
-                  <p className="text-xs text-gray-400 font-medium mt-0.5">Upload a photo to see the '{product?.title}' on your body.</p>
-                </div>
-
-                {/* Upload Section */}
-                <div className="flex flex-col gap-3">
-                  
-                  {personImage ? (
-                    <div className="relative aspect-[3/4] w-full max-w-[200px] mx-auto rounded-2xl overflow-hidden bg-gray-100 dark:bg-surface-0 border border-black/5 dark:border-line">
-                      <img src={personImage} className="h-full w-full object-cover" alt="Shopper Preview" />
-                      <button
-                        onClick={() => setPersonImage(null)}
-                        className="absolute bottom-2 right-2 h-7 w-7 bg-black/60 rounded-full flex items-center justify-center text-ink"
-                      >
-                        <span className="material-symbols-outlined text-xs">delete</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="border-2 border-dashed border-[#6157FF]/40 bg-[#6157FF]/5 rounded-3xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer max-w-[240px] mx-auto w-full">
-                      <span className="material-symbols-outlined text-3xl text-[#6157FF]">add_a_photo</span>
-                      <span className="text-[12px] font-bold text-[#6157FF]">Select Body Photo</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={handlePersonImageUpload} />
-                    </label>
-                  )}
-
-                  {/* Preset Quick Demo Avatar Option */}
-                  {!personImage && (
-                    <button
-                      onClick={() => setPersonImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500')}
-                      className="text-[12px] text-[#6157FF] font-bold text-center underline"
-                    >
-                      Use Demo Model Avatar
-                    </button>
-                  )}
-
-                </div>
-
-                {/* Processing State */}
-                {tryonStatus && tryonStatus !== 'success' && (
-                  <div className="bg-black/5 dark:bg-surface-2 rounded-2xl p-4 flex flex-col gap-2 items-center text-center">
-                    <span className="text-[12px] font-bold text-gray-400 capitalize">{tryonStatus} tryon job...</span>
-                    <div className="w-full bg-black/10 dark:bg-surface-2 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-[#6157FF] h-full transition-all duration-500" style={{ width: `${tryonProgress}%` }}></div>
-                    </div>
+              {/* Image Gallery */}
+              <div className="relative aspect-square w-full bg-surface-2">
+                <img
+                  src={tryonResultUrl || product.images?.[0]}
+                  alt={product.title}
+                  className="h-full w-full object-cover"
+                />
+                {tryonResultUrl && (
+                  <div className="absolute top-4 left-4 bg-success-soft text-success text-[10px] font-semibold uppercase tracking-[0.12em] px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">auto_awesome</span>
+                    VTON active
                   </div>
                 )}
+              </div>
 
-                {/* Controls */}
-                <div className="flex gap-3 mt-2">
-                  {personImage && tryonStatus !== 'success' && tryonStatus !== 'queued' && tryonStatus !== 'running' && (
-                    <button
-                      onClick={handleStartTryon}
-                      className="flex-1 h-12 bg-green-600 text-ink font-bold text-xs rounded-2xl active:scale-95 transition-all"
-                    >
-                      Generate VTON Image
-                    </button>
-                  )}
-                  
-                  <button
-                    onClick={() => setWidgetStep('result')}
-                    className="h-12 px-4 bg-black/5 dark:bg-surface-2 text-gray-400 font-bold text-xs rounded-2xl"
+              <div className="p-6 flex flex-col gap-5">
+
+                {/* Info Row */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">{product.brand}</span>
+                  <h2 className="font-display text-[24px] font-light leading-tight text-ink">{product.title}</h2>
+                  <p className="font-display text-[20px] font-medium text-ink">{product.price || '₹1,499.00'}</p>
+                </div>
+
+                <p className="text-[13px] text-ink-soft leading-relaxed">{product.description}</p>
+
+                {/* Store standard Sizes selector */}
+                <div className="flex flex-col gap-3">
+                  <Eyebrow>Select size</Eyebrow>
+                  <div className="flex gap-2 flex-wrap">
+                    {Object.keys(product.size_chart || {}).map((sz) => (
+                      <button
+                        key={sz}
+                        type="button"
+                        className="h-11 min-w-11 px-4 rounded-full border border-line text-[13px] font-medium text-ink hover:border-line-strong transition-colors"
+                      >
+                        {sz}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Divider />
+
+                {/* Embedded ZipRIGHT Widget Action Row */}
+                <div className="flex flex-col gap-3">
+                  <Button
+                    variant="accent"
+                    fullWidth
+                    icon="view_in_ar"
+                    onClick={() => { setShowWidget(true); setWidgetStep('input'); }}
                   >
-                    Back
-                  </button>
+                    Find my size & try on
+                  </Button>
+                  <Button variant="primary" fullWidth>
+                    Add to cart
+                  </Button>
                 </div>
 
               </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* Shopper Sizing Widget Sheet */}
+      <Sheet open={showWidget} onClose={() => setShowWidget(false)} title="Size Assistant">
+
+        {/* STEP 1: INPUT WIDGET */}
+        {widgetStep === 'input' && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <Eyebrow>Your dimensions</Eyebrow>
+              <h3 className="font-display text-[22px] font-light leading-tight text-ink mt-2">
+                Find your <em className="font-medium">fit.</em>
+              </h3>
+              <p className="text-[13px] text-ink-soft leading-relaxed mt-2">
+                Let's find the correct fit for this '{product?.title}' garment.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Height (cm)"
+                type="number"
+                value={height}
+                onChange={(e) => setHeight(Number(e.target.value))}
+              />
+              <Input
+                label="Weight (kg)"
+                type="number"
+                value={weight}
+                onChange={(e) => setWeight(Number(e.target.value))}
+              />
+              <Input
+                label="Chest (cm)"
+                type="number"
+                value={chest}
+                onChange={(e) => setChest(Number(e.target.value))}
+              />
+              <Input
+                label="Waist (cm)"
+                type="number"
+                value={waist}
+                onChange={(e) => setWaist(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Base size">
+                {({ inputId }) => (
+                  <select
+                    id={inputId}
+                    value={baseSize}
+                    onChange={(e) => setBaseSize(e.target.value)}
+                    className={selectClass}
+                  >
+                    {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((sz) => (
+                      <option key={sz} value={sz}>{sz}</option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field label="Fit preference">
+                {({ inputId }) => (
+                  <select
+                    id={inputId}
+                    value={fitPreference}
+                    onChange={(e) => setFitPreference(e.target.value)}
+                    className={selectClass}
+                  >
+                    {['slim', 'regular', 'relaxed', 'loose', 'baggy'].map((fp) => (
+                      <option key={fp} value={fp}>{fp}</option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+            </div>
+
+            <Button fullWidth onClick={handleFetchRecommendation} trailingIcon="straighten">
+              Find recommended size
+            </Button>
+          </div>
+        )}
+
+        {/* STEP 2: RECOMMENDATION RESULT */}
+        {widgetStep === 'result' && recommendation && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <Eyebrow>Recommendation</Eyebrow>
+              <h3 className="font-display text-[22px] font-light leading-tight text-ink mt-2">
+                Your perfect <em className="font-medium">fit.</em>
+              </h3>
+              <p className="text-[13px] text-ink-soft leading-relaxed mt-2">
+                ZipRIGHT sizing algorithms computed the following suggestion.
+              </p>
+            </div>
+
+            {/* Sizing Indicator */}
+            <div className="rounded-card border border-line bg-surface-2 p-6 flex flex-col items-center text-center gap-3">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brand">Recommended size</span>
+              <span className="font-display text-[56px] font-light leading-none text-ink">{recommendation.size}</span>
+              <div className="flex items-center gap-1.5 bg-success-soft text-success px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.1em]">
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">done_all</span>
+                {(recommendation.confidence * 100).toFixed(0)}% match
+              </div>
+            </div>
+
+            {/* Fit Explanation */}
+            <div className="rounded-2xl border border-line bg-surface-1 p-4 flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Sizing details</span>
+              <p className="text-[13px] text-ink-soft leading-relaxed">{recommendation.reason}</p>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex gap-3">
+              <Button variant="accent" fullWidth icon="view_in_ar" onClick={() => setWidgetStep('tryon')}>
+                Virtual try-on
+              </Button>
+              <Button variant="outline" onClick={() => setWidgetStep('input')}>
+                Edit
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: VIRTUAL TRY-ON */}
+        {widgetStep === 'tryon' && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <Eyebrow>Virtual try-on</Eyebrow>
+              <h3 className="font-display text-[22px] font-light leading-tight text-ink mt-2">
+                See it <em className="font-medium">on.</em>
+              </h3>
+              <p className="text-[13px] text-ink-soft leading-relaxed mt-2">
+                Upload a photo to see the '{product?.title}' on your body.
+              </p>
+            </div>
+
+            {/* Upload */}
+            {personImage ? (
+              <div className="relative aspect-[3/4] w-full max-w-[200px] mx-auto rounded-card overflow-hidden bg-surface-2 border border-line">
+                <img src={personImage} className="h-full w-full object-cover" alt="Shopper preview" />
+                <button
+                  onClick={() => setPersonImage(null)}
+                  aria-label="Remove photo"
+                  className="absolute bottom-2 right-2 h-8 w-8 bg-scrim rounded-full flex items-center justify-center text-ink-invert"
+                >
+                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span>
+                </button>
+              </div>
+            ) : (
+              <label className="border border-dashed border-line-strong bg-surface-1 hover:bg-surface-2 rounded-card p-8 flex flex-col items-center justify-center gap-3 cursor-pointer max-w-[240px] mx-auto w-full transition-colors">
+                <div className="w-14 h-14 rounded-full border border-line-strong flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[26px] text-ink-faint" aria-hidden="true">add_a_photo</span>
+                </div>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">Select body photo</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handlePersonImageUpload} />
+              </label>
             )}
 
-          </div>
+            {/* Demo Avatar Option */}
+            {!personImage && (
+              <button
+                onClick={() => setPersonImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500')}
+                className="text-[11px] font-semibold uppercase tracking-[0.1em] text-brand text-center underline underline-offset-4"
+              >
+                Use demo model avatar
+              </button>
+            )}
 
-        </div>
-      )}
+            {/* Processing State */}
+            {tryonStatus && tryonStatus !== 'success' && (
+              <div className="rounded-2xl border border-line bg-surface-1 p-4 flex flex-col gap-2.5 items-center text-center">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft capitalize">{tryonStatus} tryon job…</span>
+                <div className="w-full h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                  <div className="h-full bg-brand transition-all duration-500" style={{ width: `${tryonProgress}%` }}></div>
+                </div>
+              </div>
+            )}
+
+            {/* Controls */}
+            <div className="flex gap-3">
+              {personImage && tryonStatus !== 'success' && tryonStatus !== 'queued' && tryonStatus !== 'running' && (
+                <Button fullWidth onClick={handleStartTryon}>
+                  Generate VTON image
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setWidgetStep('result')}>
+                Back
+              </Button>
+            </div>
+          </div>
+        )}
+
+      </Sheet>
 
     </div>
   );

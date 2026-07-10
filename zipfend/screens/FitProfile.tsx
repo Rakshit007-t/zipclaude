@@ -5,6 +5,7 @@ import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { recordJourneyEvent } from '../services/styleJourney';
+import { AppBar, Badge, Button, Chip, Eyebrow, SegmentedControl, Sheet, Spinner } from '../components/ui';
 
 interface FitData {
   gender: string;
@@ -296,6 +297,22 @@ const femaleShapeGuide = [
     tip: 'Structured jackets and layered tops add dimension.'
   },
 ];
+
+/** Shared editorial field chrome for this form. */
+const fieldCls =
+  'w-full h-13 min-h-12 bg-surface-1 border border-line rounded-ctl px-4 text-ink text-[15px] font-medium placeholder:text-ink-faint focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow]';
+
+/** Section label: eyebrow + optional hint. */
+const FieldLabel: React.FC<{ label: string; required?: boolean; optional?: boolean; hint?: string }> = ({ label, required, optional, hint }) => (
+  <div className="mb-3">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
+      {label}
+      {required && <span className="text-danger ml-0.5" aria-hidden="true">*</span>}
+      {optional && <span className="text-ink-faint normal-case tracking-normal font-normal ml-1.5">(optional)</span>}
+    </p>
+    {hint && <p className="text-[12.5px] text-ink-faint mt-1 normal-case tracking-normal">{hint}</p>}
+  </div>
+);
 
 const FitProfile: React.FC = () => {
   const navigate = useNavigate();
@@ -856,45 +873,37 @@ const FitProfile: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6157FF]"></div>
+      <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink items-center justify-center">
+        <Spinner size={30} className="text-ink-faint" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans relative">
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 bg-surface-0/95 backdrop-blur-xl border-b border-line">
-        <button onClick={handleBack} aria-label="Go back" className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[22px] text-ink" aria-hidden="true">arrow_back</span>
-        </button>
-        <h1 className="text-base font-bold">{mode === 'edit' ? 'Edit Profile' : 'New Profile'}</h1>
-        <div className="w-10"></div>
-      </div>
+    <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink relative">
+      <AppBar title={mode === 'edit' ? 'Edit profile' : 'New profile'} onBack={handleBack} />
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-44">
+      <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-48">
 
-        {/* Profile Completion — turns green + celebrates when complete */}
-        <div className="py-4 flex items-center justify-between" role="status" aria-label={`Profile ${completeness}% complete`}>
-          <div>
-            <p className={`text-[12px] font-bold transition-colors ${completeness >= 100 ? 'text-emerald-600' : 'text-ink-soft'}`}>
-              {completeness >= 100 ? 'Profile Complete' : `Profile Completion: ${completeness}%`}
-            </p>
-            <p className="text-[11px] text-ink-faint mt-0.5">
-              {completeness >= 100 ? 'Your size accuracy is at its best' : 'Takes 15 seconds — better data, better fit'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {completeness >= 100 && (
-              <span className="material-symbols-outlined text-emerald-600 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
-                check_circle
+        {/* Editorial opener + completion */}
+        <div className="pt-6 pb-7">
+          <Eyebrow className="mb-3">Fit profile</Eyebrow>
+          <h1 className="font-display text-[34px] leading-[1.06] font-light">
+            Your <em className="font-medium">measure.</em>
+          </h1>
+          <div className="mt-6" role="status" aria-label={`Profile ${completeness}% complete`}>
+            <div className="flex justify-between items-baseline mb-2">
+              <span className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${completeness >= 100 ? 'text-success' : 'text-ink-soft'}`}>
+                {completeness >= 100 ? 'Profile complete' : `${completeness}% complete`}
               </span>
-            )}
-            <div className="w-28 h-1.5 bg-surface-2 rounded-full overflow-hidden">
+              <span className="text-[11px] text-ink-faint">
+                {completeness >= 100 ? 'Peak size accuracy' : 'Better data, better fit'}
+              </span>
+            </div>
+            <div className="h-px bg-line relative" aria-hidden="true">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${completeness >= 100 ? 'bg-emerald-400' : 'bg-[#6157FF]'}`}
+                className={`absolute -top-[1px] left-0 h-[3px] rounded-full transition-all duration-500 ${completeness >= 100 ? 'bg-success' : 'bg-brand'}`}
                 style={{ width: `${completeness}%` }}
               ></div>
             </div>
@@ -902,66 +911,56 @@ const FitProfile: React.FC = () => {
         </div>
 
         {/* --- Profile Name --- */}
-        <div className="mb-7">
-          <label className="text-[15px] font-bold text-ink mb-1.5 block">
-            Profile Name <span className="text-[#FF4D6D]">*</span>
-          </label>
+        <div className="mb-8">
+          <FieldLabel label="Profile name" required />
           <input
             type="text"
             value={profileName}
             onChange={(e) => setProfileName(e.target.value)}
             placeholder="e.g. Dad, Brother, My Fit"
-            className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors"
+            className={fieldCls}
           />
         </div>
 
         {/* --- Gender --- */}
-        <div className="mb-7">
-          <label className="text-[15px] font-bold text-ink mb-1.5 block">Gender</label>
-          <p className="text-[13px] text-ink-soft mb-3">Used to apply gender-specific sizing rules.</p>
-          <div className="flex rounded-2xl border border-line overflow-hidden">
-            {['Male', 'Female', 'Other'].map((g) => (
-              <button
-                key={g}
-                onClick={() => {
-                  setFitData({ ...fitData, gender: g, bodyShape: '', bustSize: '', hipsSize: '', braCup: '' });
-                  updateBodyShape(undefined);
-                }}
-                className={`flex-1 py-3.5 text-sm font-bold transition-all ${fitData.gender === g
-                    ? 'bg-white text-[#111111]'
-                    : 'bg-surface-1 text-ink-soft'
-                  }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
+        <div className="mb-8">
+          <FieldLabel label="Gender" hint="Used to apply gender-specific sizing rules." />
+          <SegmentedControl
+            aria-label="Gender"
+            value={fitData.gender}
+            onChange={(g) => {
+              setFitData({ ...fitData, gender: g, bodyShape: '', bustSize: '', hipsSize: '', braCup: '' });
+              updateBodyShape(undefined);
+            }}
+            options={[
+              { value: 'Male', label: 'Male' },
+              { value: 'Female', label: 'Female' },
+              { value: 'Other', label: 'Other' },
+            ]}
+          />
         </div>
 
         {/* --- Preferred Brand --- */}
-        <div className="mb-7">
-          <label className="text-[15px] font-bold text-ink mb-1.5 block">
-            Preferred Brand <span className="text-[#FF4D6D]">*</span>
-          </label>
-          <p className="text-[13px] text-ink-soft mb-3">We use this brand as your sizing reference to compare other brands.</p>
+        <div className="mb-8">
+          <FieldLabel label="Preferred brand" required hint="We use this brand as your sizing reference to compare other brands." />
           <div className="relative">
             <button
               onClick={() => setShowBrandDropdown(!showBrandDropdown)}
-              className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 flex items-center justify-between font-medium focus:outline-none focus:border-[#6157FF]/50 transition-colors"
+              aria-expanded={showBrandDropdown}
+              className={`${fieldCls} h-12 flex items-center justify-between text-left`}
             >
               <span className={fitData.brand ? 'text-ink' : 'text-ink-faint'}>{fitData.brand || 'Select a brand'}</span>
-              <span className={`material-symbols-outlined text-ink-faint transition-transform ${showBrandDropdown ? 'rotate-180' : ''}`}>expand_more</span>
+              <span className={`material-symbols-outlined text-ink-faint text-[20px] transition-transform ${showBrandDropdown ? 'rotate-180' : ''}`} aria-hidden="true">expand_more</span>
             </button>
             {showBrandDropdown && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowBrandDropdown(false)}></div>
-                <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-1 border border-line rounded-2xl shadow-2xl max-h-60 overflow-y-auto no-scrollbar">
+                <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-1 border border-line rounded-card shadow-float max-h-60 overflow-y-auto no-scrollbar">
                   {brands.map((b) => (
                     <button
                       key={b}
                       onClick={() => { setFitData({ ...fitData, brand: b }); setShowBrandDropdown(false); }}
-                      className={`w-full text-left px-5 py-3.5 text-sm font-medium border-b border-line last:border-none transition-colors ${fitData.brand === b ? 'text-[#6157FF] bg-[#6157FF]/5' : 'text-ink-soft hover:bg-surface-2'
-                        }`}
+                      className={`w-full text-left px-5 py-3.5 text-[14px] border-b border-line last:border-none transition-colors ${fitData.brand === b ? 'text-ink font-semibold bg-surface-2' : 'text-ink-soft hover:bg-surface-2/60'}`}
                     >
                       {b}
                     </button>
@@ -973,140 +972,109 @@ const FitProfile: React.FC = () => {
         </div>
 
         {/* --- Usual T-Shirt Size --- */}
-        <div className="mb-7">
-          <label className="text-[15px] font-bold text-ink mb-1.5 block">
-            Usual T-Shirt Size <span className="text-[#FF4D6D]">*</span>
-          </label>
-          <p className="text-[13px] text-ink-soft mb-3">Your most reliable size reference for tops and jackets.</p>
+        <div className="mb-8">
+          <FieldLabel label="Usual t-shirt size" required hint="Your most reliable size reference for tops and jackets." />
           <div className="flex flex-wrap gap-2.5">
             {sizes.map((s) => (
-              <button
+              <Chip
                 key={s}
+                selected={fitData.topSize === s}
+                className="min-w-[56px]"
                 onClick={() => {
                   setFitData({ ...fitData, topSize: s });
                   updateBaseSize(s as any);
                 }}
-                className={`h-12 min-w-[56px] px-5 rounded-2xl text-sm font-bold border transition-all ${fitData.topSize === s
-                    ? 'bg-white text-[#111111] border-white'
-                    : 'bg-surface-1 text-ink-soft border-line'
-                  }`}
               >
                 {s}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
 
         {/* --- Height --- */}
-        <div className="mb-7">
-          <div className="flex items-start justify-between mb-1.5">
-            <div>
-              <label className="text-[15px] font-bold text-ink block">
-                Height <span className="text-[#FF4D6D]">*</span>
-              </label>
-              <p className="text-[13px] text-ink-soft mt-1">Helps us estimate garment length and proportions.</p>
-            </div>
-            <div className="flex rounded-xl border border-line overflow-hidden flex-shrink-0 ml-4">
-              <button
-                onClick={() => handleHeightUnitChange('ft')}
-                className={`px-4 py-2 text-xs font-bold transition-all ${fitData.heightUnit === 'ft' ? 'bg-white text-[#111111]' : 'bg-surface-1 text-ink-soft'
-                  }`}
-              >FT</button>
-              <button
-                onClick={() => handleHeightUnitChange('cm')}
-                className={`px-4 py-2 text-xs font-bold transition-all ${fitData.heightUnit === 'cm' ? 'bg-white text-[#111111]' : 'bg-surface-1 text-ink-soft'
-                  }`}
-              >CM</button>
-            </div>
+        <div className="mb-8">
+          <div className="flex items-start justify-between gap-4">
+            <FieldLabel label="Height" required hint="Helps us estimate garment length and proportions." />
+            <SegmentedControl
+              aria-label="Height unit"
+              className="shrink-0 w-[124px]"
+              value={fitData.heightUnit}
+              onChange={handleHeightUnitChange}
+              options={[
+                { value: 'ft', label: 'ft' },
+                { value: 'cm', label: 'cm' },
+              ]}
+            />
           </div>
           {fitData.heightUnit === 'ft' ? (
             <div className="flex gap-3 mt-3">
               <div className="flex-1 relative">
-                <input type="number" value={fitData.heightFt} onChange={(e) => handleHeightFtChange(e.target.value)} placeholder="5"
-                  className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
-                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">ft</span>
+                <input type="number" value={fitData.heightFt} onChange={(e) => handleHeightFtChange(e.target.value)} placeholder="5" className={`${fieldCls} pr-12`} />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">ft</span>
               </div>
               <div className="flex-1 relative">
-                <input type="number" value={fitData.heightIn} onChange={(e) => handleHeightInChange(e.target.value)} placeholder="10"
-                  className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
-                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">in</span>
+                <input type="number" value={fitData.heightIn} onChange={(e) => handleHeightInChange(e.target.value)} placeholder="10" className={`${fieldCls} pr-12`} />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
               </div>
             </div>
           ) : (
             <div className="mt-3 relative">
-              <input type="number" value={userProfile.height > 0 ? String(userProfile.height) : fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178"
-                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">cm</span>
+              <input type="number" value={userProfile.height > 0 ? String(userProfile.height) : fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178" className={`${fieldCls} pr-12`} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">cm</span>
             </div>
           )}
         </div>
 
         {/* --- Weight & Waist --- */}
-        <div className="flex gap-3 mb-7">
+        <div className="flex gap-3 mb-8">
           <div className="flex-1">
-            <label className="text-[15px] font-bold text-ink mb-1.5 block">
-              Weight <span className="text-[#FF4D6D]">*</span>
-            </label>
-            <p className="text-[13px] text-ink-soft mb-3">Helps estimate body build.</p>
+            <FieldLabel label="Weight" required hint="Helps estimate body build." />
             <div className="relative">
-              <input type="number" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70"
-                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">kg</span>
+              <input type="number" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70" className={`${fieldCls} pr-12`} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">kg</span>
             </div>
           </div>
           <div className="flex-1">
-            <label className="text-[15px] font-bold text-ink mb-1.5 block">
-              Waist <span className="text-ink-faint text-xs font-normal">(Optional)</span>
-            </label>
-            <p className="text-[13px] text-ink-soft mb-3">Improves pant size accuracy.</p>
+            <FieldLabel label="Waist" optional hint="Improves pant size accuracy." />
             <div className="relative">
-              <input type="number" value={fitData.waistSize} onChange={(e) => handleMeasurementChange('waist', e.target.value)} placeholder="32"
-                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">in</span>
+              <input type="number" value={fitData.waistSize} onChange={(e) => handleMeasurementChange('waist', e.target.value)} placeholder="32" className={`${fieldCls} pr-12`} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
             </div>
           </div>
         </div>
 
         {/* --- AI Measure Now Card --- */}
-        <div className="mb-7 bg-[#1e293b] border border-line rounded-2xl p-5 shadow-lg relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <span className="material-symbols-outlined text-[80px]">center_focus_strong</span>
-          </div>
+        <div className="mb-8 bg-ink text-ink-invert rounded-card p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-28 h-28 rounded-full blur-[46px] -mr-8 -mt-8" style={{ background: 'var(--brand)', opacity: 0.3 }} aria-hidden="true"></div>
           <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="material-symbols-outlined text-[#6157FF] text-[18px]">auto_awesome</span>
-              <h3 className="text-[16px] font-bold text-ink">Not sure about your size?</h3>
-            </div>
-            <p className="text-[13px] text-ink-soft mb-5 max-w-[85%]">
-              Scan yourself using AI and auto-fill your measurements
+            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-50 mb-2">Smart Fit Scan</p>
+            <h3 className="font-display text-[19px] font-medium mb-1.5">Not sure of your size?</h3>
+            <p className="text-[13px] opacity-70 mb-5 max-w-[85%] leading-relaxed">
+              Scan yourself with AI and auto-fill your measurements.
             </p>
             <button
               onClick={() => {
                 console.log('Measure clicked');
                 navigate('/smart-fit-scan');
               }}
-              className="bg-surface-2 border border-line text-ink font-bold text-[13px] py-2.5 px-5 rounded-xl transition-colors inline-flex items-center gap-2 active:scale-95"
+              className="border border-ink-invert/40 text-ink-invert font-semibold text-[11px] uppercase tracking-[0.12em] h-10 px-5 rounded-full inline-flex items-center gap-2 active:scale-95 transition-transform"
             >
-              Measure Now &rarr;
+              Measure now
+              <span className="material-symbols-outlined text-[15px]" aria-hidden="true">arrow_forward</span>
             </button>
           </div>
         </div>
 
         {/* --- Body Shape --- */}
-        <div className="mb-7">
-          <div className="flex items-start justify-between mb-1.5">
-            <div>
-              <label className="text-[15px] font-bold text-ink block">
-                Body Shape <span className="text-[#FF4D6D]">*</span>
-              </label>
-              <p className="text-[13px] text-ink-soft mt-1">Body shape helps us adjust size recommendations for better fit.</p>
-            </div>
-            <button onClick={() => setShowBodyShapeGuide(true)} className="text-[13px] font-bold text-[#6157FF] whitespace-nowrap ml-4 flex-shrink-0">
+        <div className="mb-8">
+          <div className="flex items-start justify-between gap-4">
+            <FieldLabel label="Body shape" required hint="Body shape helps us adjust size recommendations for better fit." />
+            <button onClick={() => setShowBodyShapeGuide(true)} className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink underline underline-offset-4 whitespace-nowrap flex-shrink-0 mt-0.5">
               What's this?
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className="grid grid-cols-2 gap-3 mt-1">
             {bodyShapes.map((shape) => {
               const isSelected = fitData.bodyShape === shape.id;
               const isSuggested = suggestedShape === shape.id;
@@ -1117,17 +1085,18 @@ const FitProfile: React.FC = () => {
                     setFitData({ ...fitData, bodyShape: shape.id });
                     updateBodyShape(shape.id);
                   }}
-                  className={`relative p-5 rounded-2xl border text-left transition-all active:scale-[0.97] ${isSelected
-                      ? 'bg-white text-[#111111] border-white'
-                      : 'bg-surface-1 text-ink border-line'
+                  className={`relative p-4 pt-5 rounded-card border text-left transition-[transform,border-color,background-color] active:scale-[0.97] ${isSelected
+                      ? 'bg-ink text-ink-invert border-ink'
+                      : 'bg-surface-1 text-ink border-line hover:border-line-strong'
                     }`}
                 >
                   {isSuggested && (
-                    <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-md text-[12px] font-bold z-10 ${isSelected ? 'bg-surface-0 text-ink' : 'bg-[#6157FF] text-[#111111]'
-                      }`}>Suggested</span>
+                    <span className="absolute -top-2.5 left-3">
+                      <Badge variant={isSelected ? 'neutral' : 'brand'} size="sm">Suggested</Badge>
+                    </span>
                   )}
-                  <h4 className={`text-[14px] font-bold mb-1 ${isSelected ? 'text-[#111111]' : 'text-ink'}`}>{shape.label}</h4>
-                  <p className={`text-[11px] leading-tight ${isSelected ? 'text-[#111111]/60' : 'text-ink-soft'}`}>{shape.desc}</p>
+                  <h4 className="text-[14px] font-semibold mb-1">{shape.label}</h4>
+                  <p className={`text-[11.5px] leading-tight ${isSelected ? 'opacity-60' : 'text-ink-faint'}`}>{shape.desc}</p>
                 </button>
               );
             })}
@@ -1135,89 +1104,67 @@ const FitProfile: React.FC = () => {
         </div>
 
         {/* --- Chest Size --- */}
-        <div className="mb-7">
-          <label className="text-[15px] font-bold text-ink mb-1.5 block">
-            Chest Size <span className="text-ink-faint text-xs font-normal">(Optional)</span>
-          </label>
-          <p className="text-[13px] text-ink-soft mb-3">Improves accuracy for shirts, jackets, and suits.</p>
+        <div className="mb-8">
+          <FieldLabel label="Chest size" optional hint="Improves accuracy for shirts, jackets, and suits." />
           <div className="relative">
-            <input type="number" value={fitData.chestSize} onChange={(e) => handleMeasurementChange('chest', e.target.value)} placeholder="e.g., 38"
-              className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-16 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
-            <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">inches</span>
+            <input type="number" value={fitData.chestSize} onChange={(e) => handleMeasurementChange('chest', e.target.value)} placeholder="e.g., 38" className={`${fieldCls} pr-16`} />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">inches</span>
           </div>
         </div>
 
         {/* --- Hips (Female only) --- */}
         {isFemale && (
-          <div className="mb-7">
-            <label className="text-[15px] font-bold text-ink mb-1.5 block">
-              Hips <span className="text-ink-faint text-xs font-normal">(Optional)</span>
-            </label>
-            <p className="text-[13px] text-ink-soft mb-3">Critical for dresses, lehengas, and ethnic wear accuracy.</p>
+          <div className="mb-8">
+            <FieldLabel label="Hips" optional hint="Critical for dresses, lehengas, and ethnic wear accuracy." />
             <div className="relative">
-              <input type="number" value={fitData.hipsSize} onChange={(e) => handleMeasurementChange('hips', e.target.value)} placeholder="38"
-                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-12 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">in</span>
+              <input type="number" value={fitData.hipsSize} onChange={(e) => handleMeasurementChange('hips', e.target.value)} placeholder="38" className={`${fieldCls} pr-12`} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
             </div>
           </div>
         )}
 
         {/* --- Bust Size (Female only) --- */}
         {isFemale && (
-          <div className="mb-7">
-            <label className="text-[15px] font-bold text-ink mb-1.5 block">
-              Bust Size <span className="text-ink-faint text-xs font-normal">(Optional)</span>
-            </label>
-            <p className="text-[13px] text-ink-soft mb-3">Helps recommend better fitting tops and dresses.</p>
+          <div className="mb-8">
+            <FieldLabel label="Bust size" optional hint="Helps recommend better fitting tops and dresses." />
             <div className="relative">
-              <input type="number" value={fitData.bustSize} onChange={(e) => handleMeasurementChange('bust', e.target.value)} placeholder="e.g., 34"
-                className="w-full h-14 bg-surface-1 border border-line rounded-2xl px-5 pr-16 text-ink font-medium placeholder:text-ink-faint focus:outline-none focus:border-[#6157FF]/50 transition-colors" />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-ink-faint text-sm font-medium">inches</span>
+              <input type="number" value={fitData.bustSize} onChange={(e) => handleMeasurementChange('bust', e.target.value)} placeholder="e.g., 34" className={`${fieldCls} pr-16`} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">inches</span>
             </div>
           </div>
         )}
 
         {/* --- Bra Cup (Female only) --- */}
         {isFemale && (
-          <div className="mb-7">
-            <label className="text-[15px] font-bold text-ink mb-1.5 block">
-              Bra Cup <span className="text-ink-faint text-xs font-normal">(Optional)</span>
-            </label>
-            <div className="flex gap-2.5 mt-3">
+          <div className="mb-8">
+            <FieldLabel label="Bra cup" optional />
+            <div className="flex gap-2.5">
               {braCups.map((cup) => (
-                <button
+                <Chip
                   key={cup}
+                  selected={fitData.braCup === cup}
+                  className="min-w-[48px]"
                   onClick={() => setFitData({ ...fitData, braCup: fitData.braCup === cup ? '' : cup })}
-                  className={`h-12 min-w-[48px] px-4 rounded-2xl text-sm font-bold border transition-all ${fitData.braCup === cup
-                      ? 'bg-white text-[#111111] border-white'
-                      : 'bg-surface-1 text-ink-soft border-line'
-                    }`}
                 >
                   {cup}
-                </button>
+                </Chip>
               ))}
             </div>
           </div>
         )}
 
         {/* --- Fit Preference --- */}
-        <div className="mb-7">
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[15px] font-bold text-ink block">Fit Preference</label>
-            <div className="h-6 w-6 rounded-full border border-line flex items-center justify-center">
-              <span className="material-symbols-outlined text-[14px] text-ink-faint">info</span>
-            </div>
-          </div>
-          <p className="text-[13px] text-ink-soft mb-4">Determines how fitted or loose your clothing should feel.</p>
+        <div className="mb-8">
+          <FieldLabel label="Fit preference" hint="Determines how fitted or loose your clothing should feel." />
 
           {/* T-Shirt Visual */}
-          <div className="bg-surface-1 rounded-2xl p-8 flex items-center justify-center relative border border-line">
-            <div className="absolute top-4 right-4 px-3 py-1 rounded-lg bg-[#2A7B5C]/20 border border-[#2A7B5C]/40">
-              <span className="text-[12px] font-bold text-[#4ADE80]">
-                {fitData.fitPreference === 1 ? 'FITTED' : fitData.fitPreference === 3 ? 'LOOSE' : 'STANDARD'}
-              </span>
-            </div>
-            <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <div className="bg-surface-1 rounded-card p-8 flex items-center justify-center relative border border-line">
+            <span className="absolute top-4 right-4">
+              <Badge variant="neutral">
+                {fitData.fitPreference === 1 ? 'Fitted' : fitData.fitPreference === 3 ? 'Loose' : 'Standard'}
+              </Badge>
+            </span>
+            <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path
                 d={fitData.fitPreference === 1
                   ? "M35 25 L15 40 L25 50 L35 45 L35 100 L85 100 L85 45 L95 50 L105 40 L85 25 L72 32 L48 32 Z"
@@ -1225,178 +1172,136 @@ const FitProfile: React.FC = () => {
                     ? "M35 25 L10 43 L22 53 L30 48 L28 100 L92 100 L90 48 L98 53 L110 43 L85 25 L72 32 L48 32 Z"
                     : "M35 25 L12 42 L24 52 L33 46 L32 100 L88 100 L87 46 L96 52 L108 42 L85 25 L72 32 L48 32 Z"
                 }
-                fill="#2A3A4A" stroke="#4A9EDB" strokeWidth="1.5" strokeLinejoin="round"
+                fill="var(--surface-2)" stroke="var(--brand)" strokeWidth="1.5" strokeLinejoin="round"
+                style={{ transition: 'd 0.3s ease' }}
               />
-              <path d="M48 32 Q60 42 72 32" fill="none" stroke="#4A9EDB" strokeWidth="1.5" />
+              <path d="M48 32 Q60 42 72 32" fill="none" stroke="var(--brand)" strokeWidth="1.5" />
             </svg>
           </div>
 
           {/* Slim / Regular / Relaxed */}
-          <div className="flex mt-4 bg-surface-1 rounded-2xl border border-line overflow-hidden">
-            {[
-              { value: 1, label: 'Slim', icon: 'compress' },
-              { value: 2, label: 'Regular', icon: 'straighten' },
-              { value: 3, label: 'Relaxed', icon: 'expand' },
-            ].map((pref) => (
-              <button
-                key={pref.value}
-                onClick={() => {
-                  setFitData({ ...fitData, fitPreference: pref.value });
-                  updateFitPreference(
-                    pref.value === 1 ? 'slim' : pref.value === 3 ? 'relaxed' : 'regular',
-                  );
-                }}
-                className={`flex-1 flex flex-col items-center gap-1.5 py-4 transition-all ${fitData.fitPreference === pref.value
-                    ? 'bg-white text-[#111111]'
-                    : 'text-ink-faint'
-                  }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">{pref.icon}</span>
-                <span className="text-[12px] font-bold">{pref.label}</span>
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            aria-label="Fit preference"
+            className="mt-4"
+            value={String(fitData.fitPreference)}
+            onChange={(v) => {
+              const value = Number(v);
+              setFitData({ ...fitData, fitPreference: value });
+              updateFitPreference(
+                value === 1 ? 'slim' : value === 3 ? 'relaxed' : 'regular',
+              );
+            }}
+            options={[
+              { value: '1', label: 'Slim', icon: 'compress' },
+              { value: '2', label: 'Regular', icon: 'straighten' },
+              { value: '3', label: 'Relaxed', icon: 'expand' },
+            ]}
+          />
         </div>
 
         {/* --- Fit Summary Card --- */}
-        <div className="mb-6 p-6 bg-surface-1 rounded-2xl border border-line">
-          <h3 className="text-[12px] font-bold text-ink-soft mb-4">Your Fit Summary</h3>
-          <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-            <div>
-              <p className="text-[12px] text-ink-soft mb-0.5">Height:</p>
-              <p className="text-[14px] font-bold text-ink">{heightDisplay}</p>
-            </div>
-            <div>
-              <p className="text-[12px] text-ink-soft mb-0.5">Build:</p>
-              <p className="text-[14px] font-bold text-ink">{buildLabel}</p>
-            </div>
-            <div>
-              <p className="text-[12px] text-ink-soft mb-0.5">Usual Size:</p>
-              <p className="text-[14px] font-bold text-ink">{fitData.topSize}</p>
-            </div>
-            <div>
-              <p className="text-[12px] text-ink-soft mb-0.5">Fit:</p>
-              <p className="text-[14px] font-bold text-ink">{fitPreferenceLabel}</p>
-            </div>
+        <div className="mb-6 p-6 bg-surface-1 rounded-card border border-line">
+          <Eyebrow className="mb-4">Your fit summary</Eyebrow>
+          <div className="grid grid-cols-2 gap-y-5 gap-x-6">
+            {[
+              { label: 'Height', value: heightDisplay },
+              { label: 'Build', value: buildLabel },
+              { label: 'Usual size', value: fitData.topSize },
+              { label: 'Fit', value: fitPreferenceLabel },
+            ].map((item) => (
+              <div key={item.label}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint mb-1">{item.label}</p>
+                <p className="font-display text-[19px] font-medium text-ink">{item.value}</p>
+              </div>
+            ))}
           </div>
         </div>
 
       </div>
 
       {/* Fixed Bottom CTA */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full sm:max-w-[430px] px-5 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0 to-transparent">
-        <button
+      <div className="fixed bottom-0 inset-x-0 z-50 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
+        <Button
+          size="lg"
+          fullWidth
+          variant={isComplete ? 'primary' : 'outline'}
+          loading={saving}
           onClick={handleSave}
-          disabled={saving}
-          className={`w-full h-[58px] rounded-2xl font-bold text-[15px] shadow-xl active:scale-[0.97] transition-all flex items-center justify-center gap-2 ${isComplete
-              ? 'bg-gradient-to-r from-[#6157FF] to-[#6157FF] text-ink shadow-[#6157FF]/20'
-              : 'bg-surface-1 text-ink-soft border border-line'
-            } disabled:opacity-50`}
         >
-          {saving ? (
-            <div className="h-5 w-5 border-2 border-line border-t-white rounded-full animate-spin"></div>
-          ) : (
-            'Save Profile'
-          )}
-        </button>
+          Save profile
+        </Button>
         {!isComplete && (
           <p className="text-[11px] text-ink-faint text-center mt-3">Complete the required fields to save your profile.</p>
         )}
       </div>
 
-      {/* ========== BODY SHAPE GUIDE MODAL ========== */}
-      {showBodyShapeGuide && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowBodyShapeGuide(false)}></div>
-
-          {/* Bottom Sheet */}
-          <div className="relative z-10 w-full max-w-lg bg-surface-1 rounded-t-[2rem] max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300">
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 bg-surface-3 rounded-full"></div>
-            </div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4">
-              <h2 className="text-xl font-bold text-ink">Body Shape Guide</h2>
-              <button onClick={() => setShowBodyShapeGuide(false)} className="h-8 w-8 rounded-full bg-surface-2 flex items-center justify-center">
-                <span className="material-symbols-outlined text-[18px] text-ink-soft">close</span>
-              </button>
-            </div>
-
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-10">
-              {/* How to Determine */}
-              <div className="bg-[#1E3A5F]/30 border border-[#3B82F6]/20 rounded-2xl p-5 mb-6">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <span className="material-symbols-outlined text-[#3B82F6] text-xl">help</span>
-                  <h3 className="text-[15px] font-bold text-ink">How to Determine Your Shape</h3>
-                </div>
-                <p className="text-[13px] text-ink-soft mb-4 leading-relaxed">
-                  Stand in front of a mirror with light clothing to observe your silhouette.
+      {/* ========== BODY SHAPE GUIDE ========== */}
+      <Sheet open={showBodyShapeGuide} onClose={() => setShowBodyShapeGuide(false)} title="Body shape guide">
+        {/* How to Determine */}
+        <div className="bg-surface-2 rounded-card p-5 mb-6">
+          <div className="flex items-center gap-2.5 mb-3">
+            <span className="material-symbols-outlined text-brand text-[19px]" aria-hidden="true">help</span>
+            <h3 className="text-[14px] font-semibold text-ink">How to determine your shape</h3>
+          </div>
+          <p className="text-[13px] text-ink-soft mb-4 leading-relaxed">
+            Stand in front of a mirror with light clothing to observe your silhouette.
+          </p>
+          <div className="flex flex-col gap-3">
+            {[
+              { num: '1', title: 'Shoulders vs. hips:', desc: 'Compare the width of your shoulders to your hips.' },
+              { num: '2', title: 'Waist definition:', desc: 'Check if your waist is significantly narrower than your hips/bust.' },
+              { num: '3', title: 'Midsection:', desc: 'Observe if you carry weight around your stomach.' },
+            ].map((step) => (
+              <div key={step.num} className="flex items-start gap-3">
+                <span className="font-display italic text-[16px] text-ink-faint flex-shrink-0 leading-snug" aria-hidden="true">{step.num}.</span>
+                <p className="text-[13px] text-ink-soft leading-relaxed">
+                  <span className="font-semibold text-ink">{step.title}</span> {step.desc}
                 </p>
-                <div className="flex flex-col gap-3">
-                  {[
-                    { num: '1', title: 'Shoulders vs. Hips:', desc: 'Compare the width of your shoulders to your hips.' },
-                    { num: '2', title: 'Waist Definition:', desc: 'Check if your waist is significantly narrower than your hips/bust.' },
-                    { num: '3', title: 'Midsection:', desc: 'Observe if you carry weight around your stomach.' },
-                  ].map((step) => (
-                    <div key={step.num} className="flex items-start gap-3">
-                      <div className="h-6 w-6 rounded-full bg-[#3B82F6] flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-[11px] font-bold text-ink">{step.num}</span>
-                      </div>
-                      <p className="text-[13px] text-ink-soft leading-relaxed">
-                        <span className="font-bold text-ink-soft">{step.title}</span> {step.desc}
-                      </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Shape Cards */}
+        <div className="flex flex-col gap-4 pb-2">
+          {shapeGuideData.map((shape) => (
+            <div key={shape.id} className="bg-surface-1 rounded-card overflow-hidden border border-line">
+              {/* Shape Header */}
+              <div className="flex items-center gap-4 p-5 pb-3">
+                <div className="h-11 w-11 rounded-full border border-line flex items-center justify-center text-ink-soft flex-shrink-0">
+                  {shape.icon}
+                </div>
+                <div>
+                  <h4 className="text-[15px] font-semibold text-ink">{shape.label}</h4>
+                  <p className="text-[12px] text-ink-faint">{shape.desc}</p>
+                </div>
+              </div>
+
+              {/* Key Features */}
+              <div className="px-5 pb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint mb-2.5">Key features</p>
+                <div className="flex flex-col gap-1.5">
+                  {shape.features.map((f, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <div className="h-1 w-1 rounded-full bg-brand mt-2 flex-shrink-0"></div>
+                      <p className="text-[13px] text-ink-soft leading-relaxed">{f}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Shape Cards */}
-              <div className="flex flex-col gap-5">
-                {shapeGuideData.map((shape) => (
-                  <div key={shape.id} className="bg-[#222222] rounded-2xl overflow-hidden border border-line">
-                    {/* Shape Header */}
-                    <div className="flex items-center gap-4 p-5 pb-3">
-                      <div className="h-11 w-11 rounded-xl bg-surface-2 flex items-center justify-center text-ink-soft flex-shrink-0">
-                        {shape.icon}
-                      </div>
-                      <div>
-                        <h4 className="text-[15px] font-bold text-ink">{shape.label}</h4>
-                        <p className="text-[12px] text-ink-soft">{shape.desc}</p>
-                      </div>
-                    </div>
-
-                    {/* Key Features */}
-                    <div className="px-5 pb-3">
-                      <p className="text-[12px] font-bold text-ink-faint mb-2.5">Key Features</p>
-                      <div className="flex flex-col gap-1.5">
-                        {shape.features.map((f, i) => (
-                          <div key={i} className="flex items-start gap-2.5">
-                            <div className="h-1.5 w-1.5 rounded-full bg-[#6157FF] mt-1.5 flex-shrink-0"></div>
-                            <p className="text-[13px] text-ink-soft leading-relaxed">{f}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Styling Tip */}
-                    <div className="mx-5 mb-5 bg-[#6157FF]/10 border border-[#6157FF]/15 rounded-xl p-4">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className="material-symbols-outlined text-[14px] text-[#6157FF]">auto_awesome</span>
-                        <span className="text-[12px] font-bold text-[#6157FF]">Styling Tip</span>
-                      </div>
-                      <p className="text-[12px] text-ink-soft leading-relaxed">{shape.tip}</p>
-                    </div>
-                  </div>
-                ))}
+              {/* Styling Tip */}
+              <div className="mx-5 mb-5 bg-brand-soft rounded-xl p-4">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="material-symbols-outlined text-[14px] text-brand" aria-hidden="true">auto_awesome</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">Styling tip</span>
+                </div>
+                <p className="text-[12.5px] text-ink-soft leading-relaxed">{shape.tip}</p>
               </div>
             </div>
-          </div>
+          ))}
         </div>
-      )}
+      </Sheet>
     </div>
   );
 };

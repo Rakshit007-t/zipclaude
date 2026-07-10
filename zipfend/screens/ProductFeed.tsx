@@ -5,6 +5,7 @@ import { recommendSize } from '../services/ziprightApi';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { buildSizeEngineProfileFromUserProfile } from '../utils/sizeProfile';
 import { demoProducts } from '../services/demoProducts';
+import { AppBar, Button } from '../components/ui';
 
 interface SizeResult {
   size: string;
@@ -61,31 +62,22 @@ const ProductFeed: React.FC = () => {
     }
   };
 
-  const riskColor = (risk: string) => {
+  const riskTone = (risk: string) => {
     const r = risk.toLowerCase();
-    if (r.includes('very low')) return 'text-emerald-600 bg-emerald-400/10 border-emerald-400/20';
-    if (r.includes('low')) return 'text-emerald-600 bg-emerald-400/10 border-emerald-400/20';
-    if (r.includes('medium')) return 'text-amber-600 bg-amber-400/10 border-amber-400/20';
-    return 'text-red-400 bg-red-400/10 border-red-400/20';
+    if (r.includes('low')) return 'text-success bg-success-soft border-success/25';
+    if (r.includes('medium')) return 'text-warning bg-warning-soft border-warning/25';
+    return 'text-danger bg-danger-soft border-danger/25';
   };
 
   return (
-    <div className="relative flex h-full min-h-screen w-full flex-col bg-surface-0 text-ink font-sans">
-
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-surface-0/80 backdrop-blur-xl border-b border-line">
-        <button onClick={() => navigate(-1)} aria-label="Go back" className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 border border-line active:scale-90 transition-transform">
-          <span className="material-symbols-outlined text-[20px] text-[#6157FF]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h1 className="text-[12px] font-bold text-[#6157FF]">Product Feed</h1>
-        <div className="w-10"></div>
-      </div>
+    <div className="relative flex h-full min-h-screen min-h-dvh w-full flex-col bg-surface-0 text-ink">
+      <AppBar title="Product Feed" />
 
       {/* Feed */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-6 pb-24">
-        <div className="flex flex-col gap-5">
+      <div className="flex-1 overflow-y-auto no-scrollbar px-6 pt-6 pb-24">
+        <div className="flex flex-col gap-6">
           {demoProducts.map((product) => (
-            <div key={product.id} className="bg-surface-2 rounded-[1.5rem] border border-line overflow-hidden">
+            <div key={product.id} className="bg-surface-1 rounded-card border border-line overflow-hidden">
               <div className="aspect-[4/5] bg-surface-2">
                 <img
                   src={product.image}
@@ -96,14 +88,14 @@ const ProductFeed: React.FC = () => {
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <div className="p-4">
+              <div className="p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-ink font-bold text-base">{product.brand}</p>
-                    <p className="text-ink-soft text-xs mt-1">{product.title}</p>
-                    <p className="text-[#6157FF] font-bold text-sm mt-2">{product.price}</p>
+                  <div className="min-w-0">
+                    <p className="font-display text-[19px] font-medium text-ink leading-tight">{product.brand}</p>
+                    <p className="text-ink-soft text-[12.5px] mt-1">{product.title}</p>
+                    <p className="text-ink font-semibold text-[14px] mt-2">{product.price}</p>
                   </div>
-                  <span className={`text-[12px] font-bold rounded-full px-3 py-1 border ${riskColor(results[product.id]?.risk || 'low')}`}>
+                  <span className={`text-[9.5px] font-semibold uppercase tracking-[0.1em] rounded-full px-3 py-1.5 border shrink-0 ${results[product.id] ? riskTone(results[product.id].risk || 'low') : 'text-ink-faint border-line'}`}>
                     {results[product.id]?.risk || product.category}
                   </span>
                 </div>
@@ -112,24 +104,25 @@ const ProductFeed: React.FC = () => {
                     <motion.p
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mt-4 text-xs text-ink-soft"
+                      className="mt-4 text-[13px] text-ink-soft"
                     >
-                      Recommended size <span className="text-[#6157FF] font-bold">{results[product.id].size}</span> with{' '}
+                      Recommended size <span className="font-display text-[16px] font-semibold text-ink">{results[product.id].size}</span> with{' '}
                       {Math.round(results[product.id].confidence)}% confidence.
                     </motion.p>
                   ) : null}
                 </AnimatePresence>
                 {errors[product.id] ? (
-                  <p role="alert" className="mt-4 text-xs text-red-600">{errors[product.id]}</p>
+                  <p role="alert" className="mt-4 text-[12px] text-danger">{errors[product.id]}</p>
                 ) : null}
-                <button
-                  onClick={() => handleGetSize(product)}
+                <Button
+                  fullWidth
+                  className="mt-4"
+                  loading={loadingId === product.id}
                   disabled={loadingId === product.id}
-                  aria-busy={loadingId === product.id}
-                  className="mt-4 w-full bg-[#6157FF] text-ink rounded-full py-3 text-[11px] font-bold active:scale-95 transition-transform disabled:opacity-60"
+                  onClick={() => handleGetSize(product)}
                 >
-                  {loadingId === product.id ? 'Checking...' : 'Get My Size'}
-                </button>
+                  Get my size
+                </Button>
               </div>
             </div>
           ))}

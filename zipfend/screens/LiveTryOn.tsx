@@ -298,22 +298,22 @@ const LiveTryOn: React.FC = () => {
           onClick={() => navigate(-1)}
           className="h-10 w-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 active:scale-95 transition-all"
         >
-          <span className="material-symbols-outlined text-[18px] text-[#6157FF]">arrow_back</span>
+          <span className="material-symbols-outlined text-[18px] text-brand">arrow_back</span>
         </button>
         <div className="flex flex-col items-center">
           <span className="text-[11px] font-bold text-gray-300">{product?.brand || 'Live'}</span>
           <span className="text-[11px] font-bold tracking-tight text-white">Live Try-On</span>
         </div>
         <div className="h-10 px-3 flex items-center justify-center rounded-full bg-black/40 border border-white/10">
-          <span className="text-[12px] font-bold text-[#6157FF]">{fps} FPS</span>
+          <span className="text-[12px] font-bold text-brand">{fps} FPS</span>
         </div>
       </div>
 
       {/* Status overlays */}
       {status === 'loading' && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/80">
-          <div className="h-12 w-12 rounded-full border-2 border-[#6157FF] border-t-transparent animate-spin"></div>
-          <span className="text-[12px] font-bold text-[#6157FF]">Starting camera & tracker</span>
+          <div className="h-12 w-12 rounded-full border-2 border-brand border-t-transparent animate-spin"></div>
+          <span className="text-[12px] font-bold text-brand">Starting camera & tracker</span>
         </div>
       )}
       {status === 'no-person' && (
@@ -329,7 +329,7 @@ const LiveTryOn: React.FC = () => {
           <p className="text-sm text-white/80 max-w-xs">{errorMessage}</p>
           <button
             onClick={() => navigate(-1)}
-            className="mt-2 px-8 py-3 bg-[#6157FF] text-white font-bold text-xs rounded-xl active:scale-95 transition-all"
+            className="mt-2 px-8 py-3 bg-brand text-white font-bold text-xs rounded-xl active:scale-95 transition-all"
           >
             Go Back
           </button>
@@ -340,7 +340,7 @@ const LiveTryOn: React.FC = () => {
       {status === 'tracking' || status === 'no-person' ? (
         <div className="absolute bottom-0 left-0 right-0 z-50 p-6 bg-gradient-to-t from-black/80 to-transparent">
           <div className="max-w-md mx-auto flex items-center gap-4">
-            <span className="material-symbols-outlined text-[18px] text-[#6157FF]">opacity</span>
+            <span className="material-symbols-outlined text-[18px] text-brand">opacity</span>
             <input
               type="range"
               min={0.4}
@@ -348,7 +348,7 @@ const LiveTryOn: React.FC = () => {
               step={0.02}
               value={opacity}
               onChange={(e) => setOpacity(Number(e.target.value))}
-              className="flex-1 accent-[#6157FF]"
+              className="flex-1 accent-brand"
             />
           </div>
         </div>

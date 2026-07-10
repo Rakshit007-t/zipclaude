@@ -5,6 +5,7 @@ import { springs } from './motion';
 /**
  * Global connectivity indicator. Mounted once in the app shell; slides in
  * when the device goes offline and announces itself to screen readers.
+ * Ink bar — quiet, absolute.
  */
 const OfflineBanner: React.FC = () => {
   const [offline, setOffline] = useState(!navigator.onLine);
@@ -26,19 +27,19 @@ const OfflineBanner: React.FC = () => {
         <motion.div
           role="status"
           aria-live="polite"
-          className="fixed top-0 left-1/2 z-[90] w-full sm:max-w-[430px] -translate-x-1/2"
+          className="fixed top-0 inset-x-0 z-[90] w-full phone-fixed-bottom"
           initial={{ y: '-100%' }}
           animate={{ y: 0 }}
           exit={{ y: '-100%' }}
           transition={springs.gentle}
         >
-          <div className="pt-safe bg-warning-soft backdrop-blur-xl border-b border-warning/30">
+          <div className="pt-safe bg-ink">
             <div className="flex items-center justify-center gap-2 py-2 px-4">
-              <span className="material-symbols-outlined text-warning text-[16px]" aria-hidden="true">
+              <span className="material-symbols-outlined text-ink-invert text-[15px]" aria-hidden="true">
                 cloud_off
               </span>
-              <span className="text-[12px] font-semibold text-warning">
-                You're offline — some features are unavailable
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-invert">
+                Offline — some features unavailable
               </span>
             </div>
           </div>

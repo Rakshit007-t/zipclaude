@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { Button, Wordmark } from '../components/ui';
 
 declare global {
   interface Window {
@@ -418,42 +419,32 @@ const Login: React.FC = () => {
     }
   };
 
+  /** Editorial underline field — the login form's signature control. */
+  const underlineField = 'border-b border-line-strong focus-within:border-ink transition-colors duration-200';
+
   return (
-    <div className="relative flex h-full min-h-screen w-full flex-col font-sans overflow-hidden" style={{ backgroundColor: '#111111', color: '#F5F0E8' }}>
+    <div className="relative flex h-full min-h-screen min-h-dvh w-full flex-col bg-surface-0 text-ink overflow-hidden">
+      {/* Faint ultraviolet atmosphere */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 90% 40% at 50% -12%, var(--brand-soft), transparent 70%)' }}
+      />
 
-      {/* Background Texture/Gradient */}
-      <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% -20%, #6157FF 0%, transparent 70%)' }}></div>
-
-      {/* Header Section */}
-      <div className="pt-20 pb-12 px-6 text-center z-10 flex flex-col items-center">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="mb-8 relative"
+      {/* Masthead */}
+      <div className="relative z-10 pt-safe px-6 pt-6 flex items-center justify-between">
+        <button
+          onClick={handleBack}
+          aria-label="Go back"
+          className="h-10 w-10 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform"
         >
-          <div className="h-24 w-24 rounded-full border-2 border-[#6157FF] flex items-center justify-center relative overflow-hidden">
-            <motion.span
-              animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              className="material-symbols-outlined text-[#6157FF] text-5xl"
-              style={{ fontVariationSettings: "'FILL' 0" }}
-            >
-              auto_awesome
-            </motion.span>
-          </div>
-          <div className="absolute -inset-2 rounded-full border border-[#6157FF]/30 animate-pulse"></div>
-        </motion.div>
-
-        <h1 className="text-4xl font-sans mb-2 tracking-tight" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-          <span className="text-ink">Zip</span><span style={{ color: '#6157FF' }}>RIGHT</span> {isSignUp ? 'Join' : 'Welcome'}
-        </h1>
-        <p className="text-ink-soft text-sm tracking-wide font-medium">
-          {authMethod === 'phone' ? 'Enter your mobile to begin' : 'Sign in with your credentials'}
-        </p>
+          <span className="material-symbols-outlined text-[19px]" aria-hidden="true">arrow_back</span>
+        </button>
+        <Wordmark size="sm" />
+        <div className="w-10" aria-hidden="true" />
       </div>
 
-      <div className="flex-1 flex flex-col px-8 z-10">
+      <div className="relative z-10 flex-1 flex flex-col px-8 pt-10 pb-10 pb-safe">
         <AnimatePresence mode="wait">
           {step === 'input' && (
             <motion.div
@@ -463,35 +454,50 @@ const Login: React.FC = () => {
               exit={{ opacity: 0, y: -20 }}
               className="max-w-sm mx-auto w-full"
             >
+              {/* Headline */}
+              <p className="eyebrow mb-3">{isSignUp ? 'New membership' : 'Members'}</p>
+              <h1 className="font-display text-[36px] leading-[1.06] font-light mb-2">
+                {isSignUp ? <>Join the <em className="font-medium">atelier.</em></> : <>Welcome <em className="font-medium">back.</em></>}
+              </h1>
+              <p className="text-ink-soft text-[13.5px] mb-10">
+                {authMethod === 'phone' ? 'Enter your mobile number to begin.' : 'Sign in with your credentials.'}
+              </p>
 
-              {/* Auth Method Toggle */}
-              <div className="flex bg-surface-2 p-1 rounded-full mb-10 border border-line">
-                <button
-                  onClick={() => setAuthMethod('phone')}
-                  aria-pressed={authMethod === 'phone'}
-                  className={`flex-1 py-3 text-[11px] font-bold rounded-full transition-all ${authMethod === 'phone' ? 'bg-[#6157FF] text-ink shadow-lg' : 'text-ink-soft'}`}
-                >
-                  Phone
-                </button>
-                <button
-                  onClick={() => setAuthMethod('email')}
-                  aria-pressed={authMethod === 'email'}
-                  className={`flex-1 py-3 text-[11px] font-bold rounded-full transition-all ${authMethod === 'email' ? 'bg-[#6157FF] text-ink shadow-lg' : 'text-ink-soft'}`}
-                >
-                  Email
-                </button>
+              {/* Auth method tabs — sliding underline */}
+              <div className="flex gap-8 mb-8 border-b border-line" role="tablist" aria-label="Sign-in method">
+                {(['phone', 'email'] as const).map((method) => (
+                  <button
+                    key={method}
+                    role="tab"
+                    aria-selected={authMethod === method}
+                    onClick={() => setAuthMethod(method)}
+                    className={`relative pb-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors ${
+                      authMethod === method ? 'text-ink' : 'text-ink-faint'
+                    }`}
+                  >
+                    {method}
+                    {authMethod === method && (
+                      <motion.span
+                        layoutId="auth-method-underline"
+                        className="absolute -bottom-px left-0 right-0 h-[2px] bg-ink"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                ))}
               </div>
 
               {authMethod === 'phone' ? (
-                <div className="flex gap-4 mb-10 h-16 border-b border-line focus-within:border-[#6157FF] transition-colors">
+                <div className={`flex gap-4 mb-10 h-14 ${underlineField}`}>
                   <div className="relative w-20">
                     <button
                       onClick={() => setShowCountryPicker(!showCountryPicker)}
                       aria-label={`Country code ${selectedCountry.code} ${selectedCountry.name}. Tap to change`}
                       aria-expanded={showCountryPicker}
-                      className="flex h-full w-full items-center justify-center gap-2 bg-transparent text-lg font-bold text-[#6157FF]"
+                      className="flex h-full w-full items-center justify-start gap-1 bg-transparent text-[18px] font-medium text-ink"
                     >
                       {selectedCountry.code}
+                      <span className="material-symbols-outlined text-[16px] text-ink-faint" aria-hidden="true">expand_more</span>
                     </button>
 
                     {showCountryPicker && (
@@ -502,15 +508,15 @@ const Login: React.FC = () => {
                       />
                     )}
                     {showCountryPicker && (
-                      <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-1 border border-line rounded-2xl overflow-hidden shadow-2xl max-h-48 overflow-y-auto no-scrollbar">
+                      <div className="absolute top-full left-0 w-56 mt-2 z-50 bg-surface-1 border border-line rounded-2xl overflow-hidden shadow-float max-h-52 overflow-y-auto no-scrollbar">
                         {countryCodes.map(c => (
                           <button
                             key={c.iso}
                             onClick={() => { setSelectedCountry(c); setShowCountryPicker(false); }}
-                            className="w-full text-left px-4 py-4 text-sm font-bold border-b border-line last:border-none flex items-center gap-3 hover:bg-surface-2"
+                            className="w-full text-left px-4 py-3.5 border-b border-line last:border-none flex items-center gap-3 hover:bg-surface-2"
                           >
-                            <span className="text-[#6157FF]">{c.code}</span>
-                            <span className="text-ink-soft text-xs">{c.name}</span>
+                            <span className="text-ink font-medium text-[14px]">{c.code}</span>
+                            <span className="text-ink-faint text-[12px]">{c.name}</span>
                           </button>
                         ))}
                       </div>
@@ -530,25 +536,25 @@ const Login: React.FC = () => {
                           setPhone(val);
                         }
                       }}
-                      placeholder="Mobile Number"
-                      className="h-full w-full bg-transparent font-bold outline-none placeholder:text-ink-faint text-ink text-xl"
+                      placeholder="Mobile number"
+                      className="h-full w-full bg-transparent font-medium outline-none placeholder:text-ink-faint text-ink text-[18px] tracking-wide"
                     />
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col gap-6 mb-10">
-                  <div className="border-b border-line focus-within:border-[#6157FF] transition-colors">
+                  <div className={underlineField}>
                     <input
                       type="email"
                       autoComplete="email"
                       aria-label="Email address"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Email Address"
-                      className="h-14 w-full bg-transparent font-bold outline-none placeholder:text-ink-faint text-ink text-lg"
+                      placeholder="Email address"
+                      className="h-14 w-full bg-transparent font-medium outline-none placeholder:text-ink-faint text-ink text-[16px]"
                     />
                   </div>
-                  <div className="border-b border-line focus-within:border-[#6157FF] transition-colors">
+                  <div className={underlineField}>
                     <input
                       type="password"
                       autoComplete={isSignUp ? 'new-password' : 'current-password'}
@@ -556,65 +562,63 @@ const Login: React.FC = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Password"
-                      className="h-14 w-full bg-transparent font-bold outline-none placeholder:text-ink-faint text-ink text-lg"
+                      className="h-14 w-full bg-transparent font-medium outline-none placeholder:text-ink-faint text-ink text-[16px]"
                     />
                   </div>
                 </div>
               )}
 
               {error && (
-                <p role="alert" className="mb-6 text-center text-[13px] font-medium leading-snug text-red-600">
+                <p role="alert" className="mb-6 text-center text-[13px] font-medium leading-snug text-danger">
                   {error}
                 </p>
               )}
 
-              <button
+              <Button
+                size="lg"
+                fullWidth
+                loading={isLoading}
                 onClick={handleContinue}
-                disabled={isLoading}
-                className="h-16 w-full rounded-full bg-[#6157FF] text-ink font-bold text-xs shadow-2xl shadow-[#6157FF]/20 flex items-center justify-center gap-2 mb-10 active:scale-95 transition-transform"
+                className="mb-8"
               >
-                {isLoading ? (
-                  <div className="h-5 w-5 border-2 border-line border-t-white rounded-full animate-spin"></div>
-                ) : (isSignUp ? 'Create Account' : 'Sign In')}
+                {isSignUp ? 'Create account' : 'Sign in'}
+              </Button>
+
+              <div className="flex items-center gap-4 mb-8" aria-hidden="true">
+                <div className="h-px bg-line flex-1" />
+                <span className="eyebrow !text-[9px]">Or continue with</span>
+                <div className="h-px bg-line flex-1" />
+              </div>
+
+              <button
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                className="relative flex h-[54px] w-full items-center justify-center rounded-full bg-surface-1 border border-line-strong text-ink active:scale-[0.97] transition-transform disabled:opacity-50 hover:bg-surface-2"
+              >
+                {/* Inline Google mark — no external image dependency */}
+                <svg className="h-5 w-5 absolute left-7" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.62v3h3.87c2.26-2.09 3.57-5.17 3.57-8.81z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.93-2.91l-3.87-3a7.24 7.24 0 0 1-10.78-3.8H1.29v3.1A12 12 0 0 0 12 24z" />
+                  <path fill="#FBBC05" d="M5.28 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.29a12 12 0 0 0 0 10.78l3.99-3.1z" />
+                  <path fill="#EA4335" d="M12 4.77c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.97 11.97 0 0 0 1.29 6.6l3.99 3.1A7.24 7.24 0 0 1 12 4.77z" />
+                </svg>
+                <span className="font-semibold uppercase tracking-[0.1em] text-[12px]">Continue with Google</span>
               </button>
 
-              <div className="relative flex items-center justify-center mb-10">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-line"></div>
-                </div>
-                <div className="relative bg-surface-0 px-6 text-[12px] text-ink-faint font-bold">Or continue with</div>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <button
-                  onClick={handleGoogleLogin}
-                  disabled={isLoading}
-                  className="relative flex h-16 w-full items-center justify-center rounded-full bg-white text-black shadow-xl active:scale-95 transition-transform disabled:opacity-50"
-                >
-                  {/* Inline Google mark — no external image dependency */}
-                  <svg className="h-6 w-6 absolute left-8" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.62v3h3.87c2.26-2.09 3.57-5.17 3.57-8.81z" />
-                    <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.93-2.91l-3.87-3a7.24 7.24 0 0 1-10.78-3.8H1.29v3.1A12 12 0 0 0 12 24z" />
-                    <path fill="#FBBC05" d="M5.28 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.29a12 12 0 0 0 0 10.78l3.99-3.1z" />
-                    <path fill="#EA4335" d="M12 4.77c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.97 11.97 0 0 0 1.29 6.6l3.99 3.1A7.24 7.24 0 0 1 12 4.77z" />
-                  </svg>
-                  <span className="font-bold text-xs">Continue with Google</span>
-                </button>
-              </div>
-
               <div className="mt-10 text-center">
-                <p className="text-xs font-medium text-ink-soft">
-                  {isSignUp ? 'Already a member? ' : <>New to <span className="text-ink">Zip</span><span className="text-[#6157FF]">RIGHT</span>? </>}
-                  <button onClick={() => setIsSignUp(!isSignUp)} className="font-bold text-[#6157FF] ml-1">
+                <p className="text-[13px] text-ink-soft">
+                  {isSignUp ? 'Already a member? ' : 'New to ZipRIGHT? '}
+                  <button onClick={() => setIsSignUp(!isSignUp)} className="font-semibold text-ink underline underline-offset-4 ml-1">
                     {isSignUp ? 'Log in' : 'Join now'}
                   </button>
                 </p>
               </div>
 
-              <p className="text-[11px] text-center text-ink-faint mt-10 leading-relaxed max-w-[280px] mx-auto font-bold">
-                By continuing you agree to our <span onClick={() => navigate('/terms-of-use')} className="text-ink-soft cursor-pointer">Terms</span> & <span onClick={() => navigate('/privacy-policy')} className="text-ink-soft cursor-pointer">Privacy</span>
+              <p className="text-[11px] text-center text-ink-faint mt-8 leading-relaxed max-w-[280px] mx-auto">
+                By continuing you agree to our{' '}
+                <span onClick={() => navigate('/terms-of-use')} className="text-ink-soft cursor-pointer underline underline-offset-2">Terms</span> &{' '}
+                <span onClick={() => navigate('/privacy-policy')} className="text-ink-soft cursor-pointer underline underline-offset-2">Privacy</span>
               </p>
-
             </motion.div>
           )}
 
@@ -624,62 +628,62 @@ const Login: React.FC = () => {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="flex flex-col items-center max-w-sm mx-auto w-full pt-10"
+              className="flex flex-col max-w-sm mx-auto w-full pt-6"
             >
-              <h1 className="text-3xl font-sans text-[#6157FF] mb-2" style={{ fontFamily: 'DM Sans, sans-serif' }}>Verify Phone</h1>
-              <p className="text-ink-soft text-xs font-bold mb-12 text-center">Code sent to {selectedCountry.code} {phone}</p>
+              <p className="eyebrow mb-3">Verification</p>
+              <h1 className="font-display text-[36px] leading-[1.06] font-light mb-2">
+                Check your <em className="font-medium">phone.</em>
+              </h1>
+              <p className="text-ink-soft text-[13.5px] mb-2">
+                Code sent to {selectedCountry.code} {phone}
+              </p>
               {confirmationResult?.isDemo && (
-                <p className="text-[#6157FF] text-[12px] font-bold mb-6 text-center">
+                <p className="text-brand text-[12px] font-semibold mb-2">
                   Demo OTP: 123456
                 </p>
               )}
 
-              <div className="flex justify-center gap-3 mb-12 w-full">
+              <div className="flex justify-between gap-2.5 mt-8 mb-10 w-full">
                 {otp.map((digit, i) => (
-                  <div key={i} className="flex-1 max-w-[48px] border-b-2 border-line focus-within:border-[#6157FF] transition-colors">
-                    <input
-                      ref={otpRefs[i]}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      autoComplete={i === 0 ? 'one-time-code' : 'off'}
-                      aria-label={`Verification code digit ${i + 1}`}
-                      value={digit}
-                      onChange={(e) => handleOtpChange(i, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                      className="h-16 w-full bg-transparent text-center text-3xl font-bold outline-none text-ink"
-                      autoFocus={i === 0}
-                    />
-                  </div>
+                  <input
+                    key={i}
+                    ref={otpRefs[i]}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                    aria-label={`Verification code digit ${i + 1}`}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                    className="h-14 w-full min-w-0 rounded-ctl bg-surface-1 border border-line text-center font-display text-[24px] font-medium outline-none text-ink focus:border-ink focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow]"
+                    autoFocus={i === 0}
+                  />
                 ))}
               </div>
 
               {error && (
-                <p role="alert" className="mb-6 -mt-6 text-center text-[13px] font-medium leading-snug text-red-600">
+                <p role="alert" className="mb-6 -mt-4 text-center text-[13px] font-medium leading-snug text-danger">
                   {error}
                 </p>
               )}
 
-              <button
-                onClick={handleVerifyOtp}
-                className="h-16 w-full rounded-full bg-[#6157FF] text-ink font-bold text-xs shadow-2xl shadow-[#6157FF]/20 active:scale-95 transition-transform disabled:opacity-50"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Verifying...' : 'Verify Code'}
-              </button>
+              <Button size="lg" fullWidth loading={isLoading} onClick={handleVerifyOtp}>
+                Verify code
+              </Button>
 
-              <div className="mt-10 flex flex-col items-center gap-6">
+              <div className="mt-10 flex flex-col items-center gap-5">
                 <button
                   onClick={handleResendCode}
                   disabled={isResending}
-                  className="text-[12px] font-bold text-[#6157FF] disabled:text-ink-faint"
+                  className="text-[12px] font-semibold uppercase tracking-[0.1em] text-ink underline underline-offset-4 disabled:text-ink-faint disabled:no-underline"
                 >
-                  {isResending ? 'Sending...' : 'Resend Code'}
+                  {isResending ? 'Sending…' : 'Resend code'}
                 </button>
-                {resendMessage && <p className="text-[12px] text-emerald-500 font-bold">{resendMessage}</p>}
+                {resendMessage && <p className="text-[12px] text-success font-medium">{resendMessage}</p>}
 
-                <button onClick={handleBack} className="text-[12px] font-bold text-ink-faint">
-                  Change Number
+                <button onClick={handleBack} className="text-[12px] font-medium text-ink-faint">
+                  Change number
                 </button>
               </div>
             </motion.div>
@@ -688,84 +692,82 @@ const Login: React.FC = () => {
           {step === 'profile' && (
             <motion.div
               key="profile"
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="max-w-sm mx-auto w-full pt-4"
+              className="max-w-sm mx-auto w-full pt-2"
             >
-              <h1 className="text-3xl font-sans text-[#6157FF] mb-2" style={{ fontFamily: 'DM Sans, sans-serif' }}>Setup Profile</h1>
-              <p className="text-ink-soft text-[12px] font-bold mb-10">
+              <p className="eyebrow mb-3">Almost there</p>
+              <h1 className="font-display text-[36px] leading-[1.06] font-light mb-2">
+                Introduce <em className="font-medium">yourself.</em>
+              </h1>
+              <p className="text-ink-soft text-[13.5px] mb-10">
                 Complete your fashion identity.
               </p>
 
-              <div className="flex flex-col gap-8">
-                <div className="border-b border-line focus-within:border-[#6157FF] transition-colors">
-                  <label className="text-[12px] font-bold text-ink-faint mb-1 block">First Name</label>
+              <div className="flex flex-col gap-7">
+                <div className={underlineField}>
+                  <label className="eyebrow !text-[9px] mb-1 block">First name</label>
                   <input
                     type="text"
                     value={profileData.firstName}
                     onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
-                    className="w-full h-12 bg-transparent text-ink font-bold outline-none placeholder:text-ink-faint"
+                    className="w-full h-11 bg-transparent text-ink font-medium outline-none placeholder:text-ink-faint text-[16px]"
                     placeholder="Enter your name"
                   />
                 </div>
 
-                <div className="border-b border-line focus-within:border-[#6157FF] transition-colors">
-                  <label className="text-[12px] font-bold text-ink-faint mb-1 block">Email</label>
+                <div className={underlineField}>
+                  <label className="eyebrow !text-[9px] mb-1 block">Email</label>
                   <input
                     type="email"
                     value={profileData.email}
                     onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                    className="w-full h-12 bg-transparent text-ink font-bold outline-none placeholder:text-ink-faint"
+                    className="w-full h-11 bg-transparent text-ink font-medium outline-none placeholder:text-ink-faint text-[16px]"
                     placeholder="Enter your email"
                   />
                 </div>
 
                 <div className="flex gap-6">
-                  <div className="flex-1 border-b border-line focus-within:border-[#6157FF] transition-colors">
-                    <label className="text-[12px] font-bold text-ink-faint mb-1 block">Date of Birth</label>
+                  <div className={`flex-1 ${underlineField}`}>
+                    <label className="eyebrow !text-[9px] mb-1 block">Date of birth</label>
                     <input
                       type="date"
                       value={profileData.dob}
                       onChange={(e) => setProfileData({ ...profileData, dob: e.target.value })}
-                      className="w-full h-12 bg-transparent text-ink font-bold outline-none"
-                      style={{ colorScheme: 'dark' }}
+                      className="w-full h-11 bg-transparent text-ink font-medium outline-none text-[15px]"
                     />
                   </div>
 
-                  <div className="flex-1 border-b border-line focus-within:border-[#6157FF] transition-colors">
-                    <label className="text-[12px] font-bold text-ink-faint mb-1 block">Gender</label>
+                  <div className={`flex-1 ${underlineField}`}>
+                    <label className="eyebrow !text-[9px] mb-1 block">Gender</label>
                     <select
                       value={profileData.gender}
                       onChange={(e) => setProfileData({ ...profileData, gender: e.target.value })}
-                      className="w-full h-12 bg-transparent text-ink font-bold outline-none appearance-none"
+                      className="w-full h-11 bg-transparent text-ink font-medium outline-none appearance-none text-[15px]"
                     >
-                      <option value="" disabled className="bg-surface-0">Select</option>
-                      <option value="Male" className="bg-surface-0">Male</option>
-                      <option value="Female" className="bg-surface-0">Female</option>
-                      <option value="Non-Binary" className="bg-surface-0">Non-Binary</option>
-                      <option value="Other" className="bg-surface-0">Other</option>
+                      <option value="" disabled>Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Non-Binary">Non-Binary</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="border-b border-line opacity-50">
-                  <label className="text-[12px] font-bold text-ink-faint mb-1 block">Phone Number</label>
-                  <div className="w-full h-12 flex items-center text-ink-soft font-bold">
+                <div className="border-b border-line opacity-60">
+                  <label className="eyebrow !text-[9px] mb-1 block">Phone number</label>
+                  <div className="w-full h-11 flex items-center text-ink-soft font-medium text-[15px]">
                     {selectedCountry.code} {phone}
-                    <span className="material-symbols-outlined ml-auto text-emerald-500 text-lg">check_circle</span>
+                    <span className="material-symbols-outlined filled ml-auto text-success text-[18px]" aria-hidden="true">check_circle</span>
                   </div>
                 </div>
 
-                {error && <p className="text-center text-[12px] font-bold text-[#FF4D6D]">{error}</p>}
+                {error && <p role="alert" className="text-center text-[12px] font-medium text-danger">{error}</p>}
               </div>
 
-              <button
-                onClick={handleSaveProfile}
-                disabled={isLoading}
-                className="mt-12 h-16 w-full rounded-full bg-[#6157FF] text-ink font-bold text-xs shadow-2xl shadow-[#6157FF]/20 active:scale-95 transition-transform"
-              >
-                {isLoading ? 'Creating Account...' : 'Finish Setup'}
-              </button>
+              <Button size="lg" fullWidth loading={isLoading} onClick={handleSaveProfile} className="mt-12">
+                Finish setup
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>

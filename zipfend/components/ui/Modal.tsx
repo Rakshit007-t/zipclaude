@@ -15,7 +15,7 @@ interface ModalProps {
   className?: string;
 }
 
-/** Centered dialog for confirmations and focused decisions. */
+/** Centered dialog for confirmations and focused decisions. Serif-titled. */
 const Modal: React.FC<ModalProps> = ({ open, onClose, title, description, children, actions, className }) => {
   const reduce = useReducedMotion();
 
@@ -52,15 +52,15 @@ const Modal: React.FC<ModalProps> = ({ open, onClose, title, description, childr
           />
           <motion.div
             className={cn(
-              'relative w-full max-w-[340px] bg-surface-1 border border-line rounded-card shadow-float p-6',
+              'relative w-full max-w-[340px] bg-surface-1 border border-line rounded-[1.25rem] shadow-float p-6',
               className,
             )}
-            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 8 }}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: 10 }}
             animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
             transition={reduce ? { duration: 0.15 } : springs.gentle}
           >
-            {title && <h2 className="text-[18px] font-bold text-ink tracking-tight mb-1.5">{title}</h2>}
+            {title && <h2 className="font-display text-[21px] font-medium text-ink mb-2">{title}</h2>}
             {description && <p className="text-[14px] text-ink-soft leading-relaxed mb-4">{description}</p>}
             {children}
             {actions && <div className="flex gap-2.5 mt-5">{actions}</div>}

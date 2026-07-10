@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { getSellerDashboard, SellerDashboardResponse } from '../services/ziprightApi';
-import { CountUp, Skeleton, StaggerList, StaggerItem } from '../components/ui';
+import { CountUp, Skeleton, StaggerList, StaggerItem, AppBar, Eyebrow } from '../components/ui';
 
 const SellerDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -42,165 +42,142 @@ const SellerDashboard: React.FC = () => {
     }
   };
 
-  return (
-    <div className="flex flex-col h-screen w-full bg-[#FAF9F6] dark:bg-surface-0 text-[#111111] dark:text-ink font-sans overflow-hidden relative">
-      
-      {/* Header Banner */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-[#FAF9F6]/95 dark:bg-surface-0/95 backdrop-blur-xl border-b border-black/5 dark:border-line shrink-0">
-        <button
-          onClick={() => navigate('/settings')}
-          aria-label="Back to settings"
-          className="flex items-center justify-center h-10 w-10 -ml-2 rounded-full transition-colors text-[#6157FF]"
-        >
-          <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h2 className="text-lg font-bold text-[#6157FF]">Seller Hub Dashboard</h2>
-        <button
-          onClick={fetchDashboard}
-          aria-label="Refresh dashboard"
-          aria-busy={loading}
-          className="flex items-center justify-center h-10 w-10 -mr-2 bg-[#6157FF]/10 dark:bg-[#6157FF]/10 text-[#6157FF] dark:text-[#6157FF] rounded-full active:scale-95 transition-transform"
-        >
-          <span className={`material-symbols-outlined ${loading ? 'animate-spin' : ''}`} aria-hidden="true">refresh</span>
-        </button>
-      </div>
+  const metrics = [
+    { icon: 'view_in_ar', tone: 'text-brand', label: 'Total try-ons', value: data?.total_tryons ?? 0 },
+    { icon: 'check_circle', tone: 'text-ink', label: 'Size recs', value: data?.total_recs ?? 0 },
+    { icon: 'inventory_2', tone: 'text-success', label: 'Active products', value: data?.active_products ?? 0, suffix: `/ ${data?.total_products ?? 0}` },
+    { icon: 'rate_review', tone: 'text-info', label: 'Customer reviews', value: data?.feedback_count ?? 0 },
+  ] as const;
 
-      {/* Main Grid Scroll */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-6 pb-24">
+  const quickActions = [
+    { icon: 'cloud_upload', label: 'Import product', tone: 'text-brand', to: '/seller/add-product' },
+    { icon: 'list_alt', label: 'View catalog', tone: 'text-success', to: '/seller/catalog' },
+    { icon: 'sync', label: 'Integrate store', tone: 'text-info', to: '/seller/integration' },
+    { icon: 'manage_accounts', label: 'Edit profile', tone: 'text-ink-soft', to: '/settings' },
+  ] as const;
+
+  return (
+    <div className="relative flex min-h-screen min-h-dvh w-full flex-col overflow-x-hidden bg-surface-0 text-ink">
+
+      <AppBar
+        title="Seller Hub"
+        onBack={() => navigate('/settings')}
+        trailing={
+          <button
+            onClick={fetchDashboard}
+            aria-label="Refresh dashboard"
+            aria-busy={loading}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-ink-soft hover:text-ink active:scale-95 transition-[transform,color]"
+          >
+            <span className={`material-symbols-outlined text-[22px] ${loading ? 'animate-spin' : ''}`} aria-hidden="true">refresh</span>
+          </button>
+        }
+      />
+
+      {/* Scroll region */}
+      <div className="flex-1 overflow-y-auto no-scrollbar px-6 pt-6 pb-28">
+        {/* Editorial masthead */}
+        <div className="mb-8">
+          <Eyebrow className="mb-3">Your storefront</Eyebrow>
+          <h1 className="font-display text-[32px] font-light leading-[1.05] text-ink">
+            The numbers<em className="font-medium">.</em>
+          </h1>
+        </div>
+
         {loading && !data ? (
           /* Skeleton dashboard — content-shaped, no blocking overlay */
-          <div className="max-w-md mx-auto flex flex-col gap-6" role="status" aria-label="Loading dashboard">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-6" role="status" aria-label="Loading dashboard">
+            <div className="grid grid-cols-2 gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-[118px] rounded-[2rem]" />
+                <Skeleton key={i} className="h-[118px] rounded-card" />
               ))}
             </div>
-            <Skeleton className="h-[180px] rounded-[2rem]" />
-            <Skeleton className="h-[160px] rounded-[2rem]" />
+            <Skeleton className="h-[180px] rounded-card" />
+            <Skeleton className="h-[160px] rounded-card" />
           </div>
         ) : (
-        <StaggerList className="max-w-md mx-auto flex flex-col gap-6" delay={0.06}>
+        <StaggerList className="flex flex-col gap-6" delay={0.06}>
 
           {/* SECTION 1: BUSINESS KPIs */}
           <StaggerItem>
-          <div className="grid grid-cols-2 gap-4">
-
-            {/* Tryons Count */}
-            <div className="bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-5 flex flex-col gap-1 shadow-sm">
-              <span className="material-symbols-outlined text-2xl text-[#6157FF]" aria-hidden="true">view_in_ar</span>
-              <span className="text-[12px] font-bold text-gray-400 mt-1">Total Try-Ons</span>
-              <h3 className="text-2xl font-bold mt-1"><CountUp value={data?.total_tryons ?? 0} /></h3>
-            </div>
-
-            {/* Recommendations Count */}
-            <div className="bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-5 flex flex-col gap-1 shadow-sm">
-              <span className="material-symbols-outlined text-2xl text-[#6157FF]" aria-hidden="true">check_circle</span>
-              <span className="text-[12px] font-bold text-gray-400 mt-1">Size Recs</span>
-              <h3 className="text-2xl font-bold mt-1"><CountUp value={data?.total_recs ?? 0} /></h3>
-            </div>
-
-            {/* Products Counter */}
-            <div className="bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-5 flex flex-col gap-1 shadow-sm">
-              <span className="material-symbols-outlined text-2xl text-green-500" aria-hidden="true">inventory_2</span>
-              <span className="text-[12px] font-bold text-gray-400 mt-1">Active Products</span>
-              <h3 className="text-2xl font-bold mt-1"><CountUp value={data?.active_products ?? 0} /> <span className="text-xs font-bold text-gray-400">/ {data?.total_products ?? 0}</span></h3>
-            </div>
-
-            {/* Customer Feedback Counter */}
-            <div className="bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-5 flex flex-col gap-1 shadow-sm">
-              <span className="material-symbols-outlined text-2xl text-blue-500" aria-hidden="true">rate_review</span>
-              <span className="text-[12px] font-bold text-gray-400 mt-1">Customer Reviews</span>
-              <h3 className="text-2xl font-bold mt-1"><CountUp value={data?.feedback_count ?? 0} /></h3>
-            </div>
-
+          <div className="grid grid-cols-2 gap-3">
+            {metrics.map((m) => (
+              <div key={m.label} className="flex flex-col rounded-card border border-line bg-surface-1 p-5">
+                <span className={`material-symbols-outlined text-[22px] ${m.tone}`} aria-hidden="true">{m.icon}</span>
+                <span className="eyebrow !text-[9px] mt-4">{m.label}</span>
+                <h3 className="font-display text-[30px] font-light text-ink leading-none mt-2">
+                  <CountUp value={m.value} />
+                  {'suffix' in m && m.suffix && (
+                    <span className="text-[14px] font-medium text-ink-faint ml-1">{m.suffix}</span>
+                  )}
+                </h3>
+              </div>
+            ))}
           </div>
           </StaggerItem>
 
           {/* SECTION 2: QUICK ACTIONS */}
           <StaggerItem>
-          <div className="flex flex-col bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-6 shadow-sm gap-4">
-            <h3 className="text-xs font-bold text-gray-400">Quick Actions</h3>
-            
+          <div className="flex flex-col rounded-card border border-line bg-surface-1 p-6 gap-4">
+            <Eyebrow>Quick actions</Eyebrow>
             <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => navigate('/seller/add-product')}
-                className="h-14 bg-black/5 dark:bg-surface-2 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs active:scale-95 transition-all text-[#6157FF]"
-              >
-                <span className="material-symbols-outlined text-sm">cloud_upload</span>
-                Import Product
-              </button>
-              
-              <button
-                onClick={() => navigate('/seller/catalog')}
-                className="h-14 bg-black/5 dark:bg-surface-2 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs active:scale-95 transition-all text-green-500"
-              >
-                <span className="material-symbols-outlined text-sm">list_alt</span>
-                View Catalog
-              </button>
-              
-              <button
-                onClick={() => navigate('/seller/integration')}
-                className="h-14 bg-black/5 dark:bg-surface-2 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs active:scale-95 transition-all text-purple-500"
-              >
-                <span className="material-symbols-outlined text-sm">sync</span>
-                Integrate Store
-              </button>
-              
-              <button
-                onClick={() => navigate('/settings')}
-                className="h-14 bg-black/5 dark:bg-surface-2 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs active:scale-95 transition-all text-blue-500"
-              >
-                <span className="material-symbols-outlined text-sm">manage_accounts</span>
-                Edit Profile
-              </button>
+              {quickActions.map((a) => (
+                <button
+                  key={a.label}
+                  onClick={() => navigate(a.to)}
+                  className="flex h-16 flex-col items-start justify-center gap-1.5 rounded-2xl border border-line bg-surface-2 px-4 text-left active:scale-[0.97] transition-transform hover:border-line-strong"
+                >
+                  <span className={`material-symbols-outlined text-[19px] ${a.tone}`} aria-hidden="true">{a.icon}</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink">{a.label}</span>
+                </button>
+              ))}
             </div>
           </div>
           </StaggerItem>
 
-          {/* SECTION 3: MVP ANALYTICS (POPULAR PRODUCTS) */}
+          {/* SECTION 3: POPULAR PRODUCTS */}
           <StaggerItem>
-          <div className="flex flex-col bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-6 shadow-sm gap-4">
-            <h3 className="text-xs font-bold text-gray-400">Popular Products & Sizing</h3>
-            
+          <div className="flex flex-col rounded-card border border-line bg-surface-1 p-6 gap-4">
+            <Eyebrow>Popular products &amp; sizing</Eyebrow>
+
             {data?.popular_products && data.popular_products.length > 0 ? (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5">
                 {data.popular_products.map((p) => (
-                  <div 
+                  <div
                     key={p.id}
                     onClick={() => navigate(`/seller/edit-product/${p.id}`)}
-                    className="flex justify-between items-center bg-[#FAF9F6] dark:bg-surface-0 p-4 rounded-2xl border border-black/5 dark:border-line cursor-pointer hover:border-[#6157FF] transition-colors"
+                    className="flex items-center justify-between rounded-2xl border border-line bg-surface-2 p-4 cursor-pointer hover:border-brand transition-colors"
                   >
-                    <div className="flex-1 min-w-0 pr-4">
-                      <h4 className="text-sm font-bold truncate leading-tight">{p.title}</h4>
-                      <div className="flex gap-3 text-[12px] text-gray-400 font-bold mt-1">
-                        <span>Try-ons: {p.tryon_count}</span>
-                        <span>Recs: {p.recommendation_count}</span>
+                    <div className="min-w-0 flex-1 pr-4">
+                      <h4 className="text-[14px] font-semibold text-ink truncate leading-tight">{p.title}</h4>
+                      <div className="mt-1.5 flex gap-4 text-[11px] font-medium text-ink-faint">
+                        <span>Try-ons {p.tryon_count}</span>
+                        <span>Recs {p.recommendation_count}</span>
                       </div>
                     </div>
-                    
-                    <div className="text-right shrink-0">
+                    <div className="shrink-0 text-right">
                       {p.accuracy !== null ? (
-                        <span className="text-[12px] font-bold bg-green-500/10 text-green-600 px-2 py-1 rounded-full">
+                        <span className="rounded-full bg-success-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-success">
                           {Math.round(p.accuracy)}% kept
                         </span>
                       ) : (
-                        <span className="text-[12px] font-bold text-gray-400">No outcomes</span>
+                        <span className="text-[11px] font-medium text-ink-faint">No outcomes</span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 font-medium text-center py-4">No product engagement recorded yet.</p>
+              <p className="py-4 text-center text-[12px] font-medium text-ink-faint">No product engagement recorded yet.</p>
             )}
           </div>
           </StaggerItem>
 
           {/* SECTION 4: ACTIVITY FEED */}
           <StaggerItem>
-          <div className="flex flex-col bg-white dark:bg-surface-1 border border-black/5 dark:border-line rounded-[2rem] p-6 shadow-sm gap-4">
-            <h3 className="text-xs font-bold text-gray-400">Recent Activity Feed</h3>
-            
+          <div className="flex flex-col rounded-card border border-line bg-surface-1 p-6 gap-4">
+            <Eyebrow>Recent activity</Eyebrow>
+
             {data?.recent_activity && data.recent_activity.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {data.recent_activity.map((ev) => {
@@ -211,25 +188,25 @@ const SellerDashboard: React.FC = () => {
                     return 'rate_review';
                   };
                   const getColorClass = () => {
-                    if (ev.type === 'product_created') return 'text-green-500';
-                    if (ev.type === 'product_edited') return 'text-blue-500';
-                    if (ev.type === 'product_archived') return 'text-gray-400';
-                    return 'text-[#6157FF]';
+                    if (ev.type === 'product_created') return 'text-success';
+                    if (ev.type === 'product_edited') return 'text-info';
+                    if (ev.type === 'product_archived') return 'text-ink-faint';
+                    return 'text-brand';
                   };
 
                   return (
-                    <div key={ev.id} className="flex gap-3 items-start border-b border-black/5 dark:border-line pb-3 last:border-b-0 last:pb-0">
-                      <span className={`material-symbols-outlined text-[20px] ${getColorClass()}`}>{getIcon()}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-500 dark:text-gray-300 font-bold leading-tight">{ev.text}</p>
-                        <span className="text-[11px] text-gray-400 font-medium mt-1 block">{formatTimestamp(ev.timestamp)}</span>
+                    <div key={ev.id} className="flex items-start gap-3.5 border-b border-line pb-3 last:border-b-0 last:pb-0">
+                      <span className={`material-symbols-outlined text-[20px] ${getColorClass()}`} aria-hidden="true">{getIcon()}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium text-ink-soft leading-snug">{ev.text}</p>
+                        <span className="mt-1 block text-[11px] font-medium text-ink-faint">{formatTimestamp(ev.timestamp)}</span>
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 font-medium text-center py-4">No events in log feed.</p>
+              <p className="py-4 text-center text-[12px] font-medium text-ink-faint">No events in log feed.</p>
             )}
           </div>
           </StaggerItem>

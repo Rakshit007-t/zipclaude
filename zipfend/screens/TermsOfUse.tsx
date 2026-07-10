@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AppBar, Eyebrow } from '../components/ui';
 
 interface Section {
   title: string;
@@ -116,71 +117,58 @@ const TermsOfUse: React.FC = () => {
   const [expanded, setExpanded] = useState<number | null>(0);
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface-0 text-ink" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5 bg-surface-0/90 backdrop-blur-xl border-b border-line">
-        <button aria-label="Go back" onClick={() => navigate(-1)} className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform bg-surface-2">
-          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
-        </button>
-        <div className="text-center">
-          <h1 className="text-[12px] font-bold text-[#6157FF]">Terms of Use</h1>
-          <p className="text-[11px] text-ink-faint mt-0.5">Effective: April 2026</p>
-        </div>
-        <div className="w-10" />
-      </div>
+    <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
+      <AppBar title="Terms of Use" subtitle="Effective April 2026" onBack={() => navigate(-1)} />
 
       {/* Hero */}
-      <div className="px-6 pt-8 pb-6 border-b border-line">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="h-14 w-14 rounded-2xl bg-[#6157FF]/10 border border-[#6157FF]/20 flex items-center justify-center flex-shrink-0">
-            <span className="material-symbols-outlined text-2xl text-[#6157FF]">gavel</span>
-          </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-              <span className="text-ink">Zip</span><span className="text-[#6157FF]">RIGHT</span> Terms of Use
-            </h2>
-            <p className="text-[12px] text-ink-soft mt-0.5">Legally Binding Agreement</p>
-          </div>
-        </div>
-        <div className="bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 rounded-2xl p-4">
-          <p className="text-[11px] text-ink-soft leading-relaxed">
-            <span className="text-[#FF4D6D] font-bold">Important: </span>
+      <div className="px-6 pt-8 pb-7">
+        <Eyebrow className="mb-3">Legal agreement</Eyebrow>
+        <h2 className="font-display text-[30px] leading-tight font-light mb-5">
+          The <em className="font-medium text-brand">terms.</em>
+        </h2>
+        <div className="rounded-card border border-danger/25 bg-danger-soft p-4">
+          <p className="text-[12px] text-ink-soft leading-relaxed">
+            <span className="text-danger font-semibold">Important: </span>
             By using ZipRIGHT, you agree to these Terms. Violation of any clause may result in account suspension, civil liability, or legal proceedings under applicable Indian law.
           </p>
         </div>
       </div>
 
       {/* Sections Accordion */}
-      <div className="flex-1 px-4 py-4 pb-24">
-        {sections.map((section, idx) => (
-          <div key={idx} className="mb-2 border border-line rounded-2xl overflow-hidden">
-            <button
-              className="w-full flex items-center justify-between px-5 py-4 text-left active:scale-[0.99] transition-transform"
-              onClick={() => setExpanded(expanded === idx ? null : idx)}
-            >
-              <span className="text-[12px] font-bold text-ink-soft pr-4 leading-tight">{section.title}</span>
-              <span className="material-symbols-outlined text-[18px] text-[#6157FF] flex-shrink-0 transition-transform duration-200" style={{ transform: expanded === idx ? 'rotate(180deg)' : 'none' }}>
-                expand_more
-              </span>
-            </button>
-            {expanded === idx && (
-              <div className="px-5 pb-5 border-t border-line pt-4">
-                {section.content.map((para, pIdx) => (
-                  <p key={pIdx} className="text-[11px] text-ink-soft leading-relaxed mb-3 last:mb-0">
-                    {para}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+      <div className="flex-1 px-6 pb-24">
+        {sections.map((section, idx) => {
+          const open = expanded === idx;
+          return (
+            <div key={idx} className="border-b border-line">
+              <button
+                className="w-full flex items-center justify-between gap-4 py-4 text-left"
+                onClick={() => setExpanded(open ? null : idx)}
+                aria-expanded={open}
+              >
+                <span className="text-[13.5px] font-medium text-ink pr-2 leading-snug">{section.title}</span>
+                <span className="material-symbols-outlined text-[18px] text-ink-faint flex-shrink-0 transition-transform duration-200" style={{ transform: open ? 'rotate(180deg)' : 'none' }} aria-hidden="true">
+                  expand_more
+                </span>
+              </button>
+              {open && (
+                <div className="pb-5">
+                  {section.content.map((para, pIdx) => (
+                    <p key={pIdx} className="text-[12.5px] text-ink-soft leading-relaxed mb-3 last:mb-0">
+                      {para}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {/* Footer notice */}
-        <div className="mt-6 p-4 bg-white/3 border border-line rounded-2xl">
+        <div className="mt-8 p-5 rounded-card bg-surface-1 border border-line">
           <p className="text-[12px] text-ink-faint text-center leading-relaxed">
             ZipRIGHT reserves the right to take legal action against any user violating these Terms under the Information Technology Act, 2000, Consumer Protection Act, 2019, and other applicable Indian laws.
           </p>
-          <p className="text-[12px] text-[#6157FF]/60 text-center mt-2">legal@zipright.in</p>
+          <p className="text-[12px] text-brand text-center mt-2">legal@zipright.in</p>
         </div>
       </div>
     </div>

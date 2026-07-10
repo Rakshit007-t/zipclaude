@@ -5,6 +5,7 @@ import { addDoc, collection, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import app, { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
+import { Button, Eyebrow, Spinner } from '../components/ui';
 
 interface TaggedProduct {
   id: string;
@@ -154,29 +155,26 @@ const CreateLook: React.FC = () => {
   const canProceedStep2 = true; // products are optional
   const canPublish = !!selectedFile && !!caption.trim();
 
+  const stepTitle = step === 1 ? 'Choose photo' : step === 2 ? 'Tag products' : 'Add caption';
+
   return (
-    <div className="min-h-screen bg-surface-0 text-ink font-body flex flex-col">
+    <div className="min-h-screen min-h-dvh bg-surface-0 text-ink flex flex-col">
 
       {/* HEADER */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5
-        bg-surface-0/90 backdrop-blur-xl border-b border-line">
+      <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 pt-safe bg-surface-0/90 backdrop-blur-xl border-b border-line">
         <button aria-label="Go back"
           onClick={() => step > 1 ? setStep((step - 1) as 1 | 2 | 3) : navigate(-1)}
-          className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2 active:scale-90"
+          className="h-10 w-10 flex items-center justify-center rounded-full text-ink-soft active:scale-90 transition-transform"
         >
-          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
+          <span className="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_back</span>
         </button>
 
         <div className="flex flex-col items-center">
-          <h1 className="text-xs font-bold text-[#6157FF]">
-            {step === 1 ? 'Choose Photo' : step === 2 ? 'Tag Products' : 'Add Caption'}
-          </h1>
+          <h1 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink">{stepTitle}</h1>
           {/* Step dots */}
-          <div className="flex items-center gap-1.5 mt-2">
+          <div className="flex items-center gap-1.5 mt-2" aria-label={`Step ${step} of 3`}>
             {[1, 2, 3].map(s => (
-              <div key={s} className={`h-1 rounded-full transition-all ${
-                s === step ? 'w-6 bg-[#6157FF]' : s < step ? 'w-3 bg-[#6157FF]/50' : 'w-3 bg-surface-2'
-              }`} />
+              <div key={s} className={`h-[3px] rounded-full transition-all ${s === step ? 'w-6 bg-brand' : s < step ? 'w-3 bg-brand/50' : 'w-3 bg-surface-3'}`} />
             ))}
           </div>
         </div>
@@ -184,9 +182,7 @@ const CreateLook: React.FC = () => {
         {step < 3 ? (
           <button
             onClick={() => step === 1 && canProceedStep1 ? setStep(2) : step === 2 && canProceedStep2 ? setStep(3) : null}
-            className={`text-xs font-bold ${
-              (step === 1 && canProceedStep1) || step === 2 ? 'text-[#6157FF] active:opacity-70' : 'text-ink-faint'
-            }`}
+            className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${(step === 1 && canProceedStep1) || step === 2 ? 'text-ink active:opacity-70' : 'text-ink-faint'}`}
           >
             Next
           </button>
@@ -194,11 +190,9 @@ const CreateLook: React.FC = () => {
           <button
             onClick={handlePublish}
             disabled={!canPublish || publishing}
-            className={`text-xs font-bold ${
-              canPublish && !publishing ? 'text-[#6157FF] active:opacity-70' : 'text-ink-faint'
-            }`}
+            className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${canPublish && !publishing ? 'text-brand active:opacity-70' : 'text-ink-faint'}`}
           >
-            {publishing ? '...' : 'Post'}
+            {publishing ? '…' : 'Post'}
           </button>
         )}
       </div>
@@ -219,71 +213,57 @@ const CreateLook: React.FC = () => {
               /* Preview selected photo */
               <div className="flex-1 flex flex-col">
                 <div className="relative flex-1 max-h-[65vh] bg-black overflow-hidden">
-                  <img src={previewUrl} alt="Preview"
-                    className="w-full h-full object-cover" />
+                  <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
                   <button
                     onClick={() => { setSelectedFile(null); setPreviewUrl(null); }}
-                    className="absolute top-4 right-4 h-9 w-9 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center active:scale-90"
+                    aria-label="Remove photo"
+                    className="absolute top-4 right-4 h-9 w-9 rounded-full bg-black/55 backdrop-blur-md flex items-center justify-center active:scale-90 border border-white/15"
                   >
-                    <span className="material-symbols-outlined text-ink text-lg">close</span>
+                    <span className="material-symbols-outlined text-white text-[18px]" aria-hidden="true">close</span>
                   </button>
                 </div>
-                <div className="p-5 flex flex-col gap-4">
-                  <p className="text-ink-soft text-xs text-center">Looking good! Tap Next to tag products.</p>
-                  <button
-                    onClick={() => setStep(2)}
-                    className="w-full bg-[#6157FF] text-ink py-4 rounded-2xl font-bold text-sm active:scale-95"
-                  >
-                    Next — Tag Products
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full border border-line text-ink-soft py-3.5 rounded-2xl text-xs font-bold active:scale-95"
-                  >
-                    Change Photo
-                  </button>
+                <div className="p-6 flex flex-col gap-3">
+                  <p className="text-ink-soft text-[13px] text-center">Looking good — tag products next.</p>
+                  <Button size="lg" fullWidth onClick={() => setStep(2)}>Next — tag products</Button>
+                  <Button variant="outline" fullWidth onClick={() => fileInputRef.current?.click()}>Change photo</Button>
                 </div>
               </div>
             ) : (
               /* Photo picker options */
               <div className="flex-1 flex flex-col items-center justify-center px-8 gap-5">
-                <div className="h-28 w-28 rounded-full bg-[#0D9488]/10 border border-[#0D9488]/20 flex items-center justify-center mb-2">
-                  <span className="material-symbols-outlined text-[#0D9488] text-5xl"
-                    style={{ fontVariationSettings: "'FILL' 1" }}>add_a_photo</span>
+                <div className="h-16 w-16 rounded-full border border-line-strong flex items-center justify-center mb-2">
+                  <span className="material-symbols-outlined text-ink-faint text-[28px]" aria-hidden="true">add_a_photo</span>
                 </div>
                 <div className="text-center mb-4">
-                  <h2 className="text-ink font-sans text-2xl font-bold mb-2">Share your look</h2>
-                  <p className="text-ink-soft text-sm leading-relaxed max-w-[240px]">
-                    Post your outfit and let others shop your exact style
+                  <Eyebrow className="mb-3">The Salon</Eyebrow>
+                  <h2 className="text-ink font-display text-[28px] font-light mb-2">Share your <em className="font-medium">look.</em></h2>
+                  <p className="text-ink-soft text-[14px] leading-relaxed max-w-[250px]">
+                    Post your outfit and let others shop your exact style.
                   </p>
                 </div>
 
                 {/* Camera — opens rear camera directly */}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full bg-[#0D9488] text-ink py-4 rounded-2xl font-bold text-sm active:scale-95 flex items-center justify-center gap-3"
-                >
-                  <span className="material-symbols-outlined text-xl"
-                    style={{ fontVariationSettings: "'FILL' 1" }}>camera_alt</span>
-                  Take Photo
-                </button>
+                <Button size="lg" fullWidth icon="camera_alt" onClick={() => fileInputRef.current?.click()}>
+                  Take photo
+                </Button>
 
                 {/* Gallery */}
-                <button
+                <Button
+                  size="lg"
+                  fullWidth
+                  variant="outline"
+                  icon="photo_library"
                   onClick={() => {
                     if (fileInputRef.current) {
                       fileInputRef.current.removeAttribute('capture');
                       fileInputRef.current.click();
                     }
                   }}
-                  className="w-full border border-line bg-surface-2 text-ink py-4 rounded-2xl font-bold text-sm active:scale-95 flex items-center justify-center gap-3"
                 >
-                  <span className="material-symbols-outlined text-xl"
-                    style={{ fontVariationSettings: "'FILL' 1" }}>photo_library</span>
-                  Upload from Gallery
-                </button>
+                  Upload from gallery
+                </Button>
 
-                <p className="text-ink-faint text-[12px] text-center mt-2">
+                <p className="text-ink-faint text-[11px] text-center mt-2">
                   JPG, PNG up to 10MB · Your look, your style
                 </p>
               </div>
@@ -312,41 +292,38 @@ const CreateLook: React.FC = () => {
           >
             {/* Mini photo preview */}
             {previewUrl && (
-              <div className="h-48 w-full bg-black overflow-hidden relative">
+              <div className="h-44 w-full bg-black overflow-hidden relative">
                 <img src={previewUrl} alt="Look" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#111111]/80" />
-                <div className="absolute bottom-3 left-4">
-                  <p className="text-ink text-xs font-bold opacity-70">Your look</p>
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent, rgba(15,12,8,0.85))' }} />
+                <div className="absolute bottom-3 left-5">
+                  <p className="text-white/70 text-[9px] font-semibold uppercase tracking-[0.18em]">Your look</p>
                 </div>
               </div>
             )}
 
-            <div className="px-5 pt-5">
-              <p className="text-ink-soft text-[12px] font-bold mb-3">
-                Tag products in this look
-                <span className="text-ink-faint normal-case tracking-normal font-normal ml-1">(optional, max 5)</span>
-              </p>
+            <div className="px-6 pt-5">
+              <Eyebrow className="mb-3">
+                Tag products <span className="text-ink-faint normal-case tracking-normal font-normal lowercase">(optional, max 5)</span>
+              </Eyebrow>
 
               {catalogUnavailable && (
-                <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
-                  <p className="text-[12px] font-bold text-amber-200 mb-1">Tagging Unavailable</p>
-                  <p className="text-xs text-amber-50/80 leading-relaxed">Product search is unavailable right now, so look posts can be published without tagged items.</p>
+                <div className="mb-4 rounded-2xl border border-warning/25 bg-warning-soft px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning mb-1">Tagging unavailable</p>
+                  <p className="text-[12.5px] text-ink-soft leading-relaxed">Product search is unavailable right now, so look posts can be published without tagged items.</p>
                 </div>
               )}
 
               {/* Search bar */}
-              <div className="flex items-center gap-3 bg-surface-2 border border-line rounded-2xl px-4 py-3.5 mb-3">
-                <span className="material-symbols-outlined text-ink-faint text-xl">search</span>
+              <div className="flex items-center gap-3 bg-surface-1 border border-line rounded-full px-4 h-12 mb-3 focus-within:border-ink transition-colors">
+                <span className="material-symbols-outlined text-ink-faint text-[19px]" aria-hidden="true">search</span>
                 <input
                   type="text"
-                  placeholder="Search brand or product name..."
+                  placeholder="Search brand or product…"
                   value={productSearch}
                   onChange={(e) => handleProductSearch(e.target.value)}
-                  className="flex-1 bg-transparent text-ink text-sm placeholder-white/20 outline-none"
+                  className="flex-1 bg-transparent text-ink text-[14px] placeholder:text-ink-faint outline-none"
                 />
-                {searching && (
-                  <div className="h-4 w-4 rounded-full border-2 border-[#0D9488] border-t-transparent animate-spin" />
-                )}
+                {searching && <Spinner size={16} className="text-brand" />}
               </div>
 
               {/* Search results */}
@@ -356,26 +333,23 @@ const CreateLook: React.FC = () => {
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="bg-surface-2 border border-line rounded-2xl overflow-hidden mb-5"
+                    className="bg-surface-1 border border-line rounded-card overflow-hidden mb-5"
                   >
                     {searchResults.map((p, i) => (
                       <button
                         key={p.id}
                         onClick={() => addProduct(p)}
-                        className={`w-full flex items-center gap-3 p-3 active:bg-surface-2 text-left ${
-                          i < searchResults.length - 1 ? 'border-b border-line' : ''
-                        }`}
+                        className={`w-full flex items-center gap-3 p-3 text-left ${i < searchResults.length - 1 ? 'border-b border-line' : ''}`}
                       >
-                        <div className="h-12 w-12 rounded-xl overflow-hidden flex-shrink-0 bg-black/30">
-                          <img src={p.image} alt={p.title}
-                            className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <div className="h-12 w-12 rounded-xl overflow-hidden flex-shrink-0 bg-surface-2">
+                          <img src={p.image} alt={p.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[#6157FF] text-[11px] font-bold">{p.brand}</p>
-                          <p className="text-ink text-xs font-bold truncate">{p.title}</p>
-                          <p className="text-ink-soft text-xs">{p.price}</p>
+                          <p className="font-display text-[14px] font-medium text-ink truncate">{p.brand}</p>
+                          <p className="text-ink-faint text-[11px] truncate">{p.title}</p>
+                          <p className="text-ink-soft text-[12px]">{p.price}</p>
                         </div>
-                        <span className="material-symbols-outlined text-[#0D9488] text-xl">add_circle</span>
+                        <span className="material-symbols-outlined text-ink text-[20px]" aria-hidden="true">add_circle</span>
                       </button>
                     ))}
                   </motion.div>
@@ -385,22 +359,19 @@ const CreateLook: React.FC = () => {
               {/* Tagged products */}
               {taggedProducts.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-ink-faint text-[12px] font-bold mb-3">
-                    Tagged ({taggedProducts.length}/5)
-                  </p>
+                  <Eyebrow className="mb-3">Tagged ({taggedProducts.length}/5)</Eyebrow>
                   <div className="flex flex-col gap-2">
                     {taggedProducts.map(p => (
-                      <div key={p.id} className="flex items-center gap-3 bg-[#0D9488]/10 border border-[#0D9488]/20 rounded-2xl p-3">
-                        <div className="h-12 w-12 rounded-xl overflow-hidden flex-shrink-0 bg-black/30">
-                          <img src={p.image} alt={p.title}
-                            className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      <div key={p.id} className="flex items-center gap-3 bg-surface-1 border border-line rounded-card p-3">
+                        <div className="h-12 w-12 rounded-xl overflow-hidden flex-shrink-0 bg-surface-2">
+                          <img src={p.image} alt={p.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[#6157FF] text-[11px] font-bold">{p.brand}</p>
-                          <p className="text-ink text-xs font-bold truncate">{p.title}</p>
+                          <p className="font-display text-[14px] font-medium text-ink truncate">{p.brand}</p>
+                          <p className="text-ink-faint text-[11px] truncate">{p.title}</p>
                         </div>
-                        <button onClick={() => removeProduct(p.id)} className="active:scale-90">
-                          <span className="material-symbols-outlined text-ink-faint text-xl">remove_circle</span>
+                        <button onClick={() => removeProduct(p.id)} aria-label={`Remove ${p.brand}`} className="active:scale-90">
+                          <span className="material-symbols-outlined text-ink-faint text-[20px]" aria-hidden="true">remove_circle</span>
                         </button>
                       </div>
                     ))}
@@ -409,18 +380,13 @@ const CreateLook: React.FC = () => {
               )}
 
               {taggedProducts.length === 0 && !productSearch && (
-                <div className="text-center py-8 opacity-40">
-                  <span className="material-symbols-outlined text-4xl text-ink-faint mb-2">sell</span>
-                  <p className="text-ink-faint text-xs">Tag products so others can shop your exact look</p>
+                <div className="text-center py-8 opacity-50">
+                  <span className="material-symbols-outlined text-[36px] text-ink-faint mb-2" aria-hidden="true">sell</span>
+                  <p className="text-ink-faint text-[12px]">Tag products so others can shop your exact look</p>
                 </div>
               )}
 
-              <button
-                onClick={() => setStep(3)}
-                className="w-full mt-6 bg-[#6157FF] text-ink py-4 rounded-2xl font-bold text-sm active:scale-95"
-              >
-                Next — Write Caption
-              </button>
+              <Button size="lg" fullWidth className="mt-6" onClick={() => setStep(3)}>Next — write caption</Button>
             </div>
           </motion.div>
         )}
@@ -435,41 +401,40 @@ const CreateLook: React.FC = () => {
             className="flex-1 overflow-y-auto pb-12"
           >
             {/* Photo + product tag count summary */}
-            <div className="flex gap-4 px-5 pt-5 mb-6">
+            <div className="flex gap-4 px-6 pt-6 mb-6">
               {previewUrl && (
-                <div className="h-24 w-24 rounded-2xl overflow-hidden flex-shrink-0 bg-black/30">
+                <div className="h-24 w-20 rounded-xl overflow-hidden flex-shrink-0 bg-surface-2 border border-line">
                   <img src={previewUrl} alt="Look" className="h-full w-full object-cover" />
                 </div>
               )}
               <div className="flex flex-col justify-center">
-                <p className="text-ink font-bold text-sm">Your look is ready</p>
-                <p className="text-ink-soft text-xs mt-1">
+                <p className="font-display text-[18px] font-medium text-ink">Your look is ready</p>
+                <p className="text-ink-soft text-[12px] mt-1">
                   {taggedProducts.length > 0
                     ? `${taggedProducts.length} product${taggedProducts.length > 1 ? 's' : ''} tagged`
                     : 'No products tagged'}
                 </p>
                 <div className="flex items-center gap-1.5 mt-2">
-                  <span className="material-symbols-outlined text-[#6157FF] text-sm"
-                    style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                  <span className="text-[#6157FF] text-xs font-bold">+20 ZipCoins on publish</span>
+                  <span className="material-symbols-outlined text-brass text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">stars</span>
+                  <span className="text-brass text-[11px] font-semibold uppercase tracking-[0.08em]">+20 ZipCoins on publish</span>
                 </div>
               </div>
             </div>
 
-            <div className="px-5">
-              <p className="text-ink-soft text-[12px] font-bold mb-3">Caption</p>
+            <div className="px-6">
+              <Eyebrow className="mb-3">Caption</Eyebrow>
               <textarea
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
-                placeholder="Describe your look, the occasion, where you're wearing it..."
+                placeholder="Describe your look, the occasion, where you're wearing it…"
                 rows={4}
                 maxLength={200}
-                className="w-full bg-surface-2 border border-line rounded-2xl px-4 py-3.5 text-ink text-sm placeholder-white/20 outline-none resize-none"
+                className="w-full bg-surface-1 border border-line rounded-card px-4 py-3.5 text-ink text-[14px] placeholder:text-ink-faint outline-none resize-none focus:border-ink transition-colors"
               />
-              <p className="text-right text-ink-faint text-[12px] mt-1">{caption.length}/200</p>
+              <p className="text-right text-ink-faint text-[11px] mt-1">{caption.length}/200</p>
 
               {/* Quick caption suggestions */}
-              <p className="text-ink-faint text-[12px] font-bold mt-4 mb-2">Quick captions</p>
+              <Eyebrow className="mt-4 mb-2">Quick captions</Eyebrow>
               <div className="flex flex-wrap gap-2 mb-6">
                 {[
                   'Date night look 🌙',
@@ -482,11 +447,7 @@ const CreateLook: React.FC = () => {
                   <button
                     key={s}
                     onClick={() => setCaption(s)}
-                    className={`text-xs px-4 py-2 rounded-full border active:scale-95 ${
-                      caption === s
-                        ? 'bg-[#6157FF] border-[#6157FF] text-ink font-bold'
-                        : 'border-line text-ink-soft bg-surface-2'
-                    }`}
+                    className={`text-[12px] px-4 py-2 rounded-full border active:scale-95 transition-[transform,border-color,background-color,color] ${caption === s ? 'bg-ink border-ink text-ink-invert' : 'border-line text-ink-soft hover:border-line-strong'}`}
                   >
                     {s}
                   </button>
@@ -494,28 +455,17 @@ const CreateLook: React.FC = () => {
               </div>
 
               {/* Publish */}
-              <button
-                onClick={handlePublish}
+              <Button
+                variant="accent"
+                size="lg"
+                fullWidth
+                icon="send"
+                loading={publishing}
                 disabled={!canPublish || publishing}
-                className={`w-full py-5 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 ${
-                  canPublish && !publishing
-                    ? 'bg-[#0D9488] text-ink active:scale-95 shadow-lg shadow-[#0D9488]/20'
-                    : 'bg-surface-2 text-ink-faint'
-                }`}
+                onClick={handlePublish}
               >
-                {publishing ? (
-                  <>
-                    <div className="h-5 w-5 rounded-full border-2 border-line border-t-white animate-spin" />
-                    Publishing...
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-xl"
-                      style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
-                    Publish Look
-                  </>
-                )}
-              </button>
+                Publish look
+              </Button>
             </div>
           </motion.div>
         )}

@@ -6,15 +6,17 @@ interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
   icon: string;
   /** Accessible name — required, icon-only buttons say nothing otherwise. */
   'aria-label': string;
-  variant?: 'surface' | 'ghost' | 'brand' | 'overlay';
+  variant?: 'surface' | 'ghost' | 'brand' | 'ink' | 'overlay';
   size?: 'sm' | 'md' | 'lg';
   filled?: boolean;
 }
 
 const variantClasses = {
-  surface: 'bg-surface-2 text-ink hover:bg-surface-3 border border-line',
+  /** Paper circle with a hairline — the default editorial chrome. */
+  surface: 'bg-surface-1 text-ink border border-line hover:border-line-strong',
   ghost: 'bg-transparent text-ink-soft hover:bg-surface-2 hover:text-ink',
   brand: 'bg-brand text-on-brand hover:bg-brand-strong',
+  ink: 'bg-ink text-ink-invert hover:bg-ink/90',
   /** For use over imagery — translucent dark glass. */
   overlay: 'bg-black/40 text-white backdrop-blur-md hover:bg-black/55',
 };
@@ -39,7 +41,7 @@ const IconButton: React.FC<IconButtonProps> = ({
     type={type}
     className={cn(
       'inline-flex items-center justify-center rounded-full shrink-0 select-none',
-      'transition-[transform,background-color] duration-150 ease-swift active:scale-[0.92]',
+      'transition-[transform,background-color,border-color] duration-200 ease-swift active:scale-[0.92]',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0',
       'disabled:opacity-40 disabled:pointer-events-none',
       variantClasses[variant],

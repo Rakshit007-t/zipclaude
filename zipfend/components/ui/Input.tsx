@@ -11,17 +11,18 @@ interface FieldProps {
 }
 
 /**
- * Label + control + hint/error wrapper. Wires label→control and
- * control→error for screen readers automatically.
+ * Label + control + hint/error wrapper. Editorial eyebrow label above a
+ * hairline-framed control. Wires label→control and control→error for
+ * screen readers automatically.
  */
 export const Field: React.FC<FieldProps> = ({ label, hint, error, required, className, children }) => {
   const inputId = useId();
   const msgId = useId();
   const describedBy = error || hint ? msgId : undefined;
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
+    <div className={cn('flex flex-col gap-2', className)}>
       {label && (
-        <label htmlFor={inputId} className="text-[13px] font-semibold text-ink-soft tracking-tight">
+        <label htmlFor={inputId} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
           {label}
           {required && <span className="text-danger ml-0.5" aria-hidden="true">*</span>}
         </label>
@@ -37,9 +38,9 @@ export const Field: React.FC<FieldProps> = ({ label, hint, error, required, clas
 };
 
 const baseControlClasses =
-  'w-full rounded-xl bg-surface-2 text-ink placeholder:text-ink-faint border text-[15px] ' +
-  'transition-[border-color,box-shadow] duration-150 ' +
-  'focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 ' +
+  'w-full rounded-ctl bg-surface-1 text-ink placeholder:text-ink-faint border text-[15px] ' +
+  'transition-[border-color,box-shadow,background-color] duration-200 ' +
+  'focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 ' +
   'disabled:opacity-50';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -75,7 +76,7 @@ export const Input: React.FC<InputProps> = ({ label, hint, error, icon, trailing
             'h-12',
             icon ? 'pl-11' : 'pl-4',
             trailing ? 'pr-12' : 'pr-4',
-            error ? 'border-danger' : 'border-transparent',
+            error ? 'border-danger' : 'border-line',
           )}
           {...rest}
         />
@@ -101,7 +102,7 @@ export const TextArea: React.FC<TextAreaProps> = ({ label, hint, error, classNam
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         required={required}
-        className={cn(baseControlClasses, 'p-4 resize-none', error ? 'border-danger' : 'border-transparent')}
+        className={cn(baseControlClasses, 'p-4 resize-none', error ? 'border-danger' : 'border-line')}
         {...rest}
       />
     )}

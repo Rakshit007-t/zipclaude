@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import Wordmark from './ui/Wordmark';
 
 interface Props {
   children: ReactNode;
@@ -24,15 +25,18 @@ class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-surface-0 text-ink p-6 text-center">
-          <span className="material-symbols-outlined text-6xl mb-4 text-red-500">error</span>
-          <h1 className="text-2xl font-bold mb-2 tracking-tighter">Something went wrong</h1>
-          <p className="text-ink-soft font-medium mb-6">We encountered an unexpected error. Please try refreshing the page.</p>
-          <button 
+        <div className="flex flex-col items-center justify-center min-h-screen min-h-dvh bg-surface-0 text-ink p-8 text-center">
+          <Wordmark size="sm" className="mb-10 opacity-60" />
+          <p className="eyebrow mb-3">A loose thread</p>
+          <h1 className="font-display text-[28px] font-medium mb-3">Something went wrong</h1>
+          <p className="text-[14px] text-ink-soft leading-relaxed max-w-[280px] mb-8">
+            We hit an unexpected error. A refresh should set things straight.
+          </p>
+          <button
             onClick={() => window.location.reload()}
-            className="px-8 py-3 bg-white text-[#111111] font-bold rounded-xl active:scale-95 transition-all"
+            className="h-12 px-8 bg-ink text-ink-invert font-semibold uppercase tracking-[0.1em] text-[12px] rounded-full active:scale-95 transition-transform"
           >
-            Reload App
+            Reload app
           </button>
         </div>
       );

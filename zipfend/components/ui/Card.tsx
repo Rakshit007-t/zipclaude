@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from './cn';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  /** surface = flat card; elevated = lifted card; inset = recessed panel. */
+  /** surface = hairline paper card; elevated = lifted; inset = recessed bone panel. */
   variant?: 'surface' | 'elevated' | 'inset';
   /** Adds press feedback + pointer cursor. Pass onClick alongside. */
   interactive?: boolean;
@@ -22,7 +22,7 @@ const paddingClasses = {
   lg: 'p-5',
 };
 
-/** Rounded content card. The base surface for everything in the app. */
+/** Editorial content card — hairline-framed paper. The base surface for everything. */
 const Card: React.FC<CardProps> = ({
   variant = 'surface',
   interactive,
@@ -45,7 +45,7 @@ const Card: React.FC<CardProps> = ({
       variantClasses[variant],
       paddingClasses[padding],
       interactive &&
-        'cursor-pointer transition-[transform,background-color,box-shadow] duration-150 ease-swift active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+        'cursor-pointer transition-[transform,background-color,border-color,box-shadow] duration-200 ease-swift active:scale-[0.985] hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
       className,
     )}
     {...rest}

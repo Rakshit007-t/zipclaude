@@ -1,11 +1,6 @@
 @import "tailwindcss";
 @import "./design/tokens.css";
 
-@keyframes zMenuSlideIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 /* Skeleton shimmer — GPU-friendly (transform only) */
 @keyframes shimmer {
   from { transform: translateX(-100%); }
@@ -16,6 +11,12 @@
   body {
     @apply bg-surface-0 text-ink font-sans;
     -webkit-tap-highlight-color: transparent;
+    font-feature-settings: "ss01" on;
+  }
+
+  ::selection {
+    background: var(--brand);
+    color: var(--on-brand);
   }
 }
 
@@ -28,6 +29,25 @@
     scrollbar-width: none;
   }
 
+  /* Editorial micro-label: THE MAISON SIGNATURE — uppercase, letterspaced */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase text-ink-faint;
+    letter-spacing: 0.16em;
+  }
+
+  /* Display voice — Fraunces with tight optical settings */
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
+  }
+
+  /* Hairline rule with a centered fade — chapter divider */
+  .rule-fade {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+  }
+
   /* Shimmer overlay for Skeleton */
   .skeleton-shimmer::after {
     content: "";
@@ -37,7 +57,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.55),
+      rgba(255, 255, 255, 0.5),
       transparent
     );
     animation: shimmer 1.6s var(--ease-swift, ease) infinite;
@@ -52,17 +72,21 @@
   }
 }
 
-/* Material Symbols */
+/* Material Symbols — lighter stroke for the editorial voice */
 .material-symbols-outlined {
   font-variation-settings:
     'FILL' 0,
-    'wght' 400,
+    'wght' 300,
     'GRAD' 0,
     'opsz' 24;
 }
 
 .material-symbols-outlined.filled {
-  font-variation-settings: 'FILL' 1;
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 300,
+    'GRAD' 0,
+    'opsz' 24;
 }
 
 /* Full screen fix for Capacitor Android & PWA */
@@ -71,7 +95,15 @@ html, body, #root {
   height: 100%;
   min-height: 100dvh;
   overflow-x: hidden;
-  background-color: var(--surface-0, #f6f6f9);
+}
+
+/* Outer page background — visible flanks on desktop around the 430px phone shell */
+body {
+  background-color: #e8e4de;
+}
+.dark body,
+html.dark body {
+  background-color: #0a0a0a;
 }
 
 /* Remove tap highlight on all elements */
@@ -105,4 +137,12 @@ html {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Utility: constrain any fixed-bottom bar to the phone shell width and center it */
+.phone-fixed-bottom {
+  max-width: 430px;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%);
 }

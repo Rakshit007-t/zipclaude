@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getUserRole } from '../utils/subscription';
+import { AppBar, Eyebrow, Spinner, motion } from '../components/ui';
 
 type AnalyticsEventName =
   | 'recommendation_generated'
@@ -536,58 +537,59 @@ const AdminAnalytics: React.FC = () => {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-surface-0 text-ink font-sans pb-12">
-      <div className="sticky top-0 z-40 flex items-center gap-4 px-6 py-5 bg-surface-0/90 backdrop-blur-xl border-b border-line">
-        <button aria-label="Go back"
-          onClick={() => navigate(-1)}
-          className="h-10 w-10 rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95 transition-transform"
-        >
-          <span className="material-symbols-outlined text-[#6157FF] text-xl">arrow_back</span>
-        </button>
-        <div>
-          <p className="text-[12px] font-bold text-[#6157FF]">Admin</p>
-          <h1 className="text-xl font-bold">Analytics Dashboard</h1>
-        </div>
+    <div className="min-h-screen min-h-dvh bg-surface-0 text-ink antialiased pb-16">
+      <AppBar title="Analytics" onBack={() => navigate(-1)} />
+
+      <div className="px-6 pt-6 pb-2">
+        <Eyebrow>Admin Intelligence</Eyebrow>
+        <h1 className="font-display text-[32px] font-light text-ink leading-tight mt-1">
+          The dashboard<em className="font-medium not-italic text-brand">.</em>
+        </h1>
       </div>
 
-      <div className="px-6 py-6 flex flex-col gap-6">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="px-6 py-6 flex flex-col gap-10"
+      >
         {isLoading && (
-          <div className="rounded-[2rem] border border-line bg-surface-2 p-8 text-center">
-            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[#6157FF]/20 border-t-[#6157FF]"></div>
-            <p className="text-sm font-bold text-ink-soft">Loading analytics...</p>
+          <div className="rounded-card border border-line bg-surface-1 p-10 flex flex-col items-center text-center gap-4">
+            <Spinner size={28} className="text-brand" />
+            <p className="eyebrow">Reading the ledger…</p>
           </div>
         )}
 
         {error && !isLoading && (
-          <div className="rounded-[2rem] border border-amber-500/20 bg-amber-500/10 p-6">
-            <p className="text-[12px] font-bold text-amber-600 mb-2">Unavailable</p>
-            <p className="text-sm text-amber-50/80">{error}</p>
+          <div className="rounded-card border border-warning/25 bg-warning-soft p-6">
+            <p className="eyebrow !text-warning mb-2">Unavailable</p>
+            <p className="text-[13.5px] text-ink-soft leading-relaxed">{error}</p>
           </div>
         )}
 
         {aggregationStatus && !isLoading && !error && (
-          <div className="rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-5">
-            <p className="text-[12px] font-bold text-emerald-600 mb-1">Brand Intelligence</p>
-            <p className="text-sm text-emerald-50/80">{aggregationStatus}</p>
+          <div className="rounded-card border border-success/25 bg-success-soft p-5">
+            <p className="eyebrow !text-success mb-1.5">Brand Intelligence</p>
+            <p className="text-[13.5px] text-ink-soft leading-relaxed">{aggregationStatus}</p>
           </div>
         )}
 
         {!isLoading && (
           <>
-            <section className="flex flex-col gap-4">
-              <h2 className="text-[12px] font-bold text-[#6157FF]">Overview</h2>
+            <section className="flex flex-col gap-5">
+              <Eyebrow>Overview</Eyebrow>
               <div className="grid grid-cols-2 gap-3">
                 {overviewCards.map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-line bg-surface-2 p-5">
-                    <p className="text-[12px] font-bold text-ink-soft">{label}</p>
-                    <p className="mt-2 text-3xl font-bold text-ink">{value}</p>
+                  <div key={label} className="rounded-card border border-line bg-surface-1 p-5">
+                    <p className="eyebrow !text-[9px]">{label}</p>
+                    <p className="mt-2.5 font-display text-[34px] font-light text-ink leading-none">{value}</p>
                   </div>
                 ))}
               </div>
             </section>
 
-            <section className="flex flex-col gap-4">
-              <h2 className="text-[12px] font-bold text-[#6157FF]">Brand Table</h2>
+            <section className="flex flex-col gap-5">
+              <Eyebrow>Brand Table</Eyebrow>
               <AnalyticsTable
                 headers={['Brand', 'Generated', 'Accepted', 'Perfect', 'Wrong']}
                 rows={stats.brands.map(brand => [
@@ -601,8 +603,8 @@ const AdminAnalytics: React.FC = () => {
               />
             </section>
 
-            <section className="flex flex-col gap-4">
-              <h2 className="text-[12px] font-bold text-[#6157FF]">Brand Bias Candidates</h2>
+            <section className="flex flex-col gap-5">
+              <Eyebrow>Brand Bias Candidates</Eyebrow>
               <AnalyticsTable
                 headers={['Brand', 'Family', 'Samples', 'Direction', 'Strength', 'Confidence']}
                 rows={brandBiasCandidates.map(candidate => [
@@ -617,8 +619,8 @@ const AdminAnalytics: React.FC = () => {
               />
             </section>
 
-            <section className="flex flex-col gap-4">
-              <h2 className="text-[12px] font-bold text-[#6157FF]">Garment Families</h2>
+            <section className="flex flex-col gap-5">
+              <Eyebrow>Garment Families</Eyebrow>
               <AnalyticsTable
                 headers={['Family', 'Generated', 'Accepted', 'Wrong']}
                 rows={stats.families.map(family => [
@@ -631,8 +633,8 @@ const AdminAnalytics: React.FC = () => {
               />
             </section>
 
-            <section className="flex flex-col gap-4">
-              <h2 className="text-[12px] font-bold text-[#6157FF]">Confidence Calibration</h2>
+            <section className="flex flex-col gap-5">
+              <Eyebrow>Confidence Calibration</Eyebrow>
               <AnalyticsTable
                 headers={['Band', 'Generated', 'Perfect', 'Wrong']}
                 rows={stats.confidenceBands.map(band => [
@@ -646,19 +648,19 @@ const AdminAnalytics: React.FC = () => {
             </section>
           </>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };
 
 const AnalyticsTable: React.FC<{ headers: string[]; rows: string[][]; emptyLabel: string }> = ({ headers, rows, emptyLabel }) => (
-  <div className="overflow-hidden rounded-[2rem] border border-line bg-surface-2">
-    <div className="overflow-x-auto">
+  <div className="overflow-hidden rounded-card border border-line bg-surface-1">
+    <div className="overflow-x-auto no-scrollbar">
       <table className="w-full min-w-[420px] text-left">
-        <thead className="bg-surface-2">
-          <tr>
+        <thead>
+          <tr className="border-b border-line">
             {headers.map(header => (
-              <th key={header} className="px-4 py-3 text-[12px] font-bold text-ink-soft">
+              <th key={header} className="px-4 py-3.5 text-[9.5px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
                 {header}
               </th>
             ))}
@@ -666,16 +668,21 @@ const AnalyticsTable: React.FC<{ headers: string[]; rows: string[][]; emptyLabel
         </thead>
         <tbody>
           {rows.length ? rows.map((row, rowIndex) => (
-            <tr key={`${row[0]}-${rowIndex}`} className="border-t border-line">
+            <tr key={`${row[0]}-${rowIndex}`} className="border-t border-line first:border-t-0">
               {row.map((cell, cellIndex) => (
-                <td key={`${cell}-${cellIndex}`} className="px-4 py-4 text-xs font-bold text-ink-soft">
+                <td
+                  key={`${cell}-${cellIndex}`}
+                  className={cellIndex === 0
+                    ? 'px-4 py-4 text-[13px] font-medium text-ink'
+                    : 'px-4 py-4 text-[13px] text-ink-soft tabular-nums'}
+                >
                   {cell}
                 </td>
               ))}
             </tr>
           )) : (
             <tr>
-              <td colSpan={headers.length} className="px-4 py-8 text-center text-sm font-bold text-ink-faint">
+              <td colSpan={headers.length} className="px-4 py-10 text-center text-[13px] text-ink-faint">
                 {emptyLabel}
               </td>
             </tr>

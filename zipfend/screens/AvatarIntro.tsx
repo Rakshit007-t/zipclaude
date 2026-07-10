@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { AppBar, Button, Eyebrow, SegmentedControl, Chip } from '../components/ui';
 
 const AvatarIntro: React.FC = () => {
   const navigate = useNavigate();
@@ -25,101 +26,113 @@ const AvatarIntro: React.FC = () => {
     switch(step) {
       case 1:
         return (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="flex flex-col gap-8"
+            className="flex flex-col gap-10"
           >
             <div className="text-center">
-              <div className="h-20 w-20 rounded-3xl bg-[#6157FF]/10 flex items-center justify-center mx-auto mb-6">
-                <span className="material-symbols-outlined text-[40px] text-[#6157FF]">verified_user</span>
+              <div className="h-18 w-18 p-5 rounded-full border border-line-strong inline-flex items-center justify-center mx-auto mb-7">
+                <span className="material-symbols-outlined text-[34px] text-brand" aria-hidden="true">verified_user</span>
               </div>
-              <h2 className="text-3xl font-bold mb-4">Privacy First</h2>
-              <p className="text-gray-400 leading-relaxed">
+              <Eyebrow className="mb-3">Your digital twin</Eyebrow>
+              <h2 className="font-display text-[32px] font-light leading-[1.08] mb-4">
+                Privacy <em className="font-medium">first.</em>
+              </h2>
+              <p className="text-ink-soft text-[14px] leading-relaxed max-w-[290px] mx-auto">
                 We don't use your camera or collect face data. Create your digital twin manually for a secure and private experience.
               </p>
             </div>
-            <button 
-              onClick={nextStep}
-              className="w-full h-14 rounded-2xl bg-[#6157FF] text-ink font-bold text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              Get Started <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
-            </button>
+            <Button size="lg" fullWidth trailingIcon="auto_awesome" onClick={nextStep}>
+              Get started
+            </Button>
           </motion.div>
         );
       case 2:
         return (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="flex flex-col gap-6"
+            className="flex flex-col gap-7"
           >
-            <h2 className="text-2xl font-bold mb-2">Basic Attributes</h2>
-            
-            <div className="space-y-6">
-              <div>
-                <label className="text-xs font-bold text-gray-500 mb-3 block">Gender / Body Frame</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {['Male', 'Female'].map(g => (
-                    <button 
-                      key={g}
-                      onClick={() => setAvatarData({...avatarData, gender: g})}
-                      className={`h-14 rounded-2xl border font-bold transition-all ${avatarData.gender === g ? 'bg-white text-black border-white' : 'bg-surface-2 text-gray-400 border-line'}`}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div>
+              <Eyebrow className="mb-2">Step two</Eyebrow>
+              <h2 className="font-display text-[26px] font-light">Basic <em className="font-medium">attributes.</em></h2>
+            </div>
 
+            <div className="space-y-7">
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-3 block">Height ({avatarData.height} cm)</label>
-                <input 
-                  type="range" min="140" max="210" 
-                  value={avatarData.height}
-                  onChange={(e) => setAvatarData({...avatarData, height: parseInt(e.target.value)})}
-                  className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer accent-[#6157FF]"
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft mb-3">Gender / body frame</p>
+                <SegmentedControl
+                  aria-label="Gender"
+                  value={avatarData.gender}
+                  onChange={(g) => setAvatarData({ ...avatarData, gender: g })}
+                  options={[
+                    { value: 'Male', label: 'Male' },
+                    { value: 'Female', label: 'Female' },
+                  ]}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-3 block">Weight ({avatarData.weight} kg)</label>
-                <input 
-                  type="range" min="40" max="150" 
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft mb-3">
+                  Height <span className="font-display normal-case text-[15px] text-ink ml-1">{avatarData.height} cm</span>
+                </p>
+                <input
+                  type="range" min="140" max="210"
+                  value={avatarData.height}
+                  onChange={(e) => setAvatarData({...avatarData, height: parseInt(e.target.value)})}
+                  className="w-full h-1 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-[var(--brand)]"
+                />
+              </div>
+
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft mb-3">
+                  Weight <span className="font-display normal-case text-[15px] text-ink ml-1">{avatarData.weight} kg</span>
+                </p>
+                <input
+                  type="range" min="40" max="150"
                   value={avatarData.weight}
                   onChange={(e) => setAvatarData({...avatarData, weight: parseInt(e.target.value)})}
-                  className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer accent-[#6157FF]"
+                  className="w-full h-1 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-[var(--brand)]"
                 />
               </div>
             </div>
 
             <div className="flex gap-3 mt-4">
-              <button aria-label="Go back" onClick={prevStep} className="h-14 w-14 rounded-2xl bg-surface-2 flex items-center justify-center border border-line"><span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span></button>
-              <button onClick={nextStep} className="flex-1 h-14 rounded-2xl bg-white text-black font-bold">Continue</button>
+              <button aria-label="Go back" onClick={prevStep} className="h-12 w-12 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform">
+                <span className="material-symbols-outlined text-[19px]" aria-hidden="true">arrow_back</span>
+              </button>
+              <Button className="flex-1" onClick={nextStep}>Continue</Button>
             </div>
           </motion.div>
         );
       case 3:
         return (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="flex flex-col gap-6"
+            className="flex flex-col gap-7"
           >
-            <h2 className="text-2xl font-bold mb-2">Appearance</h2>
-            
-            <div className="space-y-6">
+            <div>
+              <Eyebrow className="mb-2">Step three</Eyebrow>
+              <h2 className="font-display text-[26px] font-light">Appear<em className="font-medium">ance.</em></h2>
+            </div>
+
+            <div className="space-y-7">
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-3 block">Skin Tone</label>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft mb-3">Skin tone</p>
                 <div className="flex gap-3">
                   {skinTones.map(tone => (
-                    <button 
+                    <button
                       key={tone}
                       onClick={() => setAvatarData({...avatarData, skinTone: tone})}
-                      className={`h-10 w-10 rounded-full border-2 transition-all ${avatarData.skinTone === tone ? 'border-white scale-110' : 'border-transparent'}`}
+                      aria-label={`Skin tone ${tone}`}
+                      aria-pressed={avatarData.skinTone === tone}
+                      className={`h-10 w-10 rounded-full transition-all ${avatarData.skinTone === tone ? 'ring-2 ring-ink ring-offset-2 ring-offset-surface-0 scale-110' : 'ring-1 ring-line'}`}
                       style={{ backgroundColor: tone }}
                     />
                   ))}
@@ -127,28 +140,31 @@ const AvatarIntro: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-3 block">Hair Style</label>
-                <div className="grid grid-cols-3 gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft mb-3">Hair style</p>
+                <div className="flex gap-2.5">
                   {['Short', 'Medium', 'Long'].map(s => (
-                    <button 
+                    <Chip
                       key={s}
+                      selected={avatarData.hairStyle === s}
+                      className="flex-1"
                       onClick={() => setAvatarData({...avatarData, hairStyle: s})}
-                      className={`h-12 rounded-xl border text-xs font-bold transition-all ${avatarData.hairStyle === s ? 'bg-white text-black border-white' : 'bg-surface-2 text-gray-400 border-line'}`}
                     >
                       {s}
-                    </button>
+                    </Chip>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-3 block">Hair Color</label>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft mb-3">Hair color</p>
                 <div className="flex gap-3">
                   {hairColors.map(color => (
-                    <button 
+                    <button
                       key={color}
                       onClick={() => setAvatarData({...avatarData, hairColor: color})}
-                      className={`h-10 w-10 rounded-full border-2 transition-all ${avatarData.hairColor === color ? 'border-white scale-110' : 'border-transparent'}`}
+                      aria-label={`Hair color ${color}`}
+                      aria-pressed={avatarData.hairColor === color}
+                      className={`h-10 w-10 rounded-full transition-all ${avatarData.hairColor === color ? 'ring-2 ring-ink ring-offset-2 ring-offset-surface-0 scale-110' : 'ring-1 ring-line'}`}
                       style={{ backgroundColor: color }}
                     />
                   ))}
@@ -157,13 +173,12 @@ const AvatarIntro: React.FC = () => {
             </div>
 
             <div className="flex gap-3 mt-4">
-              <button aria-label="Go back" onClick={prevStep} className="h-14 w-14 rounded-2xl bg-surface-2 flex items-center justify-center border border-line"><span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span></button>
-              <button 
-                onClick={() => navigate('/avatar-view', { state: { avatarData } })}
-                className="flex-1 h-14 rounded-2xl bg-[#6157FF] text-ink font-bold shadow-lg shadow-[#6157FF]/20"
-              >
-                Generate Avatar
+              <button aria-label="Go back" onClick={prevStep} className="h-12 w-12 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform">
+                <span className="material-symbols-outlined text-[19px]" aria-hidden="true">arrow_back</span>
               </button>
+              <Button variant="accent" className="flex-1" onClick={() => navigate('/avatar-view', { state: { avatarData } })}>
+                Generate avatar
+              </Button>
             </div>
           </motion.div>
         );
@@ -173,34 +188,30 @@ const AvatarIntro: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface-0 text-ink font-sans flex flex-col">
-      {/* Header */}
-      <div className="px-6 pt-8 pb-4 flex items-center justify-between">
-        <button aria-label="Go back" onClick={() => navigate(-1)} className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-2">
-          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
-        </button>
-        <div className="flex flex-col items-center">
-          <span className="text-[12px] font-bold text-[#6157FF]">Digital Twin</span>
-          <div className="flex gap-1 mt-1">
-            {[1, 2, 3].map(i => (
-              <div key={i} className={`h-1 w-4 rounded-full transition-all ${step >= i ? 'bg-[#6157FF]' : 'bg-surface-2'}`} />
-            ))}
+    <div className="min-h-screen min-h-dvh bg-surface-0 text-ink flex flex-col">
+      <AppBar
+        title={
+          <div className="flex flex-col">
+            <h1 className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink">Digital Twin</h1>
+            <div className="flex gap-1 mt-1.5" aria-label={`Step ${step} of 3`}>
+              {[1, 2, 3].map(i => (
+                <div key={i} className={`h-[3px] w-5 rounded-full transition-all ${step >= i ? 'bg-brand' : 'bg-surface-3'}`} />
+              ))}
+            </div>
           </div>
-        </div>
-        <div className="w-10" />
-      </div>
+        }
+      />
 
       {/* Content */}
-      <div className="flex-1 px-6 flex flex-col justify-center pb-12">
+      <div className="flex-1 px-6 flex flex-col justify-center pb-16 relative z-10">
         <AnimatePresence mode="wait">
           {renderStep()}
         </AnimatePresence>
       </div>
 
       {/* Background Decoration */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-24 -right-24 h-96 w-96 bg-[#6157FF]/5 blur-[120px] rounded-full" />
-        <div className="absolute -bottom-24 -left-24 h-96 w-96 bg-blue-500/5 blur-[120px] rounded-full" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+        <div className="absolute -top-24 -right-24 h-96 w-96 blur-[120px] rounded-full" style={{ background: 'var(--brand)', opacity: 0.05 }} />
       </div>
     </div>
   );

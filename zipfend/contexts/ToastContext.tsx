@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useRef, useState, ReactNode } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { springs } from '../components/ui/motion';
 
 interface Toast {
   id: string;
@@ -11,6 +13,18 @@ interface ToastContextType {
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
+
+const toastIcon: Record<Toast['type'], string> = {
+  success: 'check_circle',
+  error: 'error',
+  info: 'info',
+};
+
+const toastIconColor: Record<Toast['type'], string> = {
+  success: 'text-success',
+  error: 'text-danger',
+  info: 'text-brand',
+};
 
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -36,22 +50,29 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[1000] flex flex-col gap-2 w-full max-w-[300px] px-4">
-        {toasts.map((toast) => (
-          <div 
-            key={toast.id}
-            className={`p-4 rounded-2xl shadow-2xl animate-in slide-in-from-top duration-300 flex items-center gap-3 border ${
-              toast.type === 'success' ? 'bg-green-500 border-green-400 text-ink' :
-              toast.type === 'error' ? 'bg-red-500 border-red-400 text-ink' :
-              'bg-surface-1 border-line text-ink'
-            }`}
-          >
-            <span className="material-symbols-outlined text-xl">
-              {toast.type === 'success' ? 'check_circle' : toast.type === 'error' ? 'error' : 'info'}
-            </span>
-            <p className="text-xs font-bold">{toast.message}</p>
-          </div>
-        ))}
+      {/* Editorial toasts — paper slips gliding in from the top */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] flex flex-col gap-2 w-full max-w-[340px] px-4 pointer-events-none pt-safe">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              role="status"
+              initial={{ opacity: 0, y: -16, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              transition={springs.gentle}
+              className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-surface-1 border border-line shadow-float"
+            >
+              <span
+                className={`material-symbols-outlined filled text-[18px] shrink-0 ${toastIconColor[toast.type]}`}
+                aria-hidden="true"
+              >
+                {toastIcon[toast.type]}
+              </span>
+              <p className="text-[13px] font-medium text-ink leading-snug">{toast.message}</p>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   );

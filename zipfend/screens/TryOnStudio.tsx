@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../contexts/ToastContext';
-import { ProgressRing, Chip, springs } from '../components/ui';
+import { AppBar, Button, IconButton, Chip, Eyebrow, ProgressRing, springs } from '../components/ui';
 import {
   startTryOn,
   waitForTryOn,
@@ -208,48 +208,37 @@ const TryOnStudio: React.FC = () => {
     <button
       onClick={onPick}
       aria-label={preview ? `${label} photo added. Tap to replace` : `Add ${label.toLowerCase()} photo`}
-      className="relative flex-1 aspect-[3/4] rounded-3xl border border-line bg-surface-2 overflow-hidden active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6157FF]"
+      className="relative flex-1 aspect-[3/4] rounded-card border border-line bg-surface-2 overflow-hidden active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
     >
       {preview ? (
         <img src={preview} className="absolute inset-0 h-full w-full object-cover" alt="" />
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4">
-          <div className="h-12 w-12 rounded-full bg-[#6157FF]/15 flex items-center justify-center">
-            <span className="material-symbols-outlined text-[26px] text-[#6157FF]" aria-hidden="true">{icon}</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
+          <div className="h-12 w-12 rounded-full bg-brand/10 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[24px] text-brand" aria-hidden="true">{icon}</span>
           </div>
           <span className="text-[12px] text-ink-soft text-center leading-relaxed">{hint}</span>
         </div>
       )}
       <div className="absolute bottom-0 left-0 right-0 py-2 bg-black/60 backdrop-blur-sm">
-        <span className="text-[11px] font-bold text-[#6157FF]">{label}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-invert">{label}</span>
       </div>
       {preview && (
         <div className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center">
-          <span className="material-symbols-outlined text-[14px] text-ink" aria-hidden="true">edit</span>
+          <span className="material-symbols-outlined text-[14px] text-ink-invert" aria-hidden="true">edit</span>
         </div>
       )}
     </button>
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface-0 text-ink font-sans">
+    <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink font-sans">
       <input ref={personInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickImage(e, 'person')} />
       <input ref={garmentInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickImage(e, 'garment')} />
 
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5 bg-surface-0/80 backdrop-blur-xl border-b border-line">
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-          className="h-11 w-11 flex items-center justify-center rounded-full active:scale-90 transition-transform"
-        >
-          <span className="material-symbols-outlined text-[22px] text-[#6157FF]" aria-hidden="true">arrow_back</span>
-        </button>
-        <h1 className="text-xs font-bold text-[#6157FF]">Try-On Studio</h1>
-        <div className="w-11"></div>
-      </div>
+      <AppBar title="Try-On Studio" onBack={() => navigate(-1)} />
 
-      <div className="flex-1 px-6 py-6 pb-28 space-y-6 overflow-y-auto no-scrollbar">
+      <div className="flex-1 px-6 py-6 pb-40 space-y-8 overflow-y-auto no-scrollbar">
         {/* Canvas: result or live generation */}
         <AnimatePresence mode="wait">
           {(resultUrl || generating) && (
@@ -259,7 +248,7 @@ const TryOnStudio: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={springs.gentle}
-              className="relative rounded-3xl overflow-hidden border border-[#6157FF]/30 bg-black aspect-[3/4] max-w-sm mx-auto"
+              className="relative rounded-card overflow-hidden border border-line bg-black aspect-[3/4] max-w-sm mx-auto"
             >
               {resultUrl && !generating && (
                 <>
@@ -277,30 +266,24 @@ const TryOnStudio: React.FC = () => {
                       alt="Try-on result"
                     />
                   </button>
-                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-line pointer-events-none">
-                    <span className="text-[11px] font-bold text-[#6157FF]">
+                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md pointer-events-none">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand">
                       {engine === 'overlay' ? 'Preview' : engine === 'catvton_cloud' ? 'AI Render · Cloud' : 'AI Render · Local'}
                     </span>
                   </div>
                   <div className="absolute top-3 right-3 flex gap-2">
-                    <button
-                      onClick={shareResult}
-                      aria-label="Share result"
-                      className="h-9 w-9 rounded-full bg-black/60 backdrop-blur-md border border-line flex items-center justify-center active:scale-90 transition-transform"
-                    >
-                      <span className="material-symbols-outlined text-[18px] text-[#6157FF]" aria-hidden="true">ios_share</span>
-                    </button>
+                    <IconButton icon="ios_share" aria-label="Share result" variant="overlay" size="sm" onClick={shareResult} />
                     <a
                       href={resultUrl}
                       download="zipright-tryon.png"
                       aria-label="Download result"
-                      className="h-9 w-9 rounded-full bg-black/60 backdrop-blur-md border border-line flex items-center justify-center active:scale-90 transition-transform"
+                      className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-md text-white flex items-center justify-center active:scale-[0.92] transition-transform"
                     >
-                      <span className="material-symbols-outlined text-[18px] text-[#6157FF]" aria-hidden="true">download</span>
+                      <span className="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
                     </a>
                   </div>
                   <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full bg-black/50 pointer-events-none">
-                    <span className="text-[12px] text-ink-soft">Tap to zoom</span>
+                    <span className="text-[11px] text-ink-invert/80">Tap to zoom</span>
                   </div>
                 </>
               )}
@@ -309,18 +292,17 @@ const TryOnStudio: React.FC = () => {
                   {/* Ambient pulse behind the ring */}
                   <motion.div
                     aria-hidden="true"
-                    className="absolute h-56 w-56 rounded-full"
-                    style={{ background: 'radial-gradient(circle, rgba(97,87,255,0.16), transparent 70%)' }}
+                    className="absolute h-56 w-56 rounded-full bg-brand/20 blur-3xl"
                     animate={{ scale: [1, 1.15, 1], opacity: [0.7, 1, 0.7] }}
                     transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                   />
-                  <ProgressRing value={progress} size={132} strokeWidth={6} color="#6157FF" aria-label="Render progress">
+                  <ProgressRing value={progress} size={132} strokeWidth={6} color="var(--brand)" aria-label="Render progress">
                     <div className="text-center">
-                      <span className="block text-[28px] font-bold text-[#6157FF] leading-none">{progress}%</span>
+                      <span className="block font-display text-[30px] font-medium text-ink-invert leading-none">{progress}%</span>
                     </div>
                   </ProgressRing>
                   <div className="text-center relative z-10">
-                    <span className="block text-[11px] font-bold text-[#6157FF]">
+                    <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-brand">
                       {stage}
                     </span>
                     <AnimatePresence mode="wait">
@@ -330,13 +312,13 @@ const TryOnStudio: React.FC = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.4 }}
-                        className="block mt-2 text-[11px] text-ink-soft"
+                        className="block mt-2 text-[12px] text-ink-invert/70"
                       >
                         {WAIT_HINTS[hintIndex]}
                       </motion.span>
                     </AnimatePresence>
                   </div>
-                  <span className="text-[11px] text-ink-faint text-center relative z-10">
+                  <span className="text-[11px] text-ink-invert/50 text-center relative z-10">
                     Keeps rendering even if you minimize or close the app
                   </span>
                 </div>
@@ -365,7 +347,7 @@ const TryOnStudio: React.FC = () => {
 
         {/* Cloth type */}
         <div className="max-w-sm mx-auto">
-          <p className="text-[11px] font-bold text-ink-soft mb-2" id="cloth-type-label">Garment Type</p>
+          <Eyebrow className="mb-2.5" id="cloth-type-label">Garment Type</Eyebrow>
           <div className="flex gap-2" role="group" aria-labelledby="cloth-type-label">
             {CLOTH_TYPES.map(({ value, label }) => (
               <Chip
@@ -382,21 +364,21 @@ const TryOnStudio: React.FC = () => {
 
         {/* Quality */}
         <div className="max-w-sm mx-auto">
-          <p className="text-[11px] font-bold text-ink-soft mb-2" id="quality-label">Quality</p>
+          <Eyebrow className="mb-2.5" id="quality-label">Quality</Eyebrow>
           <div className="flex gap-2" role="group" aria-labelledby="quality-label">
             {QUALITIES.map(({ value, label, hint }) => (
               <button
                 key={value}
                 onClick={() => setQuality(value)}
                 aria-pressed={quality === value}
-                className={`flex-1 py-2.5 rounded-2xl border transition-all flex flex-col items-center gap-0.5 active:scale-[0.96] ${
+                className={`flex-1 py-2.5 rounded-ctl border transition-[transform,background-color,border-color,color] flex flex-col items-center gap-0.5 active:scale-[0.96] ${
                   quality === value
-                    ? 'bg-[#6157FF] text-ink border-[#6157FF]'
+                    ? 'bg-brand text-on-brand border-brand'
                     : 'bg-surface-2 text-ink-soft border-line'
                 }`}
               >
-                <span className="text-[12px] font-bold">{label}</span>
-                <span className={`text-[12px] ${quality === value ? 'text-black/60' : 'text-ink-faint'}`}>{hint}</span>
+                <span className="text-[12px] font-semibold">{label}</span>
+                <span className={`text-[11px] ${quality === value ? 'text-on-brand/70' : 'text-ink-faint'}`}>{hint}</span>
               </button>
             ))}
           </div>
@@ -421,28 +403,30 @@ const TryOnStudio: React.FC = () => {
               className="max-h-full max-w-full object-contain"
               alt="Try-on result full screen"
             />
-            <button
-              onClick={() => setViewerOpen(false)}
-              className="absolute top-5 right-5 h-11 w-11 rounded-full bg-surface-2 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform"
+            <IconButton
+              icon="close"
               aria-label="Close full screen"
-            >
-              <span className="material-symbols-outlined text-[22px] text-ink" aria-hidden="true">close</span>
-            </button>
+              variant="overlay"
+              className="absolute top-5 right-5"
+              onClick={() => setViewerOpen(false)}
+            />
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Generate */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-surface-0 via-surface-0/90 to-transparent">
-        <button
+      <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+        <Button
+          variant="accent"
+          size="lg"
+          fullWidth
           onClick={generate}
           disabled={generating || !garmentPreview}
-          aria-busy={generating}
-          className="w-full max-w-sm mx-auto h-14 rounded-full bg-[#6157FF] text-ink font-bold text-xs shadow-[0_8px_32px_rgba(97,87,255,0.25)] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:active:scale-100 disabled:shadow-none"
+          loading={generating}
+          trailingIcon="auto_awesome"
         >
-          {generating ? 'Rendering…' : resultUrl ? 'Try Again' : 'Generate Try-On'}
-          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">auto_awesome</span>
-        </button>
+          {resultUrl ? 'Try Again' : 'Generate Try-On'}
+        </Button>
       </div>
     </div>
   );

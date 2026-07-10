@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AppBar, Eyebrow } from '../components/ui';
 
 interface Section {
   icon: string;
@@ -79,7 +80,7 @@ const sections: Section[] = [
     ],
   },
   {
-    icon: 'cookies',
+    icon: 'cookie',
     title: '8. Cookies & Local Storage',
     content: [
       'We use browser local storage and device storage to remember your preferences (theme, swipe hints, session state). We do not use third-party advertising cookies.',
@@ -123,82 +124,69 @@ const PrivacyPolicy: React.FC = () => {
   const [expanded, setExpanded] = useState<number | null>(0);
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface-0 text-ink" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-5 bg-surface-0/90 backdrop-blur-xl border-b border-line">
-        <button aria-label="Go back" onClick={() => navigate(-1)} className="h-10 w-10 flex items-center justify-center rounded-full active:scale-90 transition-transform bg-surface-2">
-          <span className="material-symbols-outlined text-[20px] text-[#6157FF]">arrow_back</span>
-        </button>
-        <div className="text-center">
-          <h1 className="text-[12px] font-bold text-[#6157FF]">Privacy Policy</h1>
-          <p className="text-[11px] text-ink-faint mt-0.5">Effective: April 2026</p>
-        </div>
-        <div className="w-10" />
-      </div>
+    <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
+      <AppBar title="Privacy Policy" subtitle="Effective April 2026" onBack={() => navigate(-1)} />
 
       {/* Hero */}
-      <div className="px-6 pt-8 pb-6 border-b border-line">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="h-14 w-14 rounded-2xl bg-[#6157FF]/10 border border-[#6157FF]/20 flex items-center justify-center flex-shrink-0">
-            <span className="material-symbols-outlined text-2xl text-[#6157FF]">shield</span>
-          </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-              <span className="text-ink">Your</span> <span className="text-[#6157FF]">Privacy</span>
-            </h2>
-            <p className="text-[12px] text-ink-soft mt-0.5">DPDP Act, 2023 Compliant</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="px-6 pt-8 pb-7">
+        <Eyebrow className="mb-3">DPDP Act 2023 compliant</Eyebrow>
+        <h2 className="font-display text-[30px] leading-tight font-light mb-5">
+          Your <em className="font-medium text-brand">privacy.</em>
+        </h2>
+        <div className="grid grid-cols-3 gap-2.5 mb-5">
           {[
-            { icon: 'no_encryption_gae', label: 'No Data Selling' },
-            { icon: 'lock', label: 'AES-256 Encrypted' },
-            { icon: 'verified_user', label: 'DPDP Compliant' },
+            { icon: 'block', label: 'No data selling' },
+            { icon: 'lock', label: 'AES-256 encrypted' },
+            { icon: 'verified_user', label: 'DPDP compliant' },
           ].map(item => (
-            <div key={item.label} className="bg-white/3 border border-line rounded-xl p-3 flex flex-col items-center gap-1">
-              <span className="material-symbols-outlined text-[16px] text-[#6157FF]">{item.icon}</span>
-              <span className="text-[11px] text-ink-soft text-center font-bold tracking-wide leading-tight">{item.label}</span>
+            <div key={item.label} className="bg-surface-1 border border-line rounded-card p-3 flex flex-col items-center gap-2 text-center">
+              <span className="material-symbols-outlined text-[17px] text-brand" aria-hidden="true">{item.icon}</span>
+              <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-ink-soft leading-tight">{item.label}</span>
             </div>
           ))}
         </div>
-        <p className="text-[11px] text-ink-soft leading-relaxed">
+        <p className="text-[13px] text-ink-soft leading-relaxed">
           ZipRIGHT is committed to protecting your personal data. This Policy explains what data we collect, why, and how you can control it — in compliance with India's Digital Personal Data Protection Act, 2023.
         </p>
       </div>
 
       {/* Sections Accordion */}
-      <div className="flex-1 px-4 py-4 pb-24">
-        {sections.map((section, idx) => (
-          <div key={idx} className="mb-2 border border-line rounded-2xl overflow-hidden">
-            <button
-              className="w-full flex items-center justify-between px-5 py-4 text-left active:scale-[0.99] transition-transform"
-              onClick={() => setExpanded(expanded === idx ? null : idx)}
-            >
-              <div className="flex items-center gap-3 flex-1 pr-2">
-                <span className="material-symbols-outlined text-[16px] text-[#6157FF] flex-shrink-0">{section.icon}</span>
-                <span className="text-[12px] font-bold text-ink-soft leading-tight">{section.title}</span>
-              </div>
-              <span className="material-symbols-outlined text-[18px] text-[#6157FF] flex-shrink-0 transition-transform duration-200" style={{ transform: expanded === idx ? 'rotate(180deg)' : 'none' }}>
-                expand_more
-              </span>
-            </button>
-            {expanded === idx && (
-              <div className="px-5 pb-5 border-t border-line pt-4">
-                {section.content.map((para, pIdx) => (
-                  <p key={pIdx} className="text-[11px] text-ink-soft leading-relaxed mb-3 last:mb-0">
-                    {para}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+      <div className="flex-1 px-6 pb-24">
+        {sections.map((section, idx) => {
+          const open = expanded === idx;
+          return (
+            <div key={idx} className="border-b border-line">
+              <button
+                className="w-full flex items-center justify-between gap-3 py-4 text-left"
+                onClick={() => setExpanded(open ? null : idx)}
+                aria-expanded={open}
+              >
+                <div className="flex items-center gap-3 flex-1 pr-2 min-w-0">
+                  <span className="material-symbols-outlined text-[17px] text-ink-faint flex-shrink-0" aria-hidden="true">{section.icon}</span>
+                  <span className="text-[13.5px] font-medium text-ink leading-snug">{section.title}</span>
+                </div>
+                <span className="material-symbols-outlined text-[18px] text-ink-faint flex-shrink-0 transition-transform duration-200" style={{ transform: open ? 'rotate(180deg)' : 'none' }} aria-hidden="true">
+                  expand_more
+                </span>
+              </button>
+              {open && (
+                <div className="pb-5 pl-8">
+                  {section.content.map((para, pIdx) => (
+                    <p key={pIdx} className="text-[12.5px] text-ink-soft leading-relaxed mb-3 last:mb-0">
+                      {para}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {/* Contact */}
-        <div className="mt-6 p-5 bg-[#6157FF]/5 border border-[#6157FF]/20 rounded-2xl">
-          <p className="text-[12px] font-bold text-[#6157FF] mb-2">Contact Our Privacy Team</p>
-          <p className="text-[11px] text-ink-soft leading-relaxed">
-            For any data protection requests, grievances, or concerns, email us at <span className="text-[#6157FF]">privacy@zipright.in</span>. We respond within 30 days as required by the DPDP Act, 2023.
+        <div className="mt-8 p-5 rounded-card bg-surface-1 border border-line">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand mb-2">Contact our privacy team</p>
+          <p className="text-[12.5px] text-ink-soft leading-relaxed">
+            For any data protection requests, grievances, or concerns, email us at <span className="text-brand">privacy@zipright.in</span>. We respond within 30 days as required by the DPDP Act, 2023.
           </p>
         </div>
       </div>

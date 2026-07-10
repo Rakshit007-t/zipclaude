@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
+import { motion } from 'motion/react';
+import { addDoc, collection } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { fetchProductAvailability } from '../services/BrandAPI';
 import { recommendSize } from '../services/ziprightApi';
 import { buildSizeEngineProfileFromUserProfile } from '../utils/sizeProfile';
 import { demoProducts } from '../services/demoProducts';
-import ProductCard from '../components/ProductCard';
-import BottomSheet from '../components/BottomSheet';
-import { Sheet, Button, EmptyState } from '../components/ui';
+import { addToCloset, closetCount, listCloset, onClosetChange, toggleCloset } from '../services/closet';
+import { Sheet, Button, EmptyState, Eyebrow, Wordmark, springs, StaggerList, StaggerItem } from '../components/ui';
 
 const DEMO_AUTH_KEY = 'zipright_demo_user';
 
@@ -36,65 +37,44 @@ interface Product {
   size_format?: string | null;
 }
 
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+/** Quiet icon action in the masthead. */
+const MastAction: React.FC<{ icon: string; label: string; badge?: number; badgeTone?: string; onClick: () => void }> = ({ icon, label, badge, badgeTone, onClick }) => (
+  <button onClick={onClick} aria-label={`${label}${badge ? `, ${badge}` : ''}`} className="relative h-10 w-10 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform bg-surface-1">
+    <span className="material-symbols-outlined text-[19px]" aria-hidden="true">{icon}</span>
+    {badge ? (
+      <span className={`absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center text-white ${badgeTone || 'bg-brand'}`}>
+        {badge}
+      </span>
+    ) : null}
+  </button>
+);
+
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { userProfile } = useUserProfile();
+  const { userProfile, profile } = useUserProfile() as any;
   const [products, setProducts] = useState<Product[]>([]);
-  const [catalogMessage, setCatalogMessage] = useState<string | null>(null);
   const [wishlistCount, setWishlistCount] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
-  const [activeCardIndex, setActiveCardIndex] = useState(0);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [recommendedSize, setRecommendedSize] = useState<string | null>(null);
   const [confidence, setConfidence] = useState<string | null>(null);
   const [reason, setReason] = useState<string | null>(null);
-  const [hasRunEngine, setHasRunEngine] = useState(false);
+  const [engineRunning, setEngineRunning] = useState(false);
   const [recommendedForProductId, setRecommendedForProductId] = useState<string | null>(null);
-  const [communityLooks, setCommunityLooks] = useState<any[]>([]);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  const dragRef = useRef<{
-    startX: number;
-    startY: number;
-    currentX: number;
-    productId: string | null;
-    isDragging: boolean;
-    isHorizontal: boolean | null;
-  }>({ startX: 0, startY: 0, currentX: 0, productId: null, isDragging: false, isHorizontal: null });
-
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastTapRef = useRef<Record<string, number>>({});
-
-  const [heartBurst, setHeartBurst] = useState<Record<string, boolean>>({});
-  const [cartCount, setCartCount] = useState(0);
-  const [sizePeek, setSizePeek] = useState<string | null>(null);
-  const [showHint, setShowHint] = useState(() => !localStorage.getItem('zr_swipe_hint_seen'));
   const [friendShareProduct, setFriendShareProduct] = useState<Product | null>(null);
   const [friendsList, setFriendsList] = useState<{ uid: string; name: string; avatar: string }[]>([]);
 
   useEffect(() => {
-    if (showHint) {
-      const t = setTimeout(() => {
-        setShowHint(false);
-        localStorage.setItem('zr_swipe_hint_seen', '1');
-      }, 2500);
-      return () => clearTimeout(t);
-    }
-  }, [showHint]);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setProducts(demoProducts);
-      setCatalogMessage(null);
-      setCommunityLooks([]);
-    };
-    fetchProducts();
-    setLikedMap({});
-    setWishlistCount(3);
-    setCartCount(1);
+    setProducts(demoProducts);
     setFriendsList([
       { uid: 'demo-rhea', name: 'Rhea', avatar: '' },
       { uid: 'demo-aman', name: 'Aman', avatar: '' },
@@ -102,159 +82,35 @@ const Home: React.FC = () => {
     ]);
   }, []);
 
-  // Intersection Observer for active card
+  // Live closet state — hearts and badges reflect real saved data
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const index = Number(entry.target.getAttribute('data-index'));
-            setActiveCardIndex(index);
-          }
-        });
-      },
-      { threshold: 0.7 }
-    );
-
-    cardRefs.current.forEach((card) => {
-      if (card) observer.observe(card);
-    });
-
-    return () => observer.disconnect();
-  }, [products]);
-
-  const handleDragStart = (e: React.PointerEvent, productId: string) => {
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      currentX: 0,
-      productId,
-      isDragging: false,
-      isHorizontal: null,
+    const sync = () => {
+      setWishlistCount(closetCount('likes'));
+      setCartCount(closetCount('cart'));
+      const map: Record<string, boolean> = {};
+      listCloset('liked').forEach(i => { map[i.id] = true; });
+      setLikedMap(map);
     };
-    longPressTimer.current = setTimeout(() => {
-      setSizePeek(productId);
-    }, 500);
-  };
+    sync();
+    return onClosetChange(sync);
+  }, []);
 
-  const handleDragMove = (e: React.PointerEvent, productId: string, index: number) => {
-    const d = dragRef.current;
-    if (d.productId !== productId) return;
+  const toClosetItem = (p: Product) => ({
+    id: p.id, title: p.title, brand: p.brand, price: p.price,
+    image: p.image, url: p.url, affiliateLink: p.affiliateLink, category: p.category,
+  });
 
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
+  const firstName = (profile?.profileName || userProfile?.profileName || '').split(' ')[0];
 
-    // Determine swipe direction on first significant movement
-    if (d.isHorizontal === null && (absDx > 8 || absDy > 10)) {
-      d.isHorizontal = absDx > absDy;
-    }
-
-    // If vertical intent — cancel long press and let scroll happen
-    if (d.isHorizontal === false) {
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
-      return;
-    }
-
-    // Horizontal swipe in progress
-    if (d.isHorizontal === true && absDx > 8) {
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
-      d.isDragging = true;
-      d.currentX = dx;
-      e.preventDefault();
-
-      const card = cardRefs.current[index];
-      if (card) {
-        const rotate = Math.min(Math.max(dx / 20, -8), 8);
-        card.style.transition = 'none';
-        card.style.transform = `translateX(${dx}px) rotate(${rotate}deg)`;
-      }
-
-      const cartBadge = document.getElementById(`cart-badge-${productId}`);
-      const wishlistBadge = document.getElementById(`wishlist-badge-${productId}`);
-      if (dx > 0) {
-        if (cartBadge) cartBadge.style.opacity = String(Math.min(1, dx / 90));
-        if (wishlistBadge) wishlistBadge.style.opacity = '0';
-      } else {
-        if (cartBadge) cartBadge.style.opacity = '0';
-        if (wishlistBadge) wishlistBadge.style.opacity = String(Math.min(1, -dx / 90));
-      }
-    }
-  };
-
-  const handleDragEnd = (e: React.PointerEvent, productId: string, product: Product, index: number) => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-
-    const d = dragRef.current;
-    if (d.productId !== productId) return;
-
-    const card = cardRefs.current[index];
-    const cartBadge = document.getElementById(`cart-badge-${productId}`);
-    const wishlistBadge = document.getElementById(`wishlist-badge-${productId}`);
-
-    const resetBadges = () => {
-      if (cartBadge) cartBadge.style.opacity = '0';
-      if (wishlistBadge) wishlistBadge.style.opacity = '0';
-    };
-
-    if (!d.isDragging) {
-      // It's a tap — check double tap
-      const now = Date.now();
-      const last = lastTapRef.current[productId] || 0;
-      if (now - last < 300) {
-        // Double tap — like
-        toggleLike(product);
-        setHeartBurst(prev => ({ ...prev, [productId]: true }));
-        setTimeout(() => setHeartBurst(prev => ({ ...prev, [productId]: false })), 620);
-      }
-      lastTapRef.current[productId] = now;
-      d.productId = null;
-      return;
-    }
-
-    const dx = d.currentX;
-    d.isDragging = false;
-    d.productId = null;
-
-    if (dx > 90) {
-      // RIGHT — ADD TO CART
-      if (card) {
-        card.style.transition = 'transform 0.24s ease';
-        card.style.transform = `translateX(110vw) rotate(18deg)`;
-        setTimeout(() => {
-          if (card) { card.style.transition = 'none'; card.style.transform = ''; }
-          resetBadges();
-        }, 250);
-      }
-      void addProductToCart(product);
-
-    } else if (dx < -90) {
-      // LEFT — SEND TO FRIEND
-      if (card) {
-        card.style.transition = 'transform 0.2s ease';
-        card.style.transform = `translateX(-40px) rotate(-4deg)`;
-        setTimeout(() => {
-          if (card) { card.style.transition = 'transform 0.3s ease'; card.style.transform = ''; }
-          resetBadges();
-        }, 180);
-      }
-      setFriendShareProduct(product);
-
-    } else {
-      // SNAP BACK — not enough drag
-      if (card) {
-        card.style.transition = 'transform 0.3s ease';
-        card.style.transform = '';
-        setTimeout(() => { if (card) card.style.transition = 'none'; }, 300);
-      }
-      resetBadges();
-    }
-  };
-
+  // Home hearts are LIKES (taste signal) — wishlist saving lives in the Marketplace.
   const toggleLike = async (product: Product) => {
-    void product;
-    showToast('Wishlist syncing is unavailable right now.', 'error');
+    const liked = toggleCloset('liked', toClosetItem(product));
+    showToast(liked ? 'Liked ♥' : 'Like removed', 'success');
+  };
+
+  const addProductToCart = async (product: Product) => {
+    const added = addToCloset('cart', toClosetItem(product));
+    showToast(added ? `${product.brand} added to bag` : 'Already in your bag', added ? 'success' : 'info');
   };
 
   const normalizeProductForSizeEngine = (product: Product) => {
@@ -306,7 +162,7 @@ const Home: React.FC = () => {
             sizeConfidence: sizeResult ? `${Math.round(sizeResult.confidence)}%` : undefined,
           },
           productUrl: product.affiliateLink || product.url,
-          source: 'home_reel'
+          source: 'home_edit'
         }
       });
     } catch (error) {
@@ -317,6 +173,8 @@ const Home: React.FC = () => {
   };
 
   const handleRunFitEngine = async (product: Product) => {
+    if (engineRunning) return;
+    setEngineRunning(true);
     try {
       const sizeProfile = buildSizeEngineProfileFromUserProfile(userProfile);
       if (!sizeProfile) {
@@ -330,25 +188,21 @@ const Home: React.FC = () => {
       setRecommendedSize(result.size);
       setConfidence(`${Math.round(result.confidence)}%`);
       setReason(result.reason || null);
-      setHasRunEngine(true);
       setRecommendedForProductId(product.id);
     } catch (error) {
       console.error("Error running fit engine:", error);
       showToast("Could not run fit engine right now.", "error");
+    } finally {
+      setEngineRunning(false);
     }
   };
 
-  const resetFitEngineState = () => {
+  const openDetails = (product: Product) => {
     setRecommendedSize(null);
     setConfidence(null);
     setReason(null);
-    setHasRunEngine(false);
     setRecommendedForProductId(null);
-  };
-
-  const addProductToCart = async (product: Product) => {
-    void product;
-    showToast('Cart syncing is unavailable right now.', 'error');
+    setDetailProduct(product);
   };
 
   const handleShare = async (product: Product) => {
@@ -369,310 +223,262 @@ const Home: React.FC = () => {
     }
   };
 
-  const currentProduct = products[activeCardIndex];
-  const currentAiResult = currentProduct
-    ? (
-      hasRunEngine && recommendedForProductId === currentProduct.id && recommendedSize
-        ? { recommendedSize, confidence, reason }
-        : null
-    )
+  const hero = products[0];
+  const editGrid = products.slice(1);
+  const detailResult = detailProduct && recommendedForProductId === detailProduct.id && recommendedSize
+    ? { recommendedSize, confidence, reason }
     : null;
 
+  const quickActions = [
+    { icon: 'straighten', title: 'Size Match', desc: 'Know your size in any brand', route: '/add-product' },
+    { icon: 'view_in_ar', title: 'Try-On', desc: 'See it on you first', route: '/fashion-studio' },
+    { icon: 'auto_awesome', title: 'Stylist', desc: 'Personal style counsel', route: '/stylist' },
+  ];
+
   return (
-    <div className="h-dvh w-full bg-black overflow-hidden relative font-body">
-      <style>{`
-        @keyframes heartPop {
-          0%   { transform: scale(0); opacity: 1; }
-          50%  { transform: scale(1.3); opacity: 1; }
-          100% { transform: scale(0); opacity: 0; }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(20px); opacity: 0; }
-          to   { transform: translateY(0); opacity: 1; }
-        }
-      `}</style>
-
-      {showHint && (
-        <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none">
-          <div className="bg-black/70 backdrop-blur-xl rounded-[2rem] px-8 py-7 border border-white/10 text-center mx-8">
-            <p className="text-white/40 text-[11px] font-bold mb-4">Swipe to interact</p>
-            <div className="flex items-center justify-center gap-8 mb-4">
-              <div className="flex flex-col items-center gap-2">
-                <div className="bg-[#6157FF]/20 rounded-full px-3 py-1.5 border border-[#6157FF]/30">
-                  <span className="material-symbols-outlined text-[#6157FF] text-sm">send</span>
-                </div>
-                <span className="text-[#6157FF] text-[12px] font-bold">Send to Friend</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <span className="material-symbols-outlined text-white/20 text-2xl">swipe</span>
-                <span className="text-white/30 text-[11px]">or double tap ♥</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="bg-[#22c55e]/20 rounded-full px-3 py-1.5 border border-[#22c55e]/30">
-                  <span className="material-symbols-outlined text-[#22c55e] text-sm">arrow_forward</span>
-                </div>
-                <span className="text-[#22c55e] text-[12px] font-bold">Cart</span>
-              </div>
-            </div>
-            <p className="text-white/30 text-[11px]">Hold to check your size</p>
+    <div className="min-h-screen min-h-dvh bg-surface-0 text-ink pb-36">
+      {/* Masthead */}
+      <div className="sticky top-0 z-40 bg-surface-0/90 backdrop-blur-xl border-b border-line">
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 pt-safe">
+          <Wordmark size="sm" />
+          <div className="flex gap-2">
+            <MastAction icon="favorite" label="Wishlist" badge={wishlistCount} onClick={() => navigate('/wishlist')} />
+            <MastAction icon="shopping_bag" label="Cart" badge={cartCount} badgeTone="bg-success" onClick={() => navigate('/cart')} />
+            <MastAction icon="featured_seasonal_and_gifts" label="Gift inbox" onClick={() => navigate('/gift-inbox')} />
           </div>
-        </div>
-      )}
-
-      {/* TOP HEADER */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 pt-[22px] pb-12 pointer-events-none bg-gradient-to-b from-black via-black/60 to-transparent">
-
-        <span className="text-[#6157FF] text-[23px] font-bold tracking-tighter pointer-events-auto select-none">
-          <span className="text-white">Zip</span>RIGHT
-        </span>
-
-        <div className="flex items-center gap-3 pointer-events-auto">
-          <button onClick={() => navigate('/wishlist')} aria-label={`Wishlist${wishlistCount > 0 ? `, ${wishlistCount} items` : ''}`} className="relative active:scale-90 p-2 rounded-full transition-transform">
-            <span className="material-symbols-outlined text-[#6157FF] text-[22px]" aria-hidden="true">favorite</span>
-            {wishlistCount > 0 && (
-              <span className="absolute top-1 right-1 h-4 w-4 bg-[#FF4D6D] rounded-full text-[12px] font-bold flex items-center justify-center text-white ring-2 ring-black/20">
-                {wishlistCount}
-              </span>
-            )}
-          </button>
-          <button onClick={() => navigate('/cart')} aria-label={`Cart${cartCount > 0 ? `, ${cartCount} items` : ''}`} className="relative active:scale-90 p-2 rounded-full transition-transform">
-            <span className="material-symbols-outlined text-[#6157FF] text-[22px]" aria-hidden="true">shopping_cart</span>
-            {cartCount > 0 && (
-              <span className="absolute top-1 right-1 h-4 w-4 bg-[#22c55e] rounded-full text-[12px] font-bold flex items-center justify-center text-white ring-2 ring-black/20">
-                {cartCount}
-              </span>
-            )}
-          </button>
-          <button onClick={() => navigate('/stylist')} aria-label="AI Stylist chat" className="active:scale-90 p-2 rounded-full transition-transform">
-            <span className="material-symbols-outlined text-[#6157FF] text-[22px]" aria-hidden="true">chat_bubble</span>
-          </button>
-          <button onClick={() => navigate('/gift-inbox')} aria-label="Gift inbox" className="relative active:scale-90 p-2 rounded-full transition-transform">
-            <span className="material-symbols-outlined text-[#6157FF] text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">card_giftcard</span>
-          </button>
         </div>
       </div>
 
-      {/* REEL FEED */}
-      <div
-        ref={containerRef}
-        className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
-        {products.length === 0 ? (
-          <div className="h-full w-full flex items-center justify-center px-8">
-            <div className="max-w-sm rounded-[2rem] border border-white/10 bg-black/40 p-8 text-center backdrop-blur-xl">
-              <span className="material-symbols-outlined text-[#6157FF] text-4xl mb-4">inventory_2</span>
-              <p className="text-[12px] font-bold text-[#6157FF] mb-3">Feed Unavailable</p>
-              <p className="text-sm text-white/60 leading-relaxed">{catalogMessage || 'Data unavailable'}</p>
-            </div>
-          </div>
-        ) : products.map((product, index) => (
-          <div
-            key={product.id}
-            data-index={index}
-            ref={(el) => {
-              cardRefs.current[index] = el;
-            }}
-            className="h-dvh w-full flex-shrink-0 relative bg-black snap-start snap-always"
-            onPointerDown={(e) => handleDragStart(e, product.id)}
-            onPointerMove={(e) => handleDragMove(e, product.id, index)}
-            onPointerUp={(e) => handleDragEnd(e, product.id, product, index)}
-            onPointerCancel={(e) => handleDragEnd(e, product.id, product, index)}
-            style={{ touchAction: 'pan-y' }}
-          >
-            {/* Swipe RIGHT badge - CART */}
-            <div id={`cart-badge-${product.id}`}
-              className="absolute top-28 left-5 z-50 pointer-events-none"
-              style={{ opacity: 0, transform: 'rotate(-12deg)' }}
-            >
-              <div className="bg-[#22c55e] px-5 py-2.5 rounded-2xl border-2 border-white/30 flex items-center gap-2 shadow-2xl">
-                <span className="material-symbols-outlined text-white text-xl"
-                  style={{ fontVariationSettings: "'FILL' 1" }}>shopping_cart</span>
-                <span className="text-white font-bold text-sm">Add to Cart</span>
-              </div>
-            </div>
-
-            {/* Swipe LEFT badge - WISHLIST */}
-            <div id={`wishlist-badge-${product.id}`}
-              className="absolute top-28 right-5 z-50 pointer-events-none"
-              style={{ opacity: 0, transform: 'rotate(12deg)' }}
-            >
-              <div className="bg-[#6157FF] px-5 py-2.5 rounded-2xl border-2 border-white/30 flex items-center gap-2 shadow-2xl">
-                <span className="text-white font-bold text-sm">Send</span>
-                <span className="material-symbols-outlined text-white text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
-              </div>
-            </div>
-
-            {/* Heart Burst Animation */}
-            {heartBurst[product.id] && (
-              <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
-                <span
-                  className="material-symbols-outlined text-[#FF4D6D] text-[90px]"
-                  style={{ fontVariationSettings: "'FILL' 1", animation: 'heartPop 0.6s ease forwards' }}
-                >
-                  favorite
-                </span>
-              </div>
-            )}
-
-            {/* Size Peek Overlay */}
-            {sizePeek === product.id && (
-              <div
-                className="absolute bottom-24 left-4 right-4 z-50 bg-black/80 backdrop-blur-2xl rounded-[1.5rem] p-5 border border-white/10"
-                style={{ animation: 'slideUp 0.2s ease' }}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#6157FF] text-lg">straighten</span>
-                    <span className="text-white font-bold text-sm">Quick Fit Check</span>
-                  </div>
-                  <button onClick={() => setSizePeek(null)} className="active:scale-90">
-                    <span className="material-symbols-outlined text-white/50 text-lg">close</span>
-                  </button>
-                </div>
-                <p className="text-white/60 text-xs mb-4 leading-relaxed">
-                  Complete your Fit Profile to get an instant size recommendation for {product.brand}.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => { setSizePeek(null); navigate('/add-product', { state: { prefill: product } }); }}
-                    className="flex-1 bg-[#6157FF] text-white py-3 rounded-xl text-xs font-bold active:scale-95"
-                  >
-                    Get My Size
-                  </button>
-                  <button
-                    onClick={() => setSizePeek(null)}
-                    className="px-4 py-3 rounded-xl border border-white/10 text-white/60 text-xs active:scale-95"
-                  >
-                    Later
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Product Image — fades in on decode to avoid pop-in */}
-            <img
-              src={product.image}
-              alt={product.title}
-              className="h-full w-full object-cover opacity-0 transition-opacity duration-500"
-              onLoad={(e) => e.currentTarget.classList.remove('opacity-0')}
-              loading={index > 1 ? 'lazy' : 'eager'}
-              referrerPolicy="no-referrer"
-            />
-            {/* Subtle Obsidian Overlay for Contrast */}
-            <div className="absolute inset-0 bg-[#111111]/10 pointer-events-none" />
-
-            {/* Gradient Overlay */}
-            <div className="absolute inset-0 pointer-events-none"
-              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 40%, transparent 60%, rgba(0,0,0,0.4) 100%)' }}>
-            </div>
-
-            {/* RIGHT SIDE ACTION BAR */}
-            <div className="absolute right-4 bottom-36 z-40 flex flex-col items-center gap-4">
-              {/* Like */}
-              <button
-                onClick={() => toggleLike(product)}
-                className="flex flex-col items-center gap-1 active:scale-90"
-              >
-                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <span
-                    className={`material-symbols-outlined text-[26px] ${likedMap[product.id] ? 'text-[#FF4D6D] filled' : 'text-white'}`}
-                    style={{ fontVariationSettings: likedMap[product.id] ? "'FILL' 1" : "'FILL' 0" }}
-                  >
-                    favorite
-                  </span>
-                </div>
-                <span className="text-white text-[12px] font-bold">Like</span>
-              </button>
-
-              {/* Try-On */}
-              <button
-                onClick={() => navigate('/tryon-studio', { state: { product } })}
-                className="flex flex-col items-center gap-1 active:scale-90"
-              >
-                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <span className="material-symbols-outlined text-white text-[26px]">view_in_ar</span>
-                </div>
-                <span className="text-white text-[12px] font-bold">Try-On</span>
-              </button>
-
-              {/* Gift */}
-              <button
-                onClick={() => navigate('/gift-look', { state: { product } })}
-                className="flex flex-col items-center gap-1 active:scale-90"
-              >
-                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <span className="material-symbols-outlined text-[26px]"
-                    style={{ color: '#6157FF', fontVariationSettings: "'FILL' 1" }}>
-                    card_giftcard
-                  </span>
-                </div>
-                <span className="text-white text-[12px] font-bold">Gift</span>
-              </button>
-
-              {/* Share */}
-              <button
-                onClick={() => handleShare(product)}
-                className="flex flex-col items-center gap-1 active:scale-90"
-              >
-                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <span className="material-symbols-outlined text-white text-[26px]">ios_share</span>
-                </div>
-                <span className="text-white text-[12px] font-bold">Share</span>
-              </button>
-            </div>
-
-            <ProductCard
-              product={product}
-              onSeeMore={() => {
-                setActiveCardIndex(index);
-                resetFitEngineState();
-                setDrawerOpen(true);
-              }}
-            />
-          </div>
-        ))}
+      {/* Greeting */}
+      <div className="px-6 pt-7 pb-2">
+        <Eyebrow className="mb-2">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Eyebrow>
+        <h1 className="font-display text-[34px] leading-[1.05] font-light">
+          {greeting()}{firstName ? `, ${firstName}` : ''}<em className="font-medium text-brand">.</em>
+        </h1>
       </div>
 
-      {currentProduct && (
-        <BottomSheet
-          open={drawerOpen}
-          product={currentProduct}
-          hasRunEngine={hasRunEngine}
-          recommendedSize={currentAiResult?.recommendedSize || null}
-          confidence={currentAiResult?.confidence || null}
-          reason={currentAiResult?.reason || null}
-          onClose={() => {
-            setDrawerOpen(false);
-          }}
-          onRunFitEngine={() => {
-            handleRunFitEngine(currentProduct);
-          }}
-          onShopNow={() => {
-            window.open(currentProduct.url, '_blank');
-          }}
+      {products.length === 0 ? (
+        <EmptyState
+          icon="inventory_2"
+          title="The rail is empty"
+          description="The catalogue is unavailable right now. Check back shortly."
         />
+      ) : (
+        <>
+          {/* Look of the day — editorial hero */}
+          {hero && (
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={springs.luxe}
+              className="px-6 pt-5"
+            >
+              <div className="relative rounded-card overflow-hidden border border-line group">
+                <button className="block w-full text-left" onClick={() => openDetails(hero)} aria-label={`${hero.brand} ${hero.title} — details`}>
+                  <div className="aspect-[4/5] bg-surface-2">
+                    <img
+                      src={hero.image}
+                      alt={hero.title}
+                      className="h-full w-full object-cover opacity-0 transition-opacity duration-700"
+                      onLoad={(e) => e.currentTarget.classList.remove('opacity-0')}
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(15,12,8,0.75) 0%, transparent 45%)' }} />
+                  <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/60 mb-2">Look of the day</p>
+                    <p className="font-display text-[26px] font-medium text-white leading-tight">{hero.brand}</p>
+                    <p className="text-white/75 text-[13px] mt-1 line-clamp-1">{hero.title}</p>
+                    <p className="text-white font-semibold text-[15px] mt-2">{hero.price}</p>
+                  </div>
+                </button>
+                {/* Hero actions */}
+                <div className="absolute top-4 right-4 flex flex-col gap-2.5">
+                  <button onClick={() => toggleLike(hero)} aria-label="Like" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center active:scale-90 transition-transform">
+                    <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: likedMap[hero.id] ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
+                  </button>
+                  <button onClick={() => navigate('/tryon-studio', { state: { product: hero } })} aria-label="Try on" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center active:scale-90 transition-transform">
+                    <span className="material-symbols-outlined text-white text-[18px]" aria-hidden="true">view_in_ar</span>
+                  </button>
+                  <button onClick={() => handleShare(hero)} aria-label="Share" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center active:scale-90 transition-transform">
+                    <span className="material-symbols-outlined text-white text-[18px]" aria-hidden="true">ios_share</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* The Reel — swipe entry */}
+          <div className="px-6 pt-4">
+            <button
+              onClick={() => navigate('/reel')}
+              className="w-full flex items-center justify-between p-5 rounded-card bg-brand text-on-brand shadow-glow active:scale-[0.98] transition-transform text-left"
+            >
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-70 mb-1.5">The Reel</p>
+                <p className="font-display text-[20px] font-medium leading-tight">Swipe your next fit.</p>
+                <p className="text-[11.5px] opacity-80 mt-1">Right to bag · left to pass · double-tap to like</p>
+              </div>
+              <span className="material-symbols-outlined text-[30px] shrink-0 ml-4" aria-hidden="true">swipe</span>
+            </button>
+          </div>
+
+          {/* Quick actions — the three doors */}
+          <div className="px-6 pt-6">
+            <StaggerList className="grid grid-cols-3 gap-3" delay={0.06}>
+              {quickActions.map((action) => (
+                <StaggerItem key={action.title}>
+                  <button
+                    onClick={() => navigate(action.route)}
+                    className="w-full flex flex-col items-start p-4 rounded-card bg-surface-1 border border-line hover:border-line-strong active:scale-[0.97] transition-[transform,border-color] text-left"
+                  >
+                    <span className="material-symbols-outlined text-brand text-[22px] mb-3" aria-hidden="true">{action.icon}</span>
+                    <span className="text-ink font-semibold text-[13px]">{action.title}</span>
+                    <span className="text-ink-faint text-[10.5px] leading-tight mt-0.5">{action.desc}</span>
+                  </button>
+                </StaggerItem>
+              ))}
+            </StaggerList>
+          </div>
+
+          {/* The Edit — curated grid */}
+          <div className="px-6 pt-9">
+            <div className="flex items-baseline justify-between mb-4">
+              <div>
+                <Eyebrow className="mb-1">Curated for you</Eyebrow>
+                <h2 className="font-display text-[22px] font-medium leading-none">The Edit</h2>
+              </div>
+              <button onClick={() => navigate('/marketplace')} className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-faint underline underline-offset-4 active:scale-95 transition-transform">
+                View all
+              </button>
+            </div>
+            <StaggerList className="grid grid-cols-2 gap-x-4 gap-y-7" delay={0.05}>
+              {editGrid.map((product) => (
+                <StaggerItem key={product.id}>
+                  <div className="flex flex-col">
+                    <button
+                      onClick={() => openDetails(product)}
+                      className="relative aspect-[3/4] rounded-xl overflow-hidden bg-surface-2 border border-line active:scale-[0.98] transition-transform text-left"
+                      aria-label={`${product.brand} ${product.title} — details`}
+                    >
+                      <img
+                        src={product.image}
+                        alt={product.title}
+                        loading="lazy"
+                        className="w-full h-full object-cover opacity-0 transition-opacity duration-500"
+                        onLoad={(e) => e.currentTarget.classList.remove('opacity-0')}
+                        referrerPolicy="no-referrer"
+                      />
+                    </button>
+                    <div className="flex items-start justify-between gap-2 pt-3 px-0.5">
+                      <div className="min-w-0">
+                        <p className="font-display text-[15px] font-medium text-ink leading-tight truncate">{product.brand}</p>
+                        <p className="text-ink-faint text-[11px] truncate mt-0.5">{product.title}</p>
+                        <p className="text-[13px] font-semibold text-ink mt-1">{product.price}</p>
+                      </div>
+                      <div className="flex flex-col gap-1.5 shrink-0 pt-0.5">
+                        <button onClick={() => toggleLike(product)} aria-label={`Like ${product.title}`} className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform">
+                          <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: likedMap[product.id] ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
+                        </button>
+                        <button onClick={() => addProductToCart(product)} aria-label={`Add ${product.title} to cart`} className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform">
+                          <span className="material-symbols-outlined text-[15px]" aria-hidden="true">add_shopping_cart</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </StaggerItem>
+              ))}
+            </StaggerList>
+          </div>
+
+          {/* Community strip */}
+          <div className="px-6 pt-9">
+            <button
+              onClick={() => navigate('/community')}
+              className="w-full p-6 rounded-card bg-ink text-ink-invert relative overflow-hidden text-left active:scale-[0.99] transition-transform"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[50px] -mr-10 -mt-10" style={{ background: 'var(--brand)', opacity: 0.3 }} aria-hidden="true"></div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-50 mb-2">The Salon</p>
+              <p className="font-display text-[20px] font-medium leading-snug">See what the circle is wearing.</p>
+              <span className="inline-flex items-center gap-2 mt-4 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-80">
+                Open community
+                <span className="material-symbols-outlined text-[15px]" aria-hidden="true">arrow_forward</span>
+              </span>
+            </button>
+          </div>
+        </>
       )}
+
+      {/* DETAILS SHEET — identity, fit engine, actions */}
+      <Sheet open={!!detailProduct} onClose={() => setDetailProduct(null)} title={detailProduct?.brand || 'Details'}>
+        {detailProduct && (
+          <>
+            <div className="flex gap-5 mb-6">
+              <div className="h-32 w-[104px] rounded-xl overflow-hidden border border-line shrink-0">
+                <img src={detailProduct.image} alt={detailProduct.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+              </div>
+              <div className="flex flex-col justify-center min-w-0">
+                <p className="eyebrow !text-[9px] mb-1">{detailProduct.category || 'Garment'}</p>
+                <p className="text-ink text-[14px] leading-snug line-clamp-2">{detailProduct.title}</p>
+                <p className="font-display text-[20px] font-medium text-ink mt-2">{detailProduct.price}</p>
+              </div>
+            </div>
+
+            {/* Fit engine */}
+            <div className="rounded-card border border-line p-5 mb-5 text-center">
+              <Eyebrow className="mb-3">The fit engine</Eyebrow>
+              {detailResult ? (
+                <div className="mb-4">
+                  <div className="flex items-baseline justify-center gap-3">
+                    <span className="font-display text-[42px] font-semibold text-ink leading-none">{detailResult.recommendedSize}</span>
+                    <span className="text-[11px] uppercase tracking-[0.1em] text-ink-faint">Confidence {detailResult.confidence}</span>
+                  </div>
+                  {detailResult.reason && <p className="text-[12.5px] text-ink-soft mt-3 leading-relaxed">{detailResult.reason}</p>}
+                </div>
+              ) : (
+                <p className="text-[13px] text-ink-soft mb-4">Reveal your perfect size for this piece.</p>
+              )}
+              <Button variant="accent" loading={engineRunning} onClick={() => handleRunFitEngine(detailProduct)}>
+                {detailResult ? 'Run again' : 'Run fit engine'}
+              </Button>
+            </div>
+
+            {/* Secondary actions */}
+            <div className="grid grid-cols-3 gap-2.5 mb-5">
+              <Button variant="outline" size="sm" icon="view_in_ar" onClick={() => { const p = detailProduct; setDetailProduct(null); navigate('/tryon-studio', { state: { product: p } }); }}>Try-on</Button>
+              <Button variant="outline" size="sm" icon="featured_seasonal_and_gifts" onClick={() => { const p = detailProduct; setDetailProduct(null); navigate('/gift-look', { state: { product: p } }); }}>Gift</Button>
+              <Button variant="outline" size="sm" icon="send" onClick={() => { setFriendShareProduct(detailProduct); }}>Send</Button>
+            </div>
+
+            <div className="flex flex-col gap-2.5 pb-2">
+              <Button size="lg" fullWidth trailingIcon="arrow_forward" onClick={() => { const p = detailProduct; setDetailProduct(null); void handleProductClick(p); }}>
+                Full recommendation
+              </Button>
+              <Button variant="ghost" fullWidth onClick={() => window.open(detailProduct.url, '_blank')}>
+                Shop now
+              </Button>
+            </div>
+          </>
+        )}
+      </Sheet>
 
       {/* FRIEND SHARE SHEET */}
       <Sheet
         open={!!friendShareProduct}
         onClose={() => setFriendShareProduct(null)}
-        title="Send to your Style Circle"
+        title="Send to your circle"
       >
         {friendShareProduct && (
           <>
-            {/* Product preview row */}
-            <div className="flex items-center gap-3 mb-6 bg-white/5 rounded-2xl p-3 border border-white/5">
-              <img src={friendShareProduct.image} alt="" className="h-12 w-12 rounded-xl object-cover" />
+            <div className="flex items-center gap-3 mb-6 bg-surface-2 rounded-2xl p-3">
+              <img src={friendShareProduct.image} alt="" className="h-14 w-12 rounded-xl object-cover" />
               <div className="min-w-0">
-                <p className="text-ink font-bold text-sm">{friendShareProduct.brand}</p>
-                <p className="text-ink-soft text-xs truncate">{friendShareProduct.title} · {friendShareProduct.price}</p>
+                <p className="text-ink font-semibold text-[14px]">{friendShareProduct.brand}</p>
+                <p className="text-ink-soft text-[12px] truncate">{friendShareProduct.title} · {friendShareProduct.price}</p>
               </div>
-              <span className="material-symbols-outlined text-[#6157FF] ml-auto shrink-0" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">send</span>
+              <span className="material-symbols-outlined text-brand ml-auto shrink-0" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">send</span>
             </div>
 
-            {/* Friends list */}
             {friendsList.length === 0 ? (
               <EmptyState
                 icon="group_add"
@@ -680,29 +486,47 @@ const Home: React.FC = () => {
                 description="Add friends to share fits with them."
                 action={
                   <Button onClick={() => { setFriendShareProduct(null); navigate('/friends'); }}>
-                    Find Friends
+                    Find friends
                   </Button>
                 }
               />
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col pb-2">
                 {friendsList.map((friend) => (
                   <button
                     key={friend.uid}
                     onClick={async () => {
                       const user = auth.currentUser;
                       if (!user && !hasDemoSession()) return;
-                      void user;
-                      showToast('Friend sharing is unavailable right now.', 'error');
+                      const p = friendShareProduct;
+                      try {
+                        // Real users: write into the friend's inbox (same doc shape FriendsScreen reads)
+                        if (user && !user.isAnonymous && !friend.uid.startsWith('demo-')) {
+                          await addDoc(collection(db, 'users', friend.uid, 'friend_inbox'), {
+                            fromUid: user.uid,
+                            fromName: user.displayName || user.email || 'A friend',
+                            brand: p.brand,
+                            title: p.title,
+                            price: p.price,
+                            image: p.image,
+                            url: p.affiliateLink || p.url,
+                            sentAt: new Date(),
+                            seen: false,
+                          });
+                        }
+                        showToast(`Sent to ${friend.name} ✦`, 'success');
+                      } catch {
+                        showToast('Could not send right now.', 'error');
+                      }
                       setFriendShareProduct(null);
                     }}
-                    className="flex items-center gap-4 p-3 bg-white/5 rounded-2xl border border-white/5 active:scale-[0.97] transition-transform"
+                    className="flex items-center gap-4 py-3.5 border-b border-line last:border-none active:scale-[0.99] transition-transform"
                   >
-                    <div className="h-11 w-11 rounded-full bg-brand-soft flex items-center justify-center shrink-0">
-                      <span className="text-brand font-bold text-base">{friend.name.charAt(0).toUpperCase()}</span>
+                    <div className="h-11 w-11 rounded-full border border-line flex items-center justify-center shrink-0">
+                      <span className="text-ink font-display font-medium text-[16px]">{friend.name.charAt(0).toUpperCase()}</span>
                     </div>
-                    <span className="text-ink font-bold text-sm">{friend.name}</span>
-                    <span className="material-symbols-outlined text-ink-faint ml-auto" aria-hidden="true">chevron_right</span>
+                    <span className="text-ink font-medium text-[14px]">{friend.name}</span>
+                    <span className="material-symbols-outlined text-ink-faint ml-auto text-[18px]" aria-hidden="true">arrow_forward</span>
                   </button>
                 ))}
               </div>

@@ -18,8 +18,8 @@ interface AppBarProps {
 }
 
 /**
- * Screen header: back navigation, title, actions. Sticky with glass blur so
- * content scrolls beneath it.
+ * Screen header: back navigation, editorial uppercase title, actions.
+ * Sticky with glass blur so content scrolls beneath it.
  */
 const AppBar: React.FC<AppBarProps> = ({
   title,
@@ -51,11 +51,11 @@ const AppBar: React.FC<AppBarProps> = ({
         )}
         <div className="flex-1 min-w-0">
           {typeof title === 'string' ? (
-            <h1 className="text-[17px] font-bold text-ink tracking-tight truncate">{title}</h1>
+            <h1 className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink truncate">{title}</h1>
           ) : (
             title
           )}
-          {subtitle && <p className="text-[11px] text-ink-faint truncate -mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-[11px] text-ink-faint truncate mt-0.5">{subtitle}</p>}
         </div>
         {trailing && <div className="flex items-center gap-2">{trailing}</div>}
       </div>
