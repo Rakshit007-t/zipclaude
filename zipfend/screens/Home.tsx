@@ -11,7 +11,7 @@ import { buildSizeEngineProfileFromUserProfile } from '../utils/sizeProfile';
 import { demoProducts } from '../services/demoProducts';
 import { SEED_LOOKS } from '../services/salonSeed';
 import { addToCloset, closetCount, listCloset, onClosetChange, toggleCloset } from '../services/closet';
-import { Sheet, Button, EmptyState, Eyebrow, Wordmark, springs, StaggerList, StaggerItem } from '../components/ui';
+import { Sheet, Button, EmptyState, Eyebrow, SectionHeader, Wordmark, springs, StaggerList, StaggerItem } from '../components/ui';
 
 const DEMO_AUTH_KEY = 'zipright_demo_user';
 
@@ -47,7 +47,7 @@ function greeting() {
 
 /** Quiet icon action in the masthead. */
 const MastAction: React.FC<{ icon: string; label: string; badge?: number; badgeTone?: string; onClick: () => void }> = ({ icon, label, badge, badgeTone, onClick }) => (
-  <button onClick={onClick} aria-label={`${label}${badge ? `, ${badge}` : ''}`} className="relative h-10 w-10 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform bg-surface-1">
+  <button onClick={onClick} aria-label={`${label}${badge ? `, ${badge}` : ''}`} className="relative h-10 w-10 rounded-full border border-line flex items-center justify-center text-ink-soft press-icon bg-surface-1">
     <span className="material-symbols-outlined text-[19px]" aria-hidden="true">{icon}</span>
     {badge ? (
       <span className={`absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center text-white ${badgeTone || 'bg-brand'}`}>
@@ -103,10 +103,10 @@ const Home: React.FC = () => {
 
   const firstName = (profile?.profileName || userProfile?.profileName || '').split(' ')[0];
 
-  // Home hearts are LIKES (taste signal) — wishlist saving lives in the Marketplace.
-  const toggleLike = async (product: Product) => {
-    const liked = toggleCloset('liked', toClosetItem(product));
-    showToast(liked ? 'Liked ♥' : 'Like removed', 'success');
+  // Home hearts are LIKES (taste signal) — wishlist saving lives in the
+  // Marketplace. The heart filling IS the feedback; no toast.
+  const toggleLike = (product: Product) => {
+    toggleCloset('liked', toClosetItem(product));
   };
 
   const addProductToCart = async (product: Product) => {
@@ -253,7 +253,7 @@ const Home: React.FC = () => {
       {/* Greeting */}
       <div className="px-6 pt-7 pb-2">
         <Eyebrow className="mb-2">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Eyebrow>
-        <h1 className="font-display text-[34px] leading-[1.05] font-light">
+        <h1 className="display-1">
           {greeting()}{firstName ? `, ${firstName}` : ''}<em className="font-medium text-brand">.</em>
         </h1>
       </div>
@@ -274,7 +274,7 @@ const Home: React.FC = () => {
               transition={springs.luxe}
               className="px-6 pt-5"
             >
-              <div className="relative rounded-card overflow-hidden border border-line group">
+              <div className="relative rounded-card overflow-hidden border border-line shadow-lift group">
                 <button className="block w-full text-left" onClick={() => openDetails(hero)} aria-label={`${hero.brand} ${hero.title} — details`}>
                   <div className="aspect-[4/5] bg-surface-2">
                     <img
@@ -285,7 +285,7 @@ const Home: React.FC = () => {
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(15,12,8,0.75) 0%, transparent 45%)' }} />
+                  <div className="absolute inset-0 pointer-events-none scrim-cover-b" />
                   <div className="absolute bottom-0 left-0 right-0 p-6">
                     <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-white/60 mb-2">Look of the day</p>
                     <p className="font-display text-[26px] font-medium text-white leading-tight">{hero.brand}</p>
@@ -295,13 +295,13 @@ const Home: React.FC = () => {
                 </button>
                 {/* Hero actions */}
                 <div className="absolute top-4 right-4 flex flex-col gap-2.5">
-                  <button onClick={() => toggleLike(hero)} aria-label="Like" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center active:scale-90 transition-transform">
+                  <button onClick={() => toggleLike(hero)} aria-label="Like" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center press-icon">
                     <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: likedMap[hero.id] ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
                   </button>
-                  <button onClick={() => navigate('/tryon-studio', { state: { product: hero } })} aria-label="Try on" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center active:scale-90 transition-transform">
+                  <button onClick={() => navigate('/tryon-studio', { state: { product: hero } })} aria-label="Try on" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center press-icon">
                     <span className="material-symbols-outlined text-white text-[18px]" aria-hidden="true">view_in_ar</span>
                   </button>
-                  <button onClick={() => handleShare(hero)} aria-label="Share" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center active:scale-90 transition-transform">
+                  <button onClick={() => handleShare(hero)} aria-label="Share" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center press-icon">
                     <span className="material-symbols-outlined text-white text-[18px]" aria-hidden="true">ios_share</span>
                   </button>
                 </div>
@@ -313,7 +313,7 @@ const Home: React.FC = () => {
           <div className="px-6 pt-4">
             <button
               onClick={() => navigate('/reel')}
-              className="w-full flex items-center justify-between p-5 rounded-card bg-brand text-on-brand shadow-glow active:scale-[0.98] transition-transform text-left"
+              className="w-full flex items-center justify-between p-5 rounded-card bg-brand text-on-brand shadow-glow press-soft text-left"
             >
               <div>
                 <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-70 mb-1.5">The Reel</p>
@@ -331,7 +331,7 @@ const Home: React.FC = () => {
                 <StaggerItem key={action.title}>
                   <button
                     onClick={() => navigate(action.route)}
-                    className="w-full flex flex-col items-start p-4 rounded-card bg-surface-1 border border-line hover:border-line-strong active:scale-[0.97] transition-[transform,border-color] text-left"
+                    className="w-full flex flex-col items-start p-4 rounded-card bg-surface-1 border border-line hover:border-line-strong active:scale-[0.98] transition-[transform,border-color] text-left"
                   >
                     <span className="material-symbols-outlined text-brand text-[22px] mb-3" aria-hidden="true">{action.icon}</span>
                     <span className="text-ink font-semibold text-[13px]">{action.title}</span>
@@ -344,25 +344,22 @@ const Home: React.FC = () => {
 
           {/* The Salon — the fashion feed, one scroll from the top */}
           <div className="pt-9">
-            <div className="flex items-baseline justify-between mb-4 px-6">
-              <div>
-                <Eyebrow className="mb-1">The Salon</Eyebrow>
-                <h2 className="font-display text-[22px] font-medium leading-none">Worn by the community</h2>
-              </div>
-              <button onClick={() => navigate('/community')} className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-faint underline underline-offset-4 active:scale-95 transition-transform">
-                Open
-              </button>
-            </div>
+            <SectionHeader
+              eyebrow="The Salon"
+              title="Worn by the community"
+              action={{ label: 'Open', onClick: () => navigate('/community') }}
+              className="mb-4 px-6"
+            />
             <div className="flex gap-3 overflow-x-auto no-scrollbar px-6 snap-x">
               {SEED_LOOKS.slice(0, 6).map(look => (
                 <button
                   key={look.id}
                   onClick={() => navigate('/community')}
-                  className="relative w-32 aspect-[3/4] rounded-xl overflow-hidden shrink-0 snap-start bg-surface-2 border border-line active:scale-[0.97] transition-transform text-left"
+                  className="relative w-32 aspect-[3/4] rounded-xl overflow-hidden shrink-0 snap-start bg-surface-2 border border-line press-soft text-left"
                   aria-label={`Open The Salon — ${look.caption.slice(0, 40)}`}
                 >
                   <img src={look.mediaUrl} alt="" loading="lazy" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                  <div className="absolute inset-x-0 bottom-0 p-2.5 pt-6" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' }}>
+                  <div className="absolute inset-x-0 bottom-0 p-2.5 pt-6 scrim-b">
                     <p className="text-white/90 text-[10px] leading-snug line-clamp-2">{look.caption.replace(/#\w+/g, '').trim()}</p>
                   </div>
                   {look.taggedProducts.length > 0 && (
@@ -376,7 +373,7 @@ const Home: React.FC = () => {
               {/* End card → the feed itself */}
               <button
                 onClick={() => navigate('/community')}
-                className="w-32 aspect-[3/4] rounded-xl shrink-0 snap-start bg-ink text-ink-invert flex flex-col items-center justify-center gap-2 active:scale-[0.97] transition-transform"
+                className="w-32 aspect-[3/4] rounded-xl shrink-0 snap-start bg-ink text-ink-invert flex flex-col items-center justify-center gap-2 press-soft"
               >
                 <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_forward</span>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">The Salon</span>
@@ -386,22 +383,19 @@ const Home: React.FC = () => {
 
           {/* The Edit — curated grid */}
           <div className="px-6 pt-9">
-            <div className="flex items-baseline justify-between mb-4">
-              <div>
-                <Eyebrow className="mb-1">Curated for you</Eyebrow>
-                <h2 className="font-display text-[22px] font-medium leading-none">The Edit</h2>
-              </div>
-              <button onClick={() => navigate('/marketplace')} className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-faint underline underline-offset-4 active:scale-95 transition-transform">
-                View all
-              </button>
-            </div>
+            <SectionHeader
+              eyebrow="Curated for you"
+              title="The Edit"
+              action={{ label: 'View all', onClick: () => navigate('/marketplace') }}
+              className="mb-4"
+            />
             <StaggerList className="grid grid-cols-2 gap-x-4 gap-y-7" delay={0.05}>
               {editGrid.map((product) => (
                 <StaggerItem key={product.id}>
                   <div className="flex flex-col">
                     <button
                       onClick={() => openDetails(product)}
-                      className="relative aspect-[3/4] rounded-xl overflow-hidden bg-surface-2 border border-line active:scale-[0.98] transition-transform text-left"
+                      className="relative aspect-[3/4] rounded-xl overflow-hidden bg-surface-2 border border-line press-soft text-left"
                       aria-label={`${product.brand} ${product.title} — details`}
                     >
                       <img
@@ -420,10 +414,10 @@ const Home: React.FC = () => {
                         <p className="text-[13px] font-semibold text-ink mt-1">{product.price}</p>
                       </div>
                       <div className="flex flex-col gap-1.5 shrink-0 pt-0.5">
-                        <button onClick={() => toggleLike(product)} aria-label={`Like ${product.title}`} className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform">
+                        <button onClick={() => toggleLike(product)} aria-label={`Like ${product.title}`} className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-ink-soft press-icon">
                           <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: likedMap[product.id] ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
                         </button>
-                        <button onClick={() => addProductToCart(product)} aria-label={`Add ${product.title} to cart`} className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform">
+                        <button onClick={() => addProductToCart(product)} aria-label={`Add ${product.title} to cart`} className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-ink-soft press-icon">
                           <span className="material-symbols-outlined text-[15px]" aria-hidden="true">add_shopping_cart</span>
                         </button>
                       </div>
@@ -438,7 +432,7 @@ const Home: React.FC = () => {
           <div className="px-6 pt-9">
             <button
               onClick={() => navigate('/community')}
-              className="w-full p-6 rounded-card bg-ink text-ink-invert relative overflow-hidden text-left active:scale-[0.99] transition-transform"
+              className="w-full p-6 rounded-card bg-ink text-ink-invert relative overflow-hidden text-left press-soft"
             >
               <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[50px] -mr-10 -mt-10" style={{ background: 'var(--brand)', opacity: 0.3 }} aria-hidden="true"></div>
               <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-50 mb-2">The Salon</p>
@@ -526,7 +520,7 @@ const Home: React.FC = () => {
               <EmptyState
                 icon="group_add"
                 title="No friends yet"
-                description="Add friends to share fits with them."
+                description="Add friends to share finds with them."
                 action={
                   <Button onClick={() => { setFriendShareProduct(null); navigate('/friends'); }}>
                     Find friends
@@ -564,7 +558,7 @@ const Home: React.FC = () => {
                       }
                       setFriendShareProduct(null);
                     }}
-                    className="flex items-center gap-4 py-3.5 border-b border-line last:border-none active:scale-[0.99] transition-transform"
+                    className="flex items-center gap-4 py-3.5 border-b border-line last:border-none press-soft"
                   >
                     <div className="h-11 w-11 rounded-full border border-line flex items-center justify-center shrink-0">
                       <span className="text-ink font-display font-medium text-[16px]">{friend.name.charAt(0).toUpperCase()}</span>

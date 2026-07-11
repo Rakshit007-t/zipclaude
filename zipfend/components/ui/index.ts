@@ -37,6 +37,7 @@ export { default as OfflineBanner } from './OfflineBanner';
 export { default as ScreenFallback } from './ScreenFallback';
 export { default as Wordmark } from './Wordmark';
 export { default as Eyebrow } from './Eyebrow';
+export { default as SectionHeader } from './SectionHeader';
 export { default as Divider } from './Divider';
 export { default as ListRow } from './ListRow';
 export { default as SegmentedControl } from './SegmentedControl';

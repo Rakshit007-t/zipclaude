@@ -35,6 +35,62 @@
     letter-spacing: 0.16em;
   }
 
+  /* ── Type scale ─────────────────────────────────────────────────────────
+     Four display steps cover every heading job. Screens should reach for
+     these instead of hand-rolling font-display + arbitrary px sizes.
+       display-1  hero / screen opener      display-2  screen title
+       title-1    section header            title-2    card & sheet title  */
+  .display-1 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+    @apply text-[34px] font-light leading-[1.08] text-ink;
+  }
+  .display-2 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
+    @apply text-[26px] font-light leading-[1.12] text-ink;
+  }
+  .title-1 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
+    @apply text-[22px] font-medium leading-none text-ink;
+  }
+  .title-2 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    @apply text-[18px] font-medium leading-tight text-ink;
+  }
+
+  /* ── Press states ───────────────────────────────────────────────────────
+     Three tiers, one per target size. Replaces ad-hoc active:scale-* soup:
+       press-icon  small icon buttons   press  controls/chips   press-soft  cards/surfaces */
+  .press-icon {
+    @apply active:scale-90 transition-transform;
+  }
+  .press {
+    @apply active:scale-[0.96] transition-transform;
+  }
+  .press-soft {
+    @apply active:scale-[0.98] transition-transform;
+  }
+
+  /* ── Media scrims ───────────────────────────────────────────────────────
+     Legibility gradients over photos/video. MAISON allows no decorative
+     gradients — scrims are the only sanctioned ones. */
+  .scrim-b {
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  }
+  .scrim-t {
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.65), transparent);
+  }
+  /* Full-bleed (inset-0) overlay flavor — darkens only the caption zone */
+  .scrim-cover-b {
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, transparent 55%);
+  }
+
   /* Display voice — Fraunces with tight optical settings */
   .font-display {
     font-family: var(--font-display);
