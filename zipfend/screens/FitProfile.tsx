@@ -889,7 +889,7 @@ const FitProfile: React.FC = () => {
         {/* Editorial opener + completion */}
         <div className="pt-6 pb-7">
           <Eyebrow className="mb-3">Fit profile</Eyebrow>
-          <h1 className="font-display text-[34px] leading-[1.06] font-light">
+          <h1 className="display-1">
             Your <em className="font-medium">measure.</em>
           </h1>
           <div className="mt-6" role="status" aria-label={`Profile ${completeness}% complete`}>
@@ -915,6 +915,7 @@ const FitProfile: React.FC = () => {
           <FieldLabel label="Profile name" required />
           <input
             type="text"
+            aria-label="Profile name"
             value={profileName}
             onChange={(e) => setProfileName(e.target.value)}
             placeholder="e.g. Dad, Brother, My Fit"
@@ -1009,17 +1010,17 @@ const FitProfile: React.FC = () => {
           {fitData.heightUnit === 'ft' ? (
             <div className="flex gap-3 mt-3">
               <div className="flex-1 relative">
-                <input type="number" value={fitData.heightFt} onChange={(e) => handleHeightFtChange(e.target.value)} placeholder="5" className={`${fieldCls} pr-12`} />
+                <input type="number" aria-label="Height, feet" value={fitData.heightFt} onChange={(e) => handleHeightFtChange(e.target.value)} placeholder="5" className={`${fieldCls} pr-12`} />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">ft</span>
               </div>
               <div className="flex-1 relative">
-                <input type="number" value={fitData.heightIn} onChange={(e) => handleHeightInChange(e.target.value)} placeholder="10" className={`${fieldCls} pr-12`} />
+                <input type="number" aria-label="Height, inches" value={fitData.heightIn} onChange={(e) => handleHeightInChange(e.target.value)} placeholder="10" className={`${fieldCls} pr-12`} />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
               </div>
             </div>
           ) : (
             <div className="mt-3 relative">
-              <input type="number" value={userProfile.height > 0 ? String(userProfile.height) : fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178" className={`${fieldCls} pr-12`} />
+              <input type="number" aria-label="Height in centimetres" value={userProfile.height > 0 ? String(userProfile.height) : fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178" className={`${fieldCls} pr-12`} />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">cm</span>
             </div>
           )}
@@ -1030,14 +1031,14 @@ const FitProfile: React.FC = () => {
           <div className="flex-1">
             <FieldLabel label="Weight" required hint="Helps estimate body build." />
             <div className="relative">
-              <input type="number" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70" className={`${fieldCls} pr-12`} />
+              <input type="number" aria-label="Weight in kilograms" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70" className={`${fieldCls} pr-12`} />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">kg</span>
             </div>
           </div>
           <div className="flex-1">
             <FieldLabel label="Waist" optional hint="Improves pant size accuracy." />
             <div className="relative">
-              <input type="number" value={fitData.waistSize} onChange={(e) => handleMeasurementChange('waist', e.target.value)} placeholder="32" className={`${fieldCls} pr-12`} />
+              <input type="number" aria-label="Waist in inches" value={fitData.waistSize} onChange={(e) => handleMeasurementChange('waist', e.target.value)} placeholder="32" className={`${fieldCls} pr-12`} />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
             </div>
           </div>
@@ -1054,7 +1055,7 @@ const FitProfile: React.FC = () => {
             </p>
             <button
               onClick={() => navigate('/smart-fit-scan')}
-              className="border border-ink-invert/40 text-ink-invert font-semibold text-[11px] uppercase tracking-[0.12em] h-10 px-5 rounded-full inline-flex items-center gap-2 active:scale-95 transition-transform"
+              className="border border-ink-invert/40 text-ink-invert font-semibold text-[11px] uppercase tracking-[0.12em] h-10 px-5 rounded-full inline-flex items-center gap-2 press"
             >
               Measure now
               <span className="material-symbols-outlined text-[15px]" aria-hidden="true">arrow_forward</span>
@@ -1082,7 +1083,7 @@ const FitProfile: React.FC = () => {
                     setFitData({ ...fitData, bodyShape: shape.id });
                     updateBodyShape(shape.id);
                   }}
-                  className={`relative p-4 pt-5 rounded-card border text-left transition-[transform,border-color,background-color] active:scale-[0.97] ${isSelected
+                  className={`relative p-4 pt-5 rounded-card border text-left transition-[transform,border-color,background-color] press-soft ${isSelected
                       ? 'bg-ink text-ink-invert border-ink'
                       : 'bg-surface-1 text-ink border-line hover:border-line-strong'
                     }`}
@@ -1104,7 +1105,7 @@ const FitProfile: React.FC = () => {
         <div className="mb-8">
           <FieldLabel label="Chest size" optional hint="Improves accuracy for shirts, jackets, and suits." />
           <div className="relative">
-            <input type="number" value={fitData.chestSize} onChange={(e) => handleMeasurementChange('chest', e.target.value)} placeholder="e.g., 38" className={`${fieldCls} pr-16`} />
+            <input type="number" aria-label="Chest size in inches" value={fitData.chestSize} onChange={(e) => handleMeasurementChange('chest', e.target.value)} placeholder="e.g., 38" className={`${fieldCls} pr-16`} />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">inches</span>
           </div>
         </div>
@@ -1114,7 +1115,7 @@ const FitProfile: React.FC = () => {
           <div className="mb-8">
             <FieldLabel label="Hips" optional hint="Critical for dresses, lehengas, and ethnic wear accuracy." />
             <div className="relative">
-              <input type="number" value={fitData.hipsSize} onChange={(e) => handleMeasurementChange('hips', e.target.value)} placeholder="38" className={`${fieldCls} pr-12`} />
+              <input type="number" aria-label="Hips in inches" value={fitData.hipsSize} onChange={(e) => handleMeasurementChange('hips', e.target.value)} placeholder="38" className={`${fieldCls} pr-12`} />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
             </div>
           </div>
@@ -1125,7 +1126,7 @@ const FitProfile: React.FC = () => {
           <div className="mb-8">
             <FieldLabel label="Bust size" optional hint="Helps recommend better fitting tops and dresses." />
             <div className="relative">
-              <input type="number" value={fitData.bustSize} onChange={(e) => handleMeasurementChange('bust', e.target.value)} placeholder="e.g., 34" className={`${fieldCls} pr-16`} />
+              <input type="number" aria-label="Bust size in inches" value={fitData.bustSize} onChange={(e) => handleMeasurementChange('bust', e.target.value)} placeholder="e.g., 34" className={`${fieldCls} pr-16`} />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">inches</span>
             </div>
           </div>
