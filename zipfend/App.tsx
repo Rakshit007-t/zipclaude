@@ -40,7 +40,7 @@ const GiftInbox = React.lazy(() => import('./screens/GiftInbox'));
 const CommunityFeed = React.lazy(() => import('./screens/CommunityFeed'));
 const CreateLook = React.lazy(() => import('./screens/CreateLook'));
 const StylistChat = React.lazy(() => import('./screens/StylistChat'));
-const FriendsScreen = React.lazy(() => import('./screens/FriendsScreen'));
+const SocialHub = React.lazy(() => import('./screens/SocialHub'));
 const UserProfile = React.lazy(() => import('./screens/UserProfile'));
 const ChatScreen = React.lazy(() => import('./screens/ChatScreen'));
 const ProductFeed = React.lazy(() => import('./screens/ProductFeed'));
@@ -437,7 +437,7 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="/gift-inbox" element={isAuthenticated ? <GiftInbox /> : <Navigate to="/login" />} />
           <Route path="/community" element={isAuthenticated ? <CommunityFeed /> : <Navigate to="/login" />} />
           <Route path="/create-look" element={isAuthenticated ? <CreateLook /> : <Navigate to="/login" />} />
-          <Route path="/friends" element={isAuthenticated ? <FriendsScreen /> : <Navigate to="/login" />} />
+          <Route path="/friends" element={isAuthenticated ? <SocialHub /> : <Navigate to="/login" />} />
           <Route path="/profile/:uid" element={isAuthenticated ? <UserProfile /> : <Navigate to="/login" />} />
           <Route path="/chat/:uid" element={isAuthenticated ? <ChatScreen /> : <Navigate to="/login" />} />
           <Route path="/recent-scans" element={isAuthenticated ? <RecentScans /> : <Navigate to="/login" />} />

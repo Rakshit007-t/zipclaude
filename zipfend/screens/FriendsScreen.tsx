@@ -51,7 +51,13 @@ interface FriendRequest {
   sentAt: any;
 }
 
-const FriendsScreen: React.FC = () => {
+interface FriendsScreenProps {
+  /** Rendered inside the Friends social hub — tab row grows a Salon tab */
+  inHub?: boolean;
+  onShowSalon?: () => void;
+}
+
+const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<Tab>('circle');
@@ -259,6 +265,17 @@ const FriendsScreen: React.FC = () => {
 
         {/* Tabs — sliding underline */}
         <div className="flex gap-6" role="tablist">
+          {inHub && (
+            <button
+              role="tab"
+              aria-selected={false}
+              onClick={onShowSalon}
+              className="relative pb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint transition-colors"
+            >
+              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">gallery_thumbnail</span>
+              Salon
+            </button>
+          )}
           {tabs.map(t => (
             <button
               key={t.key}

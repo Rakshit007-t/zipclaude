@@ -134,7 +134,13 @@ const LookMedia: React.FC<{ look: Look; active: boolean }> = ({ look, active }) 
   );
 };
 
-const CommunityFeed: React.FC = () => {
+interface CommunityFeedProps {
+  /** Rendered inside the Friends social hub — header shows the hub switcher */
+  inHub?: boolean;
+  onShowPeople?: () => void;
+}
+
+const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -468,17 +474,42 @@ const CommunityFeed: React.FC = () => {
       {/* TOP HEADER — overlaid */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-5 pt-[22px] pt-safe pb-10 pointer-events-none"
         style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)' }}>
-        <button aria-label="Go back"
-          onClick={() => navigate(-1)}
-          className="h-10 w-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 border border-white/15"
-        >
-          <span className="material-symbols-outlined text-white text-[20px]" aria-hidden="true">arrow_back</span>
-        </button>
+        {inHub ? (
+          <div className="h-10 w-10" aria-hidden="true" />
+        ) : (
+          <button aria-label="Go back"
+            onClick={() => navigate(-1)}
+            className="h-10 w-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 border border-white/15"
+          >
+            <span className="material-symbols-outlined text-white text-[20px]" aria-hidden="true">arrow_back</span>
+          </button>
+        )}
 
-        <div className="flex flex-col items-center pointer-events-none">
-          <span className="text-white text-[10px] font-semibold uppercase tracking-[0.2em]">The Salon</span>
-          <span className="text-white/60 text-[11px] mt-0.5">Real looks, real people</span>
-        </div>
+        {inHub ? (
+          /* Hub switcher — Salon is home; your people are one tap away */
+          <div className="flex items-center rounded-full bg-black/40 backdrop-blur-md border border-white/15 p-1 pointer-events-auto" role="tablist" aria-label="Social hub">
+            <button
+              role="tab"
+              aria-selected={true}
+              className="h-8 px-4 rounded-full bg-white text-black text-[10px] font-semibold uppercase tracking-[0.14em]"
+            >
+              Salon
+            </button>
+            <button
+              role="tab"
+              aria-selected={false}
+              onClick={onShowPeople}
+              className="h-8 px-4 rounded-full text-white/80 text-[10px] font-semibold uppercase tracking-[0.14em] active:scale-95 transition-transform"
+            >
+              Circle
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center pointer-events-none">
+            <span className="text-white text-[10px] font-semibold uppercase tracking-[0.2em]">The Salon</span>
+            <span className="text-white/60 text-[11px] mt-0.5">Real looks, real people</span>
+          </div>
+        )}
 
         <button
           onClick={() => navigate('/create-look')}
