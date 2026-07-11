@@ -146,7 +146,7 @@ const StylistChat: React.FC = () => {
               <button
                 key={idx}
                 onClick={() => sendMessage(suggestion)}
-                className="flex-shrink-0 border border-line rounded-full px-4 py-2.5 text-[12px] text-ink-soft active:scale-95 transition-[transform,border-color,color] hover:border-line-strong hover:text-ink"
+                className="flex-shrink-0 border border-line rounded-full px-4 py-2.5 text-[12px] text-ink-soft press transition-[transform,border-color,color] hover:border-line-strong hover:text-ink"
               >
                 {suggestion}
               </button>
@@ -167,7 +167,7 @@ const StylistChat: React.FC = () => {
             onClick={() => sendMessage(input)}
             disabled={!input.trim() || loading}
             aria-label="Send message"
-            className="absolute right-2 h-10 w-10 rounded-full bg-ink text-ink-invert flex items-center justify-center active:scale-90 transition-transform disabled:opacity-40 disabled:active:scale-100"
+            className="absolute right-2 h-10 w-10 rounded-full bg-ink text-ink-invert flex items-center justify-center press-icon disabled:opacity-40 disabled:active:scale-100"
           >
             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">send</span>
           </button>
