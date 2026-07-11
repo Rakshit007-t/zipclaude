@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
+  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -11,15 +12,51 @@ import {
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
   setDoc,
+  startAfter,
   updateDoc,
   where,
+  type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { addToCloset, inCloset } from '../services/closet';
-import { follow, unfollow, onFollowing, onBlocked, searchUsers } from '../services/social';
+import { follow, unfollow, onFollowing, onBlocked, searchUsers, myProfile, socialUser } from '../services/social';
+import { SEED_LOOKS } from '../services/salonSeed';
 import { Spinner, Sheet, Button } from '../components/ui';
+
+const PAGE_SIZE = 20;
+
+// Local persistence: seed-look likes always, and every like/save for demo
+// sessions (no Firebase auth to write with).
+function readIdSet(key: string): Set<string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch { return new Set(); }
+}
+function writeIdSet(key: string, set: Set<string>) {
+  try { localStorage.setItem(key, JSON.stringify([...set])); } catch {}
+}
+const LOCAL_LIKES_KEY = 'zr_salon_likes';
+const SAVED_LOOKS_KEY = 'zr_saved_looks';
+
+interface LookComment {
+  id: string;
+  from: string;
+  name: string;
+  avatar: string | null;
+  text: string;
+  createdAt: { toMillis?: () => number } | null;
+}
+
+function readLocalComments(lookId: string): LookComment[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(`zr_salon_comments:${lookId}`) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
 
 interface Look {
   id: string;
@@ -38,6 +75,7 @@ interface Look {
   }[];
   likesCount: number;
   viewsCount: number;
+  commentsCount?: number;
   createdAt: any;
 }
 
@@ -113,28 +151,47 @@ const CommunityFeed: React.FC = () => {
   const [ownMenuLook, setOwnMenuLook] = useState<Look | null>(null);
   const [editingLook, setEditingLook] = useState<Look | null>(null);
   const [editCaption, setEditCaption] = useState('');
+  const [localLikes, setLocalLikes] = useState<Set<string>>(() => readIdSet(LOCAL_LIKES_KEY));
+  const [savedLooks, setSavedLooks] = useState<Set<string>>(() => readIdSet(SAVED_LOOKS_KEY));
+  const [commentsFor, setCommentsFor] = useState<Look | null>(null);
+  const [comments, setComments] = useState<LookComment[]>([]);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [hasMore, setHasMore] = useState(true);
+  const lastDocRef = useRef<QueryDocumentSnapshot | null>(null);
+  const fetchingMoreRef = useRef(false);
   const viewedRef = useRef<Set<string>>(new Set());
 
-  // Fetch looks
+  // Paged fetch — first page on mount, more as the user nears the end
+  const fetchPage = async () => {
+    if (fetchingMoreRef.current) return;
+    fetchingMoreRef.current = true;
+    try {
+      const parts = [
+        where('status', '==', 'active'),
+        orderBy('createdAt', 'desc'),
+        ...(lastDocRef.current ? [startAfter(lastDocRef.current)] : []),
+        limit(PAGE_SIZE),
+      ];
+      const snap = await getDocs(query(collection(db, 'looks'), ...parts));
+      lastDocRef.current = snap.docs[snap.docs.length - 1] || lastDocRef.current;
+      if (snap.docs.length < PAGE_SIZE) setHasMore(false);
+      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Look[];
+      setLooks(prev => {
+        const seen = new Set(prev.map(l => l.id));
+        return [...prev, ...fetched.filter(l => !seen.has(l.id))];
+      });
+    } catch (err) {
+      console.error(err);
+      setHasMore(false);
+    } finally {
+      fetchingMoreRef.current = false;
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchLooks = async () => {
-      try {
-        const q = query(
-          collection(db, 'looks'),
-          where('status', '==', 'active'),
-          orderBy('createdAt', 'desc'),
-          limit(20)
-        );
-        const snap = await getDocs(q);
-        const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Look[];
-        setLooks(fetched);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLooks();
+    fetchPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
 
     // Live listeners: my likes, who I follow, who I've blocked
     const user = auth.currentUser;
@@ -153,7 +210,17 @@ const CommunityFeed: React.FC = () => {
     return () => unsubs.forEach(u => u());
   }, []);
 
-  // Intersection observer for active look
+  const me = auth.currentUser?.uid;
+  const isSeed = (l: Look) => l.id.startsWith('seed-');
+
+  // Feed = real community posts first, then the editorial opening collection.
+  // Hide blocked creators; honor followers-only audience.
+  const audienceOk = (l: Look) =>
+    !blockedSet.has(l.creatorId) &&
+    (l.audience !== 'followers' || l.creatorId === me || followingSet.has(l.creatorId));
+  const visibleLooks = [...looks.filter(audienceOk), ...(SEED_LOOKS as unknown as Look[]).filter(audienceOk)];
+
+  // Intersection observer: active card, one view per session, load-more
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
@@ -162,12 +229,13 @@ const CommunityFeed: React.FC = () => {
             const index = Number(entry.target.getAttribute('data-index'));
             setActiveLookIndex(index);
             setProductsOpen(false);
-            // Count each look's view once per session (no scroll-farming)
-            const look = looks[index];
-            if (look && !viewedRef.current.has(look.id)) {
+            const look = visibleLooks[index];
+            if (look && !isSeed(look) && !viewedRef.current.has(look.id)) {
               viewedRef.current.add(look.id);
               updateDoc(doc(db, 'looks', look.id), { viewsCount: increment(1) }).catch(() => {});
             }
+            // Near the end of the real posts → pull the next page
+            if (hasMore && index >= looks.length - 3) fetchPage();
           }
         });
       },
@@ -175,18 +243,30 @@ const CommunityFeed: React.FC = () => {
     );
     cardRefs.current.forEach(card => { if (card) observer.observe(card); });
     return () => observer.disconnect();
-  }, [looks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleLooks.length, looks.length, hasMore]);
+
+  const isLiked = (look: Look) => !!likedMap[look.id] || localLikes.has(look.id);
+  const shownLikes = (look: Look) =>
+    look.likesCount + ((isSeed(look) || !auth.currentUser) && localLikes.has(look.id) ? 1 : 0);
 
   const toggleLike = async (look: Look) => {
     const user = auth.currentUser;
-    if (!user) return;
+    // Editorial seeds and demo sessions: the like lives on this device
+    if (isSeed(look) || !user) {
+      const next = new Set(localLikes);
+      if (next.has(look.id)) next.delete(look.id); else next.add(look.id);
+      setLocalLikes(next);
+      writeIdSet(LOCAL_LIKES_KEY, next);
+      return;
+    }
     const likeRef = doc(db, 'users', user.uid, 'lookLikes', look.id);
-    const isLiked = likedMap[look.id];
-    const delta = isLiked ? -1 : 1;
+    const wasLiked = likedMap[look.id];
+    const delta = wasLiked ? -1 : 1;
     // Optimistic: the visible count moves with the tap
     setLooks(prev => prev.map(l => l.id === look.id ? { ...l, likesCount: Math.max(0, l.likesCount + delta) } : l));
     try {
-      if (isLiked) {
+      if (wasLiked) {
         await deleteDoc(likeRef);
         await updateDoc(doc(db, 'looks', look.id), { likesCount: increment(-1) });
       } else {
@@ -199,7 +279,33 @@ const CommunityFeed: React.FC = () => {
     }
   };
 
+  const toggleSave = (look: Look) => {
+    const saving = !savedLooks.has(look.id);
+    const next = new Set(savedLooks);
+    if (saving) next.add(look.id); else next.delete(look.id);
+    setSavedLooks(next);
+    writeIdSet(SAVED_LOOKS_KEY, next);
+    // Renderable snapshot for the profile's Saved grid
+    try {
+      const data = JSON.parse(localStorage.getItem('zr_saved_looks_data') || '{}');
+      if (saving) data[look.id] = { id: look.id, mediaUrl: look.mediaUrl, caption: look.caption, creatorUsername: look.creatorUsername };
+      else delete data[look.id];
+      localStorage.setItem('zr_saved_looks_data', JSON.stringify(data));
+    } catch {}
+    // Cloud mirror, best-effort, real accounts only
+    const user = socialUser();
+    if (user) {
+      (saving
+        ? setDoc(doc(db, 'users', user.uid, 'savedLooks', look.id), {
+            lookId: look.id, mediaUrl: look.mediaUrl, caption: look.caption, savedAt: serverTimestamp(),
+          })
+        : deleteDoc(doc(db, 'users', user.uid, 'savedLooks', look.id))
+      ).catch(() => {});
+    }
+  };
+
   const toggleFollow = async (look: Look) => {
+    if (!socialUser()) { showToast('Sign in to follow creators', 'error'); return; }
     const isFollowing = followingSet.has(look.creatorId);
     try {
       if (isFollowing) {
@@ -213,6 +319,49 @@ const CommunityFeed: React.FC = () => {
         });
       }
     } catch {}
+  };
+
+  // Comments: live from Firestore for signed-in users (works for seeds too —
+  // subcollections don't need the parent doc); device-local for demo sessions.
+  useEffect(() => {
+    if (!commentsFor) return;
+    setComments([]);
+    if (!auth.currentUser) {
+      setComments(readLocalComments(commentsFor.id));
+      return;
+    }
+    const q = query(collection(db, 'looks', commentsFor.id, 'comments'), orderBy('createdAt', 'asc'), limit(100));
+    return onSnapshot(q, snap => {
+      setComments(snap.docs.map(d => ({ id: d.id, ...d.data() } as LookComment)));
+    }, () => setComments([]));
+  }, [commentsFor]);
+
+  const postComment = async () => {
+    const text = commentDraft.trim();
+    if (!text || !commentsFor) return;
+    setCommentDraft('');
+    const user = auth.currentUser;
+    if (!user) {
+      // Demo session: comment lives on this device
+      const local: LookComment[] = [...readLocalComments(commentsFor.id), { id: `local-${Date.now()}`, from: 'demo', name: 'You', avatar: null, text, createdAt: null }];
+      try { localStorage.setItem(`zr_salon_comments:${commentsFor.id}`, JSON.stringify(local)); } catch {}
+      setComments(local);
+      return;
+    }
+    try {
+      const mine = await myProfile();
+      await addDoc(collection(db, 'looks', commentsFor.id, 'comments'), {
+        from: user.uid,
+        name: mine?.displayName || user.displayName || 'ZipRIGHT member',
+        avatar: mine?.photoURL || user.photoURL || null,
+        text,
+        createdAt: serverTimestamp(),
+      });
+      if (!isSeed(commentsFor)) updateDoc(doc(db, 'looks', commentsFor.id), { commentsCount: increment(1) }).catch(() => {});
+    } catch {
+      setCommentDraft(text);
+      showToast('Comment not posted. Try again.', 'error');
+    }
   };
 
   // Through the closet so the item appears in the Cart screen instantly
@@ -287,13 +436,6 @@ const CommunityFeed: React.FC = () => {
       }
     } catch {}
   };
-
-  const me = auth.currentUser?.uid;
-  // Hide blocked creators; honor followers-only audience
-  const visibleLooks = looks.filter(l =>
-    !blockedSet.has(l.creatorId) &&
-    (l.audience !== 'followers' || l.creatorId === me || followingSet.has(l.creatorId))
-  );
 
   if (loading) {
     return (
@@ -370,7 +512,7 @@ const CommunityFeed: React.FC = () => {
               style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 45%, transparent 65%, rgba(0,0,0,0.3) 100%)' }} />
 
             {/* RIGHT ACTION BAR */}
-            <div className="absolute right-4 bottom-44 z-40 flex flex-col items-center gap-5">
+            <div className="absolute right-4 bottom-40 z-40 flex flex-col items-center gap-3">
 
               {/* Creator avatar → profile; badge → follow/unfollow */}
               <div className="relative">
@@ -404,25 +546,39 @@ const CommunityFeed: React.FC = () => {
               {/* Like */}
               <button
                 onClick={() => toggleLike(look)}
-                aria-label={likedMap[look.id] ? 'Unlike this look' : 'Like this look'}
-                aria-pressed={!!likedMap[look.id]}
+                aria-label={isLiked(look) ? 'Unlike this look' : 'Like this look'}
+                aria-pressed={isLiked(look)}
                 className="flex flex-col items-center gap-1 active:scale-90"
               >
-                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
+                <div className="h-11 w-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
                   <span
-                    className={`material-symbols-outlined text-[24px] ${likedMap[look.id] ? 'text-brand-on-media' : 'text-white'}`}
-                    style={{ fontVariationSettings: likedMap[look.id] ? "'FILL' 1" : "'FILL' 0" }}
+                    className={`material-symbols-outlined text-[24px] ${isLiked(look) ? 'text-brand-on-media' : 'text-white'}`}
+                    style={{ fontVariationSettings: isLiked(look) ? "'FILL' 1" : "'FILL' 0" }}
                     aria-hidden="true"
                   >favorite</span>
                 </div>
                 <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">
-                  {look.likesCount > 0 ? look.likesCount : 'Like'}
+                  {shownLikes(look) > 0 ? shownLikes(look) : 'Like'}
+                </span>
+              </button>
+
+              {/* Comment */}
+              <button
+                onClick={() => setCommentsFor(look)}
+                aria-label="View comments"
+                className="flex flex-col items-center gap-1 active:scale-90"
+              >
+                <div className="h-11 w-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
+                  <span className="material-symbols-outlined text-white text-[24px]" aria-hidden="true">mode_comment</span>
+                </div>
+                <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">
+                  {look.commentsCount ? look.commentsCount : 'Comment'}
                 </span>
               </button>
 
               {/* Products sheet toggle */}
               <button onClick={() => setProductsOpen(o => !o)} className="flex flex-col items-center gap-1 active:scale-90">
-                <div className={`h-12 w-12 rounded-full backdrop-blur-md flex items-center justify-center border ${productsOpen ? 'bg-brand-on-media border-brand-on-media' : 'bg-black/40 border-white/15'}`}>
+                <div className={`h-11 w-11 rounded-full backdrop-blur-md flex items-center justify-center border ${productsOpen ? 'bg-brand-on-media border-brand-on-media' : 'bg-black/40 border-white/15'}`}>
                   <span className={`material-symbols-outlined text-[24px] ${productsOpen ? 'text-black' : 'text-white'}`} style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">sell</span>
                 </div>
                 <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">
@@ -436,10 +592,29 @@ const CommunityFeed: React.FC = () => {
                 aria-label="Share this look"
                 className="flex flex-col items-center gap-1 active:scale-90"
               >
-                <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
+                <div className="h-11 w-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
                   <span className="material-symbols-outlined text-white text-[24px]" aria-hidden="true">ios_share</span>
                 </div>
                 <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">Share</span>
+              </button>
+
+              {/* Save */}
+              <button
+                onClick={() => toggleSave(look)}
+                aria-label={savedLooks.has(look.id) ? 'Remove from saved' : 'Save this look'}
+                aria-pressed={savedLooks.has(look.id)}
+                className="flex flex-col items-center gap-1 active:scale-90"
+              >
+                <div className="h-11 w-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
+                  <span
+                    className={`material-symbols-outlined text-[24px] ${savedLooks.has(look.id) ? 'text-brand-on-media' : 'text-white'}`}
+                    style={{ fontVariationSettings: savedLooks.has(look.id) ? "'FILL' 1" : "'FILL' 0" }}
+                    aria-hidden="true"
+                  >bookmark</span>
+                </div>
+                <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">
+                  {savedLooks.has(look.id) ? 'Saved' : 'Save'}
+                </span>
               </button>
 
               {/* Own post — manage */}
@@ -449,7 +624,7 @@ const CommunityFeed: React.FC = () => {
                   aria-label="Manage this post"
                   className="flex flex-col items-center gap-1 active:scale-90"
                 >
-                  <div className="h-12 w-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
+                  <div className="h-11 w-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/15">
                     <span className="material-symbols-outlined text-white text-[24px]" aria-hidden="true">more_horiz</span>
                   </div>
                   <span className="text-white text-[10px] font-semibold uppercase tracking-[0.1em]">You</span>
@@ -576,6 +751,53 @@ const CommunityFeed: React.FC = () => {
             </button>
           </div>
         )}
+      </Sheet>
+
+      {/* Comments */}
+      <Sheet open={!!commentsFor} onClose={() => setCommentsFor(null)} title="Comments">
+        <div className="flex flex-col pb-4">
+          <div className="max-h-[45vh] overflow-y-auto no-scrollbar flex flex-col">
+            {comments.length === 0 ? (
+              <p className="text-ink-faint text-[13px] text-center py-10">No comments yet — say something nice.</p>
+            ) : (
+              comments.map(c => (
+                <div key={c.id} className="flex gap-3 py-3 border-b border-line last:border-none">
+                  <div className="h-8 w-8 rounded-full border border-line flex items-center justify-center shrink-0 overflow-hidden">
+                    {c.avatar ? (
+                      <img src={c.avatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="text-ink font-display font-medium text-[13px]">{(c.name || '?').charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-ink-faint text-[11px] font-semibold">{c.name}</p>
+                    <p className="text-ink text-[13.5px] leading-snug break-words">{c.text}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex items-center gap-2 pt-4">
+            <input
+              type="text"
+              value={commentDraft}
+              onChange={e => setCommentDraft(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && postComment()}
+              placeholder="Add a comment…"
+              aria-label="Add a comment"
+              maxLength={300}
+              className="flex-1 bg-surface-1 border border-line rounded-full px-4 h-11 text-ink text-[14px] placeholder:text-ink-faint outline-none focus:border-ink transition-colors"
+            />
+            <button
+              onClick={postComment}
+              disabled={!commentDraft.trim()}
+              aria-label="Post comment"
+              className="h-11 w-11 rounded-full bg-ink text-ink-invert flex items-center justify-center active:scale-95 transition-transform disabled:opacity-40 shrink-0"
+            >
+              <span className="material-symbols-outlined text-[19px]" aria-hidden="true">arrow_upward</span>
+            </button>
+          </div>
+        </div>
       </Sheet>
 
       {/* Edit caption */}

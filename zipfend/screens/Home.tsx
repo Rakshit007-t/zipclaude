@@ -9,6 +9,7 @@ import { fetchProductAvailability } from '../services/BrandAPI';
 import { recommendSize } from '../services/ziprightApi';
 import { buildSizeEngineProfileFromUserProfile } from '../utils/sizeProfile';
 import { demoProducts } from '../services/demoProducts';
+import { SEED_LOOKS } from '../services/salonSeed';
 import { addToCloset, closetCount, listCloset, onClosetChange, toggleCloset } from '../services/closet';
 import { Sheet, Button, EmptyState, Eyebrow, Wordmark, springs, StaggerList, StaggerItem } from '../components/ui';
 
@@ -339,6 +340,48 @@ const Home: React.FC = () => {
                 </StaggerItem>
               ))}
             </StaggerList>
+          </div>
+
+          {/* The Salon — the fashion feed, one scroll from the top */}
+          <div className="pt-9">
+            <div className="flex items-baseline justify-between mb-4 px-6">
+              <div>
+                <Eyebrow className="mb-1">The Salon</Eyebrow>
+                <h2 className="font-display text-[22px] font-medium leading-none">Worn by the circle</h2>
+              </div>
+              <button onClick={() => navigate('/community')} className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-faint underline underline-offset-4 active:scale-95 transition-transform">
+                Open
+              </button>
+            </div>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar px-6 snap-x">
+              {SEED_LOOKS.slice(0, 6).map(look => (
+                <button
+                  key={look.id}
+                  onClick={() => navigate('/community')}
+                  className="relative w-32 aspect-[3/4] rounded-xl overflow-hidden shrink-0 snap-start bg-surface-2 border border-line active:scale-[0.97] transition-transform text-left"
+                  aria-label={`Open The Salon — ${look.caption.slice(0, 40)}`}
+                >
+                  <img src={look.mediaUrl} alt="" loading="lazy" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  <div className="absolute inset-x-0 bottom-0 p-2.5 pt-6" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' }}>
+                    <p className="text-white/90 text-[10px] leading-snug line-clamp-2">{look.caption.replace(/#\w+/g, '').trim()}</p>
+                  </div>
+                  {look.taggedProducts.length > 0 && (
+                    <span className="absolute top-2 right-2 h-5 px-1.5 rounded-full bg-black/50 backdrop-blur-md flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-white text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">sell</span>
+                      <span className="text-white text-[9px] font-semibold">{look.taggedProducts.length}</span>
+                    </span>
+                  )}
+                </button>
+              ))}
+              {/* End card → the feed itself */}
+              <button
+                onClick={() => navigate('/community')}
+                className="w-32 aspect-[3/4] rounded-xl shrink-0 snap-start bg-ink text-ink-invert flex flex-col items-center justify-center gap-2 active:scale-[0.97] transition-transform"
+              >
+                <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_forward</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">The Salon</span>
+              </button>
+            </div>
           </div>
 
           {/* The Edit — curated grid */}

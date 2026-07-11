@@ -186,6 +186,25 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
                   )}
                 </div>
 
+                {/* The Salon — featured row above the tools */}
+                <motion.button
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...springs.gentle, delay: 0.03 }}
+                  onClick={() => {
+                    setIsZMenuOpen(false);
+                    navigate('/community');
+                  }}
+                  className="w-full flex items-center gap-4 p-4 mb-3 rounded-2xl bg-ink text-ink-invert active:scale-[0.98] transition-transform text-left"
+                >
+                  <span className="material-symbols-outlined text-[22px]" aria-hidden="true">gallery_thumbnail</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="block font-semibold text-[14px]">The Salon</span>
+                    <span className="block opacity-60 text-[11.5px] leading-tight">Looks, reels & fits from the circle</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[18px] opacity-60" aria-hidden="true">arrow_forward</span>
+                </motion.button>
+
                 <div className="grid grid-cols-2 gap-3">
                   {zMenuOptions.map((option, i) => (
                     <motion.button

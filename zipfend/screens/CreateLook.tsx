@@ -195,7 +195,12 @@ const CreateLook: React.FC = () => {
   // ---- STEP 3: publish --------------------------------------------------------
 
   const handlePublish = async () => {
-    if (!media.length || !auth.currentUser) return;
+    if (!media.length) return;
+    if (!auth.currentUser) {
+      // Demo sessions have no Firebase auth — say so instead of a dead button
+      showToast('Sign in with Google to post to The Salon', 'error');
+      return;
+    }
     if (!caption.trim()) { showToast('Add a caption first', 'error'); return; }
     setPublishing(true);
     try {
