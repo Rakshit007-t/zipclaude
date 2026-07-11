@@ -219,20 +219,22 @@ const FashionStudio: React.FC = () => {
         initial={{ y: 48, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={springs.gentle}
         className="absolute bottom-0 left-0 right-0 z-40 px-4 pb-8 pb-safe"
       >
-        {/* Fit pill — attached just above the dock, morphs with size */}
+        {/* Fit pill — attached just above the dock. The text is keyed so it
+            re-mounts and fades in on each size change (no AnimatePresence /
+            mode="wait" — that leaks nodes when sizes change fast). */}
         <div className="flex justify-center mb-3">
-          <AnimatePresence mode="wait">
-            <motion.div
+          <div className="px-4 py-2 rounded-full bg-black/45 backdrop-blur-xl border border-white/10 flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full transition-colors duration-300" style={{ backgroundColor: fit.dot }} />
+            <motion.span
               key={fit.text}
-              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="px-4 py-2 rounded-full bg-black/45 backdrop-blur-xl border border-white/10 flex items-center gap-2"
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="flex items-center gap-2"
             >
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: fit.dot }} />
               <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white">{fit.text}</span>
               <span className="text-[11px] text-white/50 lowercase">· {fit.drape}</span>
-            </motion.div>
-          </AnimatePresence>
+            </motion.span>
+          </div>
         </div>
 
         <div className="rounded-[1.75rem] bg-black/50 backdrop-blur-2xl border border-white/10 p-4 shadow-[0_-8px_40px_rgba(0,0,0,0.5)]">
@@ -246,10 +248,10 @@ const FashionStudio: React.FC = () => {
               onClick={() => setToolsOpen(o => !o)}
               aria-label="Adjust environment and quality"
               aria-expanded={toolsOpen}
-              className="shrink-0 h-8 pl-3 pr-2.5 rounded-full border border-white/15 bg-white/5 flex items-center gap-1 text-white/70 press"
+              className="shrink-0 h-9 pl-3.5 pr-3 rounded-full border border-white/15 bg-white/5 flex items-center gap-1 text-white/70 press"
             >
               <span className="text-[10px] font-semibold uppercase tracking-[0.1em]">Adjust</span>
-              <span className={`material-symbols-outlined text-[15px] transition-transform duration-300 ${toolsOpen ? 'rotate-180' : ''}`} aria-hidden="true">expand_less</span>
+              <span className={`material-symbols-outlined text-[15px] transition-transform duration-300 ${toolsOpen ? 'rotate-180' : ''}`} aria-hidden="true">expand_more</span>
             </button>
           </div>
 
@@ -264,7 +266,7 @@ const FashionStudio: React.FC = () => {
                   onClick={() => changeSize(s)}
                   aria-label={`Size ${s}${rec ? ', recommended' : ''}`}
                   aria-pressed={selected}
-                  className={`relative h-10 flex-1 rounded-xl flex items-center justify-center text-[14px] font-semibold transition-[background,color,transform] duration-300 ${
+                  className={`relative h-11 flex-1 rounded-full flex items-center justify-center text-[14px] font-semibold transition-[background,color,transform] duration-300 ${
                     selected ? 'bg-white text-black' : 'text-white/55 bg-white/5 hover:bg-white/10'
                   } ${rec && !selected ? 'ring-1 ring-brand-on-media/60 text-brand-on-media' : ''}`}
                 >
@@ -274,8 +276,11 @@ const FashionStudio: React.FC = () => {
               );
             })}
           </div>
-          <p className="text-center text-[10px] text-white/35 mb-3">
-            {size === product.recommendedSize ? 'Your recommended size' : 'Swipe the photo to try another size'}
+          {/* Stable gesture affordance — always teaches swipe (first-timers start
+              on the recommended size, so this can't be gated on being off it) */}
+          <p className="flex items-center justify-center gap-1.5 text-[10px] text-white/40 mb-3">
+            <span className="material-symbols-outlined text-[13px]" aria-hidden="true">swipe</span>
+            Swipe the photo or tap a size
           </p>
 
           {/* Expandable tools — lighting · zoom · max quality · live */}
@@ -325,10 +330,11 @@ const FashionStudio: React.FC = () => {
             </button>
             <button
               onClick={() => window.open(product.url, '_blank')}
-              className="h-[52px] flex-1 rounded-full bg-[#f1ede3] text-[#14120f] flex items-center justify-center gap-2 press"
+              aria-label={`Buy for ${product.price}`}
+              className="h-[52px] flex-1 rounded-full bg-brand-on-media text-[#2a1608] flex items-center justify-center gap-2 press shadow-[0_6px_28px_rgba(232,155,107,0.4)]"
             >
-              <span className="text-[12px] font-bold uppercase tracking-[0.1em]">Buy</span>
-              <span className="text-[13px] font-semibold opacity-70">· {product.price}</span>
+              <span className="text-[12px] font-bold uppercase tracking-[0.12em]">Buy</span>
+              <span className="text-[13px] font-bold opacity-80">{product.price}</span>
             </button>
           </div>
 
