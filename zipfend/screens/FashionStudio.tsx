@@ -208,7 +208,12 @@ const FashionStudio: React.FC = () => {
           <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">arrow_back</span>
         </button>
         <button aria-label="Share this look"
-          onClick={() => { if (navigator.share) navigator.share({ title: product.name, url: product.url }).catch(() => {}); }}
+          onClick={async () => {
+            try {
+              if (navigator.share) await navigator.share({ title: product.name, url: product.url });
+              else { await navigator.clipboard.writeText(product.url); showToast('Link copied', 'success'); }
+            } catch { /* user dismissed share sheet */ }
+          }}
           className="pointer-events-auto h-10 w-10 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-md border border-white/10 press-icon">
           <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">ios_share</span>
         </button>
