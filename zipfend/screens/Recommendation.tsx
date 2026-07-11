@@ -586,9 +586,6 @@ const Recommendation: React.FC = () => {
     }
 
     const key = getCacheKey(input);
-    console.log("PROFILE SWITCH:", selectedProfile?.id);
-    console.log("INPUT:", input);
-    console.log("CACHE HIT:", !!cacheRef.current[key]);
 
     if (cacheRef.current[key]) {
       setAiResult(cacheRef.current[key]);
@@ -1368,7 +1365,7 @@ const Recommendation: React.FC = () => {
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex-1 pr-4">
                                 <p className="eyebrow mb-2">{displayProduct.brand}</p>
-                                <h1 className="font-display text-[28px] font-light text-ink leading-tight">{displayProduct.title}</h1>
+                                <h1 className="display-2 leading-tight">{displayProduct.title}</h1>
                             </div>
                              <div className="flex flex-col items-end">
                                 <span className="font-display text-[24px] font-medium text-ink">{displayProduct.price}</span>
