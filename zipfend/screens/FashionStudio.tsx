@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence, springs } from '../components/ui';
 import { useToast } from '../contexts/ToastContext';
 import { closetCount, inCloset, onClosetChange, toggleCloset } from '../services/closet';
 import {
@@ -10,18 +11,19 @@ import {
   type TryOnQuality,
 } from '../services/tryonService';
 
+const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+
 const FashionStudio: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
 
-  // State
   const [size, setSize] = useState('M');
   const [isZoomed, setIsZoomed] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [lighting, setLighting] = useState<'Studio' | 'Outdoor' | 'Night'>('Studio');
   const [isLiked, setIsLiked] = useState(false);
-  const [wishlistCount, setWishlistCount] = useState(0);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   // Product Data from Location
   const incomingProduct = location.state?.product;
@@ -32,10 +34,8 @@ const FashionStudio: React.FC = () => {
     price: incomingProduct?.price || '₹24,500',
     image: incomingProduct?.image || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
     url: incomingProduct?.url || 'https://www.therow.com/',
-    recommendedSize: incomingProduct?.recommendedSize || 'M'
+    recommendedSize: incomingProduct?.recommendedSize || 'M',
   };
-
-  const sizes = ['XS', 'S', 'M', 'L', 'XL'];
 
   // Try-On Generation
   const [tryonUrl, setTryonUrl] = useState<string | null>(null);
@@ -48,15 +48,11 @@ const FashionStudio: React.FC = () => {
     if (generating || !product.image) return;
     setGenerating(true);
     try {
-      const result = await generateTryOnImage({
-        productImageUrl: product.image,
-        clothType,
-        quality,
-      });
+      const result = await generateTryOnImage({ productImageUrl: product.image, clothType, quality });
       setTryonUrl(result.imageUrl);
       setTryonEngine(result.engine);
       if (result.engine === 'overlay') {
-        showToast('Quick preview shown — AI render unavailable right now, tap Try Again', 'success');
+        showToast('Quick preview shown — AI render unavailable right now, tap Try again', 'success');
       }
     } catch (error: any) {
       if (error instanceof TryOnAvatarMissingError) {
@@ -78,47 +74,58 @@ const FashionStudio: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Wishlist through the closet — instant for demo sessions, mirrored to
-  // Firestore for signed-in users, and the Wishlist screen sees it either way.
+  // Wishlist through the closet — instant local, Firestore-mirrored for real
+  // accounts, and the Wishlist screen sees it either way.
   useEffect(() => {
-    const sync = () => {
-      setWishlistCount(closetCount('likes'));
-      setIsLiked(inCloset('likes', product.id));
-    };
+    const sync = () => setIsLiked(inCloset('likes', product.id));
     sync();
     return onClosetChange(sync);
   }, [product.id]);
 
-  // The CTA flipping to "Saved" + the heart filling is the feedback — no toast.
   const toggleWishlist = () => {
     toggleCloset('likes', {
-      id: product.id,
-      title: product.name,
-      brand: product.brand,
-      price: product.price,
-      image: product.image,
-      url: product.url,
+      id: product.id, title: product.name, brand: product.brand,
+      price: product.price, image: product.image, url: product.url,
     });
   };
 
-  // Handle Size Change Animation
-  const handleSizeChange = (newSize: string) => {
+  const changeSize = (newSize: string) => {
+    if (newSize === size) return;
     setIsAnimating(true);
     setSize(newSize);
-    setTimeout(() => setIsAnimating(false), 500); // 500ms morph duration
+    setTimeout(() => setIsAnimating(false), 450);
   };
 
-  // Fit Logic — semantic tones only (no hard-coded palette)
-  const getFitStatus = () => {
-    const indexDiff = sizes.indexOf(size) - sizes.indexOf(product.recommendedSize);
-    if (indexDiff === 0) return { text: 'Perfect fit', dot: '#5fce8f' };
-    if (indexDiff < 0) return { text: 'Tight fit', dot: '#f2705c' };
-    return { text: 'Relaxed fit', dot: '#e4b04d' };
+  // Gesture layer on the canvas: swipe = change size, double-tap = zoom.
+  // Pointer-only, ref-tracked → no re-render, transform-only → 60fps.
+  const gesture = useRef({ x: 0, t: 0, lastTap: 0 });
+  const onCanvasDown = (e: React.PointerEvent) => {
+    gesture.current.x = e.clientX;
+    gesture.current.t = Date.now();
+  };
+  const onCanvasUp = (e: React.PointerEvent) => {
+    const dx = e.clientX - gesture.current.x;
+    const dt = Date.now() - gesture.current.t;
+    if (Math.abs(dx) > 45 && dt < 600) {
+      const i = SIZES.indexOf(size);
+      const next = dx < 0 ? Math.min(i + 1, SIZES.length - 1) : Math.max(i - 1, 0);
+      changeSize(SIZES[next]);
+    } else if (Math.abs(dx) < 10 && dt < 300) {
+      const now = Date.now();
+      if (now - gesture.current.lastTap < 320) setIsZoomed(z => !z);
+      gesture.current.lastTap = now;
+    }
   };
 
-  const fit = getFitStatus();
+  // Fit status — one source of truth, merged status + drape descriptor
+  const fitFor = (s: string) => {
+    const diff = SIZES.indexOf(s) - SIZES.indexOf(product.recommendedSize);
+    if (diff === 0) return { text: 'Perfect fit', drape: 'natural fall', dot: '#5fce8f' };
+    if (diff < 0) return { text: 'Tight fit', drape: 'structured', dot: '#f2705c' };
+    return { text: 'Relaxed fit', drape: 'flowy drape', dot: '#e4b04d' };
+  };
+  const fit = fitFor(size);
 
-  // Warm atelier lighting environments — never blue
   const lightingBg =
     lighting === 'Studio'
       ? 'radial-gradient(circle at center, #26211b 0%, #0b0906 100%)'
@@ -126,199 +133,218 @@ const FashionStudio: React.FC = () => {
         ? 'linear-gradient(to bottom, rgba(232,155,107,0.12), #0b0906)'
         : '#050403';
 
+  const tools = [
+    { key: 'light', label: lighting, icon: lighting === 'Studio' ? 'light_mode' : lighting === 'Outdoor' ? 'wb_cloudy' : 'dark_mode',
+      onClick: () => setLighting(lighting === 'Studio' ? 'Outdoor' : lighting === 'Outdoor' ? 'Night' : 'Studio') },
+    { key: 'zoom', label: isZoomed ? 'Zoom out' : 'Zoom in', icon: isZoomed ? 'zoom_out' : 'zoom_in',
+      onClick: () => setIsZoomed(z => !z) },
+    { key: 'max', label: 'Max quality', icon: 'auto_awesome', onClick: () => runTryOn('2k') },
+    { key: 'live', label: 'Go live', icon: 'videocam',
+      onClick: () => navigate('/live-tryon', { state: { product: incomingProduct || product } }) },
+  ];
+
   return (
     <div className="relative h-screen h-dvh w-full text-white overflow-hidden select-none" style={{ background: 'linear-gradient(to bottom, #100d09, #1a1611)' }}>
 
-      {/* Top Minimal Navbar */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-4 pt-safe bg-black/30 backdrop-blur-md border-b border-white/5">
-        <button aria-label="Go back"
-          onClick={() => navigate(-1)}
-          className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 press-icon"
-        >
-          <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">arrow_back</span>
-        </button>
-
-        <div className="flex flex-col items-center">
-          <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">{product.brand}</span>
-          <span className="font-display text-[15px] leading-none text-white mt-0.5">
-            <span className="italic font-light">Zip</span><span className="font-semibold">RIGHT</span>
-            <span className="text-white/40 mx-1.5 font-sans text-[11px]">/</span>
-            <span className="text-[11px] font-sans font-semibold uppercase tracking-[0.14em] align-middle">Studio</span>
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleWishlist}
-            aria-label="Toggle wishlist"
-            className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 press-icon relative"
-          >
-            <span className={`material-symbols-outlined text-[18px] ${isLiked ? 'text-brand-on-media' : 'text-white'}`} style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
-            {wishlistCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center text-black bg-brand-on-media">
-                {wishlistCount}
-              </span>
-            )}
-          </button>
-          <button aria-label="Share" onClick={() => { if (navigator.share) navigator.share({ title: product.name, url: product.url }).catch(() => {}); }} className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 press-icon">
-            <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">ios_share</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Fullscreen Try-On Canvas */}
-      <div className={`relative w-full h-[85vh] mt-[8vh] transition-all duration-700 ease-in-out ${isZoomed ? 'scale-125 translate-y-10' : 'scale-100'}`}>
-
-        {/* Background Environment / Lighting */}
-        <div className="absolute inset-0 transition-all duration-1000" style={{ background: lightingBg }}></div>
-
-        {/* Avatar Layer */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className={`relative h-full w-full max-w-lg transition-transform duration-500 ${isAnimating ? 'scale-[1.01]' : 'scale-100'}`}>
-            <div className="absolute inset-0 animate-[breathe_4s_ease-in-out_infinite]">
+      {/* ── HERO CANVAS ─────────────────────────────────────────────────
+          The outfit is everything. Swipe = size, double-tap = zoom. */}
+      <div
+        className="absolute inset-0"
+        onPointerDown={onCanvasDown}
+        onPointerUp={onCanvasUp}
+        role="group"
+        aria-label="Try-on preview. Swipe left or right to change size, double-tap to zoom."
+      >
+        <div className="absolute inset-0 transition-[background] duration-1000" style={{ background: lightingBg }} />
+        <div className={`absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${isZoomed ? 'scale-[1.28] translate-y-10' : 'scale-100'}`}>
+          <div className={`relative h-full w-full max-w-lg transition-transform duration-500 ${isAnimating ? 'scale-[1.015]' : 'scale-100'}`}>
+            <div className="absolute inset-0 animate-[breathe_5s_ease-in-out_infinite]">
               <img
                 src={tryonUrl || product.image}
-                className={`h-full w-full object-contain transition-all duration-500 ${generating ? 'blur-sm opacity-40' : 'opacity-90'}`}
-                alt="Virtual Try On"
-                style={{ maskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)' }}
+                className={`h-full w-full object-contain transition-[filter,opacity] duration-500 ${generating ? 'blur-md opacity-30' : 'opacity-95'}`}
+                alt={`${product.brand} ${product.name}, size ${size}`}
+                style={{ maskImage: 'linear-gradient(to bottom, black 84%, transparent 100%)' }}
                 referrerPolicy="no-referrer"
               />
-              {generating && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
-                  <div className="h-12 w-12 rounded-full border-2 border-brand-on-media border-t-transparent animate-spin"></div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-on-media">Rendering your look</span>
-                </div>
-              )}
-              {tryonEngine && !generating && (
-                <div className="absolute top-3 left-3 z-10 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/10">
-                  <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-brand-on-media">
-                    {tryonEngine === 'overlay' ? 'Preview' : 'AI Render'}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         </div>
 
-        {/* Fit Status Micro Badge */}
-        <div className="absolute top-[10%] right-[12%] z-20">
-          <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center gap-2">
-            <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: fit.dot }}></div>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white">{fit.text}</span>
+        {/* Cinematic render state — soft copper pulse + thin ring */}
+        <AnimatePresence>
+          {generating && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-20 pointer-events-none"
+            >
+              <div className="relative flex items-center justify-center">
+                <div className="absolute h-24 w-24 rounded-full bg-brand-on-media/25 blur-2xl animate-pulse" />
+                <div className="h-12 w-12 rounded-full border-2 border-brand-on-media border-t-transparent animate-spin" />
+              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-on-media">Rendering your look</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Engine provenance — quiet, top-left */}
+        <AnimatePresence>
+          {tryonEngine && !generating && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="absolute top-20 left-5 z-20 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10"
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-brand-on-media">
+                {tryonEngine === 'overlay' ? 'Preview' : 'AI Render'}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ── TOP BAR — minimal: leave · share ───────────────────────────── */}
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-5 py-4 pt-safe pointer-events-none">
+        <button aria-label="Go back" onClick={() => navigate(-1)}
+          className="pointer-events-auto h-10 w-10 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-md border border-white/10 press-icon">
+          <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">arrow_back</span>
+        </button>
+        <button aria-label="Share this look"
+          onClick={() => { if (navigator.share) navigator.share({ title: product.name, url: product.url }).catch(() => {}); }}
+          className="pointer-events-auto h-10 w-10 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-md border border-white/10 press-icon">
+          <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">ios_share</span>
+        </button>
+      </div>
+
+      {/* ── CONTROL DOCK — the one surface the user acts on ─────────────── */}
+      <motion.div
+        initial={{ y: 48, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={springs.gentle}
+        className="absolute bottom-0 left-0 right-0 z-40 px-4 pb-8 pb-safe"
+      >
+        {/* Fit pill — attached just above the dock, morphs with size */}
+        <div className="flex justify-center mb-3">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={fit.text}
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="px-4 py-2 rounded-full bg-black/45 backdrop-blur-xl border border-white/10 flex items-center gap-2"
+            >
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: fit.dot }} />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white">{fit.text}</span>
+              <span className="text-[11px] text-white/50 lowercase">· {fit.drape}</span>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <div className="rounded-[1.75rem] bg-black/50 backdrop-blur-2xl border border-white/10 p-4 shadow-[0_-8px_40px_rgba(0,0,0,0.5)]">
+          {/* Identity + size row */}
+          <div className="flex items-end justify-between mb-3 px-1">
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/45">{product.brand}</p>
+              <p className="text-[13px] text-white truncate">{product.name}</p>
+            </div>
+            <button
+              onClick={() => setToolsOpen(o => !o)}
+              aria-label="Adjust environment and quality"
+              aria-expanded={toolsOpen}
+              className="shrink-0 h-8 pl-3 pr-2.5 rounded-full border border-white/15 bg-white/5 flex items-center gap-1 text-white/70 press"
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-[0.1em]">Adjust</span>
+              <span className={`material-symbols-outlined text-[15px] transition-transform duration-300 ${toolsOpen ? 'rotate-180' : ''}`} aria-hidden="true">expand_less</span>
+            </button>
           </div>
-        </div>
 
-      </div>
+          {/* Size selector — swipe on canvas or tap here */}
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            {SIZES.map((s) => {
+              const selected = size === s;
+              const rec = s === product.recommendedSize;
+              return (
+                <button
+                  key={s}
+                  onClick={() => changeSize(s)}
+                  aria-label={`Size ${s}${rec ? ', recommended' : ''}`}
+                  aria-pressed={selected}
+                  className={`relative h-10 flex-1 rounded-xl flex items-center justify-center text-[14px] font-semibold transition-[background,color,transform] duration-300 ${
+                    selected ? 'bg-white text-black' : 'text-white/55 bg-white/5 hover:bg-white/10'
+                  } ${rec && !selected ? 'ring-1 ring-brand-on-media/60 text-brand-on-media' : ''}`}
+                >
+                  {s}
+                  {rec && !selected && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-brand-on-media" />}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-center text-[10px] text-white/35 mb-3">
+            {size === product.recommendedSize ? 'Your recommended size' : 'Swipe the photo to try another size'}
+          </p>
 
-      {/* Try-On Controls + Heatmap Toggle (Left Float) */}
-      <div className="absolute left-5 bottom-32 z-30 flex flex-col gap-3.5 items-center">
-        <button
-          onClick={() => runTryOn('fast')}
-          disabled={generating}
-          aria-label="Try again"
-          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-brand-on-media backdrop-blur-md press-icon disabled:opacity-40"
-        >
-          <span className={`material-symbols-outlined text-[19px] ${generating ? 'animate-spin' : ''}`} aria-hidden="true">refresh</span>
-        </button>
-        <button
-          onClick={() => runTryOn('2k')}
-          disabled={generating}
-          aria-label="Best quality render"
-          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-brand-on-media backdrop-blur-md press-icon disabled:opacity-40"
-        >
-          <span className="text-[10px] font-bold tracking-wide">MAX</span>
-        </button>
-        <button
-          onClick={() => navigate('/live-tryon', { state: { product: incomingProduct || product } })}
-          aria-label="Live try-on"
-          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-brand-on-media backdrop-blur-md press-icon"
-        >
-          <span className="material-symbols-outlined text-[19px]" aria-hidden="true">videocam</span>
-        </button>
-      </div>
-
-      {/* View Controls (Right Float) */}
-      <div className="absolute right-5 bottom-32 z-30 flex flex-col gap-2.5 items-center">
-        <button
-          onClick={() => setIsZoomed(!isZoomed)}
-          aria-label={isZoomed ? 'Zoom out' : 'Zoom in'}
-          className={`h-10 w-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md ${isZoomed ? 'bg-white text-black border-white' : 'bg-black/30 border-white/15 text-white/60'}`}
-        >
-          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{isZoomed ? 'zoom_out' : 'zoom_in'}</span>
-        </button>
-        <div className="h-px w-5 bg-white/10 my-0.5"></div>
-        <button
-          onClick={() => setLighting(lighting === 'Studio' ? 'Outdoor' : lighting === 'Outdoor' ? 'Night' : 'Studio')}
-          aria-label="Cycle lighting"
-          className="h-10 w-10 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-white/60 backdrop-blur-md press-icon"
-        >
-          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{lighting === 'Studio' ? 'light_mode' : lighting === 'Outdoor' ? 'wb_cloudy' : 'dark_mode'}</span>
-        </button>
-      </div>
-
-      {/* Size Switcher (Bottom Float Dock) */}
-      <div className="absolute bottom-[104px] left-0 right-0 flex flex-col items-center gap-3 z-40">
-        <div className="flex items-center gap-2 opacity-80">
-          <span className="material-symbols-outlined text-[13px] text-brand-on-media" aria-hidden="true">accessibility</span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
-            {size === 'XS' || size === 'S' ? 'Structured fit' : size === 'XL' ? 'Flowy drape' : 'Natural fall'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 p-1.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full">
-          {sizes.map((s) => {
-            const isSelected = size === s;
-            const isRecommended = s === product.recommendedSize;
-
-            return (
-              <button
-                key={s}
-                onClick={() => handleSizeChange(s)}
-                aria-label={`Size ${s}${isRecommended ? ' (recommended)' : ''}`}
-                aria-pressed={isSelected}
-                className={`relative h-9 w-9 rounded-full flex items-center justify-center text-[13px] font-semibold transition-all duration-300 ${
-                  isSelected
-                    ? 'bg-white text-black scale-110'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
-                } ${isRecommended && !isSelected ? 'border border-brand-on-media/60 text-brand-on-media' : ''}`}
+          {/* Expandable tools — lighting · zoom · max quality · live */}
+          <AnimatePresence initial={false}>
+            {toolsOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                className="overflow-hidden"
               >
-                {s}
-                {isRecommended && !isSelected && (
-                  <div className="absolute -top-1 -right-1 h-2 w-2 bg-brand-on-media rounded-full"></div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+                <div className="grid grid-cols-4 gap-2 pb-3">
+                  {tools.map(t => (
+                    <button
+                      key={t.key}
+                      onClick={t.onClick}
+                      disabled={t.key === 'max' && generating}
+                      aria-label={t.label}
+                      className="flex flex-col items-center gap-1.5 py-2.5 rounded-2xl border border-white/10 bg-white/5 press disabled:opacity-40"
+                    >
+                      <span className="material-symbols-outlined text-[19px] text-white" aria-hidden="true">{t.icon}</span>
+                      <span className="text-[9px] font-medium uppercase tracking-[0.08em] text-white/60">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* Bottom Actions */}
-      <div className="absolute bottom-0 left-0 right-0 z-50 p-6 pb-8 pb-safe bg-gradient-to-t from-[#100d09] via-[#100d09]/85 to-transparent">
-        <div className="flex flex-col gap-3 max-w-md mx-auto">
-          <button
-            onClick={toggleWishlist}
-            className="w-full h-[54px] rounded-full bg-[#f1ede3] text-[#14120f] font-semibold text-[12px] uppercase tracking-[0.12em] press flex items-center justify-center gap-2"
-          >
-            {isLiked ? 'Saved to wishlist' : 'Add to wishlist'}
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
-          </button>
-          <button
-            onClick={() => navigate('/home')}
-            className="w-full h-12 rounded-full border border-white/15 text-white/70 font-semibold text-[11px] uppercase tracking-[0.12em] press"
-          >
+          {/* Primary actions — Try again · Save · Buy */}
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => runTryOn('fast')}
+              disabled={generating}
+              aria-label="Try again"
+              className="h-[52px] px-4 rounded-full border border-white/15 bg-white/5 flex items-center gap-2 text-white press disabled:opacity-40"
+            >
+              <span className={`material-symbols-outlined text-[19px] ${generating ? 'animate-spin' : ''}`} aria-hidden="true">refresh</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] hidden min-[380px]:inline">Try again</span>
+            </button>
+            <button
+              onClick={toggleWishlist}
+              aria-label={isLiked ? 'Saved to wishlist' : 'Save to wishlist'}
+              aria-pressed={isLiked}
+              className="h-[52px] w-[52px] shrink-0 rounded-full border border-white/15 bg-white/5 flex items-center justify-center press"
+            >
+              <span className={`material-symbols-outlined text-[21px] ${isLiked ? 'text-brand-on-media' : 'text-white'}`} style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
+            </button>
+            <button
+              onClick={() => window.open(product.url, '_blank')}
+              className="h-[52px] flex-1 rounded-full bg-[#f1ede3] text-[#14120f] flex items-center justify-center gap-2 press"
+            >
+              <span className="text-[12px] font-bold uppercase tracking-[0.1em]">Buy</span>
+              <span className="text-[13px] font-semibold opacity-70">· {product.price}</span>
+            </button>
+          </div>
+
+          {/* Continue — quiet */}
+          <button onClick={() => navigate('/home')} className="w-full mt-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40 active:text-white/70 transition-colors">
             Explore more outfits
           </button>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Global Styles for Animations */}
       <style>{`
         @keyframes breathe {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.02); }
         }
       `}</style>
-
     </div>
   );
 };
