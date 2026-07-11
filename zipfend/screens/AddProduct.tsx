@@ -223,12 +223,6 @@ const AddProduct: React.FC = () => {
     bodyShape: profile?.bodyShape || "",
   };
 
-  useEffect(() => {
-    console.log("AddProduct profile:", profile);
-    console.log("Normalized profile:", normalizedProfile);
-    console.log("hasManual:", hasManual);
-  }, [profile]);
-
   const hasManual =
     normalizedProfile.height > 0 &&
     normalizedProfile.weight > 0 &&
@@ -422,13 +416,6 @@ const AddProduct: React.FC = () => {
       throw new Error('Complete Smart Fit Scan OR fill your Fit Profile');
     }
 
-    console.log('Sending:', {
-      link: normalizedLink,
-      height: normalizedProfile.height,
-      measurementSource: hasScan ? 'smart-scan' : 'manual-profile',
-      measurements: finalMeasurements,
-    });
-
     const result = await predictSize({
       link: normalizedLink,
       height: normalizedProfile.height,
@@ -489,7 +476,6 @@ const AddProduct: React.FC = () => {
   };
 
   const handleRevealSize = async () => {
-    console.log("Reveal clicked");
     setRequestError(null);
     setRequestSuccess(null);
     setRecommendationReason(null);
@@ -568,17 +554,11 @@ const AddProduct: React.FC = () => {
             return;
         }
 
-        console.log('[AddProduct] Calling /extract-product with URL:', normalizedLink);
         const extractedProduct = await extractProduct(normalizedLink);
         const productData = normalizeProductData(extractedProduct, normalizedLink);
-        console.log('[AddProduct] Final productData:', productData);
         const enrichedProduct = hasPredictedSizingProfile
           ? await applyPredictedSize(productData, normalizedLink)
           : await applySizeEngine(productData);
-        console.debug('[AddProduct] Size result:', {
-            recommendedSize: enrichedProduct.recommendedSize,
-            confidence: enrichedProduct.confidence,
-        });
         setAnalyzedProduct(enrichedProduct);
         setIsModalOpen(true);
         setRequestSuccess('Size recommendation ready.');

@@ -1,9 +1,8 @@
-export const fetchSizeChart = async (brand: string, category: string) => {
-  console.log(`Fetching size chart for ${brand} in ${category}`);
+// ponytail: stubs — brand size-chart/availability APIs not wired yet; return null so callers fall back to the size engine.
+export const fetchSizeChart = async (_brand: string, _category: string) => {
   return null;
 };
 
-export const fetchProductAvailability = async (brand: string, title: string) => {
-  console.log(`Fetching availability for ${title} by ${brand}`);
+export const fetchProductAvailability = async (_brand: string, _title: string) => {
   return null;
 };

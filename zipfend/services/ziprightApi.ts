@@ -165,7 +165,6 @@ export function validateProductUrl(input: string): string {
   }
 
   const finalUrl = parsed.toString();
-  console.log('FINAL PRODUCT URL:', finalUrl);
   return finalUrl;
 }
 
