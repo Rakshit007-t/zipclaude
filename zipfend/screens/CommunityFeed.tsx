@@ -459,7 +459,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
         </div>
         <p className="eyebrow mb-3">The Salon</p>
         <h2 className="text-ink font-display text-[28px] font-light mb-3">Be the <em className="font-medium">first.</em></h2>
-        <p className="text-ink-soft text-[14px] mb-8 max-w-[260px] leading-relaxed">No community looks yet. Post yours and inspire the circle.</p>
+        <p className="text-ink-soft text-[14px] mb-8 max-w-[260px] leading-relaxed">No community looks yet. Post yours and inspire the community.</p>
         <button onClick={() => navigate('/create-look')} className="h-12 px-7 bg-ink text-ink-invert rounded-full font-semibold text-[12px] uppercase tracking-[0.12em] active:scale-95 transition-transform">
           Post a look
         </button>

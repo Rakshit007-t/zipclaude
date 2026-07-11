@@ -1778,7 +1778,7 @@ const Settings: React.FC = () => {
               <ListRow icon="shopping_bag" title="My Orders" onClick={() => navigate('/order-history')} />
               <ListRow icon="favorite" title="Wishlist" onClick={() => navigate('/wishlist')} />
               <ListRow icon="location_on" title="Addresses" onClick={() => setView('addresses')} />
-              <ListRow icon="straighten" title="My Fits & Measurements" onClick={() => setView('manage-fits')} />
+              <ListRow icon="straighten" title="My Size & Measurements" onClick={() => setView('manage-fits')} />
             </MenuGroup>
           </div>
         )}

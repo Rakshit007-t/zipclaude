@@ -317,7 +317,7 @@ const Home: React.FC = () => {
             >
               <div>
                 <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-70 mb-1.5">The Reel</p>
-                <p className="font-display text-[20px] font-medium leading-tight">Swipe your next fit.</p>
+                <p className="font-display text-[20px] font-medium leading-tight">Swipe your next outfit.</p>
                 <p className="text-[11.5px] opacity-80 mt-1">Right to bag · left to pass · double-tap to like</p>
               </div>
               <span className="material-symbols-outlined text-[30px] shrink-0 ml-4" aria-hidden="true">swipe</span>
@@ -509,7 +509,7 @@ const Home: React.FC = () => {
       <Sheet
         open={!!friendShareProduct}
         onClose={() => setFriendShareProduct(null)}
-        title="Send to your circle"
+        title="Send to a friend"
       >
         {friendShareProduct && (
           <>

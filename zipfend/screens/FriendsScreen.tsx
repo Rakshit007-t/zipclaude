@@ -145,7 +145,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
     if (!user) return;
     if (toUser.uid === user.uid) { showToast("That's you!", 'error'); return; }
     const alreadyFriend = friends.some(f => f.uid === toUser.uid);
-    if (alreadyFriend) { showToast('Already in your circle', 'error'); return; }
+    if (alreadyFriend) { showToast("You're already friends", 'error'); return; }
     try {
       await addDoc(collection(db, 'friend_requests'), {
         fromUid: user.uid,
@@ -187,7 +187,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
 
       // Delete the original request
       await deleteDoc(doc(db, 'friend_requests', req.id));
-      showToast(`${req.fromName} added to your circle ✦`, 'success');
+      showToast(`You and ${req.fromName} are now friends ✦`, 'success');
     } catch (error) {
       console.error('Accept friend error:', error);
       showToast('Could not accept request', 'error');
@@ -240,7 +240,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'circle', label: 'Friends' },
     { key: 'chats', label: 'Chats', count: chatUnread },
-    { key: 'inbox', label: 'Fits', count: unreadCount },
+    { key: 'inbox', label: 'Shared', count: unreadCount },
     { key: 'requests', label: 'Requests', count: requests.length },
   ];
 
@@ -362,10 +362,10 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
 
             {/* Friends list */}
             {friends.length === 0 ? (
-              <EmptyState icon="group" title="Your circle is empty" description="Search by name, @username, or email above to start sharing fits." />
+              <EmptyState icon="group" title="No friends yet" description="Search by name, @username, or email above to start sharing finds." />
             ) : (
               <div className="flex flex-col">
-                <Eyebrow className="mb-3">{friends.length} in your circle</Eyebrow>
+                <Eyebrow className="mb-3">{friends.length} {friends.length === 1 ? 'friend' : 'friends'}</Eyebrow>
                 {friends.map(friend => (
                   <div key={friend.uid} className="flex items-center gap-3 py-3.5 border-b border-line last:border-none">
                     <button
@@ -409,8 +409,8 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
               <EmptyState
                 icon="chat_bubble"
                 title="No conversations yet"
-                description="Message a friend from your circle — share fits, looks, and voice notes."
-                action={<Button icon="group" onClick={() => setActiveTab('circle')}>Open your circle</Button>}
+                description="Message a friend — share finds, looks, and voice notes."
+                action={<Button icon="group" onClick={() => setActiveTab('circle')}>See your friends</Button>}
               />
             ) : (
               <div className="flex flex-col">
@@ -462,7 +462,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
         {activeTab === 'inbox' && (
           <div>
             {inboxItems.length === 0 ? (
-              <EmptyState icon="inbox" title="Nothing here yet" description="When friends send you fits, they'll appear here." />
+              <EmptyState icon="inbox" title="Nothing here yet" description="When friends share finds with you, they'll appear here." />
             ) : (
               <div className="flex flex-col gap-4">
                 {inboxItems.map(item => (
@@ -489,7 +489,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
                     <div className="px-4 py-4">
                       <Eyebrow className="mb-3">Your take</Eyebrow>
                       <div className="grid grid-cols-3 gap-2.5">
-                        <button onClick={() => handleReact(item.id, 'cop')} className={`py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.08em] active:scale-95 border transition-[transform,border-color,background-color,color] ${reactionTone(item.reaction === 'cop')}`}>Cop it</button>
+                        <button onClick={() => handleReact(item.id, 'cop')} className={`py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.08em] active:scale-95 border transition-[transform,border-color,background-color,color] ${reactionTone(item.reaction === 'cop')}`}>Love it</button>
                         <button onClick={() => handleReact(item.id, 'maybe')} className={`py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.08em] active:scale-95 border transition-[transform,border-color,background-color,color] ${reactionTone(item.reaction === 'maybe')}`}>Maybe</button>
                         <button onClick={() => handleReact(item.id, 'skip')} className={`py-2.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.08em] active:scale-95 border transition-[transform,border-color,background-color,color] ${reactionTone(item.reaction === 'skip')}`}>Skip</button>
                       </div>
