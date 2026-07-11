@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { collection, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
+import { closetCount, inCloset, onClosetChange, toggleCloset } from '../services/closet';
 import {
   categoryToClothType,
   generateTryOnImage,
@@ -18,8 +17,6 @@ const FashionStudio: React.FC = () => {
 
   // State
   const [size, setSize] = useState('M');
-  const [view, setView] = useState<'Front' | 'Side' | 'Back'>('Front');
-  const [showHeatmap, setShowHeatmap] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [lighting, setLighting] = useState<'Studio' | 'Outdoor' | 'Night'>('Studio');
@@ -81,47 +78,27 @@ const FashionStudio: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Wishlist Logic
+  // Wishlist through the closet — instant for demo sessions, mirrored to
+  // Firestore for signed-in users, and the Wishlist screen sees it either way.
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const likesRef = collection(db, 'users', user.uid, 'likes');
-    const unsubscribe = onSnapshot(likesRef, (snapshot) => {
-      setWishlistCount(snapshot.size);
-      const liked = snapshot.docs.some(doc => doc.id === product.id);
-      setIsLiked(liked);
-    });
-
-    return () => unsubscribe();
+    const sync = () => {
+      setWishlistCount(closetCount('likes'));
+      setIsLiked(inCloset('likes', product.id));
+    };
+    sync();
+    return onClosetChange(sync);
   }, [product.id]);
 
-  const toggleWishlist = async () => {
-    const user = auth.currentUser;
-    if (!user) {
-      showToast("Please login to save items", "error");
-      return;
-    }
-
-    const likeDocRef = doc(db, 'users', user.uid, 'likes', product.id);
-
-    try {
-      if (isLiked) {
-        await deleteDoc(likeDocRef);
-        showToast("Removed from Wishlist", "success");
-      } else {
-        await setDoc(likeDocRef, {
-          productRefId: product.id,
-          productUrl: product.url,
-          source: 'fashion_studio',
-          timestamp: new Date()
-        });
-        showToast("Added to Wishlist", "success");
-      }
-    } catch (error) {
-      console.error("Error toggling wishlist:", error);
-      showToast("Failed to update wishlist", "error");
-    }
+  // The CTA flipping to "Saved" + the heart filling is the feedback — no toast.
+  const toggleWishlist = () => {
+    toggleCloset('likes', {
+      id: product.id,
+      title: product.name,
+      brand: product.brand,
+      price: product.price,
+      image: product.image,
+      url: product.url,
+    });
   };
 
   // Handle Size Change Animation
@@ -156,7 +133,7 @@ const FashionStudio: React.FC = () => {
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-4 pt-safe bg-black/30 backdrop-blur-md border-b border-white/5">
         <button aria-label="Go back"
           onClick={() => navigate(-1)}
-          className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 active:scale-95 transition-transform"
+          className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 press-icon"
         >
           <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">arrow_back</span>
         </button>
@@ -174,16 +151,16 @@ const FashionStudio: React.FC = () => {
           <button
             onClick={toggleWishlist}
             aria-label="Toggle wishlist"
-            className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 active:scale-95 transition-transform relative"
+            className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 press-icon relative"
           >
-            <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0", color: isLiked ? '#e89b6b' : '#ffffff' }} aria-hidden="true">favorite</span>
+            <span className={`material-symbols-outlined text-[18px] ${isLiked ? 'text-brand-on-media' : 'text-white'}`} style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
             {wishlistCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center text-black bg-[#e89b6b]">
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center text-black bg-brand-on-media">
                 {wishlistCount}
               </span>
             )}
           </button>
-          <button aria-label="Share" onClick={() => { if (navigator.share) navigator.share({ title: product.name, url: product.url }).catch(() => {}); }} className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 active:scale-95 transition-transform">
+          <button aria-label="Share" onClick={() => { if (navigator.share) navigator.share({ title: product.name, url: product.url }).catch(() => {}); }} className="h-10 w-10 flex items-center justify-center rounded-full border border-white/10 press-icon">
             <span className="material-symbols-outlined text-[18px] text-white" aria-hidden="true">ios_share</span>
           </button>
         </div>
@@ -201,36 +178,24 @@ const FashionStudio: React.FC = () => {
             <div className="absolute inset-0 animate-[breathe_4s_ease-in-out_infinite]">
               <img
                 src={tryonUrl || product.image}
-                className={`h-full w-full object-contain transition-all duration-500 ${showHeatmap ? 'opacity-70 grayscale' : 'opacity-90'} ${generating ? 'blur-sm opacity-40' : ''}`}
+                className={`h-full w-full object-contain transition-all duration-500 ${generating ? 'blur-sm opacity-40' : 'opacity-90'}`}
                 alt="Virtual Try On"
                 style={{ maskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)' }}
                 referrerPolicy="no-referrer"
               />
               {generating && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
-                  <div className="h-12 w-12 rounded-full border-2 border-[#e89b6b] border-t-transparent animate-spin"></div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e89b6b]">Rendering your look</span>
+                  <div className="h-12 w-12 rounded-full border-2 border-brand-on-media border-t-transparent animate-spin"></div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-on-media">Rendering your look</span>
                 </div>
               )}
               {tryonEngine && !generating && (
                 <div className="absolute top-3 left-3 z-10 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/10">
-                  <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#e89b6b]">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-brand-on-media">
                     {tryonEngine === 'overlay' ? 'Preview' : 'AI Render'}
                   </span>
                 </div>
               )}
-
-              {/* Fit Heatmap Overlay */}
-              <div
-                className={`absolute inset-0 transition-opacity duration-500 mix-blend-overlay ${showHeatmap ? 'opacity-70' : 'opacity-0'}`}
-                style={{
-                  background: size === 'S' || size === 'XS'
-                    ? 'radial-gradient(circle at 50% 30%, rgba(242,112,92,0.6) 0%, transparent 40%)'
-                    : size === 'XL'
-                      ? 'radial-gradient(circle at 50% 40%, rgba(124,199,189,0.45) 0%, transparent 50%)'
-                      : 'none'
-                }}
-              ></div>
             </div>
           </div>
         </div>
@@ -251,7 +216,7 @@ const FashionStudio: React.FC = () => {
           onClick={() => runTryOn('fast')}
           disabled={generating}
           aria-label="Try again"
-          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-[#e89b6b] backdrop-blur-md active:scale-95 transition-transform disabled:opacity-40"
+          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-brand-on-media backdrop-blur-md press-icon disabled:opacity-40"
         >
           <span className={`material-symbols-outlined text-[19px] ${generating ? 'animate-spin' : ''}`} aria-hidden="true">refresh</span>
         </button>
@@ -259,41 +224,21 @@ const FashionStudio: React.FC = () => {
           onClick={() => runTryOn('2k')}
           disabled={generating}
           aria-label="Best quality render"
-          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-[#e89b6b] backdrop-blur-md active:scale-95 transition-transform disabled:opacity-40"
+          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-brand-on-media backdrop-blur-md press-icon disabled:opacity-40"
         >
           <span className="text-[10px] font-bold tracking-wide">MAX</span>
         </button>
         <button
           onClick={() => navigate('/live-tryon', { state: { product: incomingProduct || product } })}
           aria-label="Live try-on"
-          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-[#e89b6b] backdrop-blur-md active:scale-95 transition-transform"
+          className="h-11 w-11 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-brand-on-media backdrop-blur-md press-icon"
         >
           <span className="material-symbols-outlined text-[19px]" aria-hidden="true">videocam</span>
-        </button>
-        <button
-          onClick={() => setShowHeatmap(!showHeatmap)}
-          aria-label="Toggle fit heatmap"
-          aria-pressed={showHeatmap}
-          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all backdrop-blur-md ${showHeatmap ? 'bg-white text-black border-white' : 'bg-black/30 border-white/15 text-white'}`}
-        >
-          <span className="material-symbols-outlined text-[19px]" aria-hidden="true">layers</span>
         </button>
       </div>
 
       {/* View Controls (Right Float) */}
       <div className="absolute right-5 bottom-32 z-30 flex flex-col gap-2.5 items-center">
-        {['Front', 'Side', 'Back'].map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v as any)}
-            aria-label={`${v} view`}
-            aria-pressed={view === v}
-            className={`h-10 w-10 rounded-full flex items-center justify-center border transition-all backdrop-blur-md text-[11px] font-semibold ${view === v ? 'bg-white text-black border-white' : 'bg-black/30 border-white/15 text-white/60'}`}
-          >
-            {v[0]}
-          </button>
-        ))}
-        <div className="h-px w-5 bg-white/10 my-0.5"></div>
         <button
           onClick={() => setIsZoomed(!isZoomed)}
           aria-label={isZoomed ? 'Zoom out' : 'Zoom in'}
@@ -305,7 +250,7 @@ const FashionStudio: React.FC = () => {
         <button
           onClick={() => setLighting(lighting === 'Studio' ? 'Outdoor' : lighting === 'Outdoor' ? 'Night' : 'Studio')}
           aria-label="Cycle lighting"
-          className="h-10 w-10 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-white/60 backdrop-blur-md active:scale-95 transition-transform"
+          className="h-10 w-10 rounded-full flex items-center justify-center border border-white/15 bg-black/30 text-white/60 backdrop-blur-md press-icon"
         >
           <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{lighting === 'Studio' ? 'light_mode' : lighting === 'Outdoor' ? 'wb_cloudy' : 'dark_mode'}</span>
         </button>
@@ -314,7 +259,7 @@ const FashionStudio: React.FC = () => {
       {/* Size Switcher (Bottom Float Dock) */}
       <div className="absolute bottom-[104px] left-0 right-0 flex flex-col items-center gap-3 z-40">
         <div className="flex items-center gap-2 opacity-80">
-          <span className="material-symbols-outlined text-[13px] text-[#e89b6b]" aria-hidden="true">accessibility</span>
+          <span className="material-symbols-outlined text-[13px] text-brand-on-media" aria-hidden="true">accessibility</span>
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
             {size === 'XS' || size === 'S' ? 'Structured fit' : size === 'XL' ? 'Flowy drape' : 'Natural fall'}
           </span>
@@ -335,11 +280,11 @@ const FashionStudio: React.FC = () => {
                   isSelected
                     ? 'bg-white text-black scale-110'
                     : 'text-white/50 hover:text-white hover:bg-white/5'
-                } ${isRecommended && !isSelected ? 'border border-[#e89b6b]/60 text-[#e89b6b]' : ''}`}
+                } ${isRecommended && !isSelected ? 'border border-brand-on-media/60 text-brand-on-media' : ''}`}
               >
                 {s}
                 {isRecommended && !isSelected && (
-                  <div className="absolute -top-1 -right-1 h-2 w-2 bg-[#e89b6b] rounded-full"></div>
+                  <div className="absolute -top-1 -right-1 h-2 w-2 bg-brand-on-media rounded-full"></div>
                 )}
               </button>
             );
@@ -352,14 +297,14 @@ const FashionStudio: React.FC = () => {
         <div className="flex flex-col gap-3 max-w-md mx-auto">
           <button
             onClick={toggleWishlist}
-            className="w-full h-[54px] rounded-full bg-[#f1ede3] text-[#14120f] font-semibold text-[12px] uppercase tracking-[0.12em] active:scale-[0.97] transition-transform flex items-center justify-center gap-2"
+            className="w-full h-[54px] rounded-full bg-[#f1ede3] text-[#14120f] font-semibold text-[12px] uppercase tracking-[0.12em] press flex items-center justify-center gap-2"
           >
             {isLiked ? 'Saved to wishlist' : 'Add to wishlist'}
             <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
           </button>
           <button
             onClick={() => navigate('/home')}
-            className="w-full h-12 rounded-full border border-white/15 text-white/70 font-semibold text-[11px] uppercase tracking-[0.12em] active:scale-[0.97] transition-transform"
+            className="w-full h-12 rounded-full border border-white/15 text-white/70 font-semibold text-[11px] uppercase tracking-[0.12em] press"
           >
             Explore more outfits
           </button>
