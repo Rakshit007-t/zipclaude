@@ -231,9 +231,9 @@ const Home: React.FC = () => {
     : null;
 
   const quickActions = [
-    { icon: 'straighten', title: 'Size Match', desc: 'Know your size in any brand', route: '/add-product' },
-    { icon: 'view_in_ar', title: 'Try-On', desc: 'See it on you first', route: '/fashion-studio' },
-    { icon: 'auto_awesome', title: 'Stylist', desc: 'Personal style counsel', route: '/stylist' },
+    { icon: 'straighten', title: 'Find My Size', desc: 'Your size in any brand', route: '/add-product' },
+    { icon: 'view_in_ar', title: 'Virtual Try-On', desc: 'See it on you first', route: '/fashion-studio' },
+    { icon: 'auto_awesome', title: 'AI Stylist', desc: 'Chat for outfit advice', route: '/stylist' },
   ];
 
   return (
@@ -347,7 +347,7 @@ const Home: React.FC = () => {
             <div className="flex items-baseline justify-between mb-4 px-6">
               <div>
                 <Eyebrow className="mb-1">The Salon</Eyebrow>
-                <h2 className="font-display text-[22px] font-medium leading-none">Worn by the circle</h2>
+                <h2 className="font-display text-[22px] font-medium leading-none">Worn by the community</h2>
               </div>
               <button onClick={() => navigate('/community')} className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-faint underline underline-offset-4 active:scale-95 transition-transform">
                 Open
@@ -442,7 +442,7 @@ const Home: React.FC = () => {
             >
               <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[50px] -mr-10 -mt-10" style={{ background: 'var(--brand)', opacity: 0.3 }} aria-hidden="true"></div>
               <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-50 mb-2">The Salon</p>
-              <p className="font-display text-[20px] font-medium leading-snug">See what the circle is wearing.</p>
+              <p className="font-display text-[20px] font-medium leading-snug">See what everyone is wearing.</p>
               <span className="inline-flex items-center gap-2 mt-4 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-80">
                 Open community
                 <span className="material-symbols-outlined text-[15px]" aria-hidden="true">arrow_forward</span>

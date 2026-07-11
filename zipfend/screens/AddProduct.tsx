@@ -702,7 +702,7 @@ const AddProduct: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <Eyebrow className="mb-3">Size Match</Eyebrow>
+          <Eyebrow className="mb-3">Find My Size</Eyebrow>
           <h1 className="font-display text-[38px] leading-[1.05] font-light text-ink">
             {activeTab === 'link' ? <>Find your <em className="font-medium">fit.</em></> : <>Scan your <em className="font-medium">style.</em></>}
           </h1>

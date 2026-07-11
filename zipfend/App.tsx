@@ -82,7 +82,7 @@ function readDemoUser(): User | null {
 /**
  * The V2 dock — the app's navigation signature. A floating pill that is
  * always the inverse of the canvas: ink on bone in light, bone on black in
- * dark. The center Z is an ultraviolet jewel that opens the Atelier launcher.
+ * dark. The center Z is a copper jewel that opens the Studio launcher.
  */
 const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: number; unreadFriends: number; profileImage: string | null }) => {
   const location = useLocation();
@@ -109,21 +109,21 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
   const tabs = [
     { icon: 'home', label: 'Home', route: '/home' },
     { icon: 'storefront', label: 'Shop', route: '/marketplace' },
-    { icon: 'Z', label: 'Atelier', route: 'z-menu' },
-    { icon: 'group', label: 'Friends', route: '/friends' },
+    { icon: 'Z', label: 'Studio', route: 'z-menu' },
+    { icon: 'group', label: 'Social', route: '/friends' },
     { icon: 'account_circle', label: 'You', route: '/settings' },
   ];
 
   const zMenuOptions = [
-    { icon: 'view_in_ar', title: 'Try-On', desc: 'Virtual fashion studio', route: '/fashion-studio' },
-    { icon: 'auto_awesome', title: 'AI Stylist', desc: 'Personal style counsel', route: '/stylist' },
-    { icon: 'straighten', title: 'Size Match', desc: 'The AI fit engine', route: '/add-product' },
+    { icon: 'view_in_ar', title: 'Virtual Try-On', desc: 'See any outfit on you', route: '/fashion-studio' },
+    { icon: 'auto_awesome', title: 'AI Stylist', desc: 'Chat for outfit advice', route: '/stylist' },
+    { icon: 'straighten', title: 'Find My Size', desc: 'Your size in any brand', route: '/add-product' },
     { icon: 'face_6', title: 'Avatar', desc: 'Your digital twin', route: '/avatar-intro' },
   ];
 
   return (
     <>
-      {/* Atelier launcher */}
+      {/* Studio launcher */}
       <AnimatePresence>
         {isZMenuOpen && (
           <>
@@ -149,7 +149,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
               <div className="bg-surface-1 border border-line rounded-[1.75rem] p-6 shadow-float">
                 <div className="flex items-start justify-between mb-5">
                   <div>
-                    <p className="eyebrow mb-1.5">The Atelier</p>
+                    <p className="eyebrow mb-1.5">The Studio</p>
                     <Wordmark size="sm" />
                   </div>
                   <button
@@ -200,7 +200,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
                   <span className="material-symbols-outlined text-[22px]" aria-hidden="true">gallery_thumbnail</span>
                   <div className="flex-1 min-w-0">
                     <span className="block font-semibold text-[14px]">The Salon</span>
-                    <span className="block opacity-60 text-[11.5px] leading-tight">Looks, reels & fits from the circle</span>
+                    <span className="block opacity-60 text-[11.5px] leading-tight">Looks, reels & fits from the community</span>
                   </div>
                   <span className="material-symbols-outlined text-[18px] opacity-60" aria-hidden="true">arrow_forward</span>
                 </motion.button>
@@ -256,19 +256,23 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
               className="flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 transition-transform relative h-full"
             >
               {tab.icon === 'Z' ? (
-                <motion.div
-                  animate={isZMenuOpen ? { rotate: 45, scale: 1.06 } : { rotate: 0, scale: 1 }}
-                  transition={springs.snappy}
-                  className={`h-11 w-11 rounded-full flex items-center justify-center transition-colors ${isZMenuOpen ? 'bg-ink-invert' : 'bg-brand shadow-glow'}`}
-                >
-                  <motion.span
-                    animate={isZMenuOpen ? { rotate: -45 } : { rotate: 0 }}
+                <>
+                  <motion.div
+                    animate={isZMenuOpen ? { rotate: 45, scale: 1.06 } : { rotate: 0, scale: 1 }}
                     transition={springs.snappy}
-                    className={`font-display italic font-semibold text-[20px] leading-none ${isZMenuOpen ? 'text-ink' : 'text-on-brand'}`}
+                    className={`h-9 w-9 rounded-full flex items-center justify-center transition-colors ${isZMenuOpen ? 'bg-ink-invert' : 'bg-brand shadow-glow'}`}
                   >
-                    Z
-                  </motion.span>
-                </motion.div>
+                    <motion.span
+                      animate={isZMenuOpen ? { rotate: -45 } : { rotate: 0 }}
+                      transition={springs.snappy}
+                      className={`font-display italic font-semibold text-[18px] leading-none ${isZMenuOpen ? 'text-ink' : 'text-on-brand'}`}
+                    >
+                      Z
+                    </motion.span>
+                  </motion.div>
+                  {/* Named like every other tab — the jewel alone tells a new user nothing */}
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-80">{tab.label}</span>
+                </>
               ) : (
                 <>
                   {/* Sliding active indicator */}

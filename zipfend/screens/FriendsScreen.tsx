@@ -238,9 +238,9 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
 
   const chatUnread = unreadConversations(conversations);
   const tabs: { key: Tab; label: string; count?: number }[] = [
-    { key: 'circle', label: 'Circle' },
+    { key: 'circle', label: 'Friends' },
     { key: 'chats', label: 'Chats', count: chatUnread },
-    { key: 'inbox', label: 'Inbox', count: unreadCount },
+    { key: 'inbox', label: 'Fits', count: unreadCount },
     { key: 'requests', label: 'Requests', count: requests.length },
   ];
 

@@ -501,7 +501,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
               onClick={onShowPeople}
               className="h-8 px-4 rounded-full text-white/80 text-[10px] font-semibold uppercase tracking-[0.14em] active:scale-95 transition-transform"
             >
-              Circle
+              Friends
             </button>
           </div>
         ) : (
