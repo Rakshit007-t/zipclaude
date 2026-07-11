@@ -67,7 +67,7 @@ const SellerDashboard: React.FC = () => {
             onClick={fetchDashboard}
             aria-label="Refresh dashboard"
             aria-busy={loading}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-ink-soft hover:text-ink active:scale-95 transition-[transform,color]"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-ink-soft hover:text-ink press-icon"
           >
             <span className={`material-symbols-outlined text-[22px] ${loading ? 'animate-spin' : ''}`} aria-hidden="true">refresh</span>
           </button>
@@ -79,7 +79,7 @@ const SellerDashboard: React.FC = () => {
         {/* Editorial masthead */}
         <div className="mb-8">
           <Eyebrow className="mb-3">Your storefront</Eyebrow>
-          <h1 className="font-display text-[32px] font-light leading-[1.05] text-ink">
+          <h1 className="display-1">
             The numbers<em className="font-medium">.</em>
           </h1>
         </div>
@@ -125,7 +125,7 @@ const SellerDashboard: React.FC = () => {
                 <button
                   key={a.label}
                   onClick={() => navigate(a.to)}
-                  className="flex h-16 flex-col items-start justify-center gap-1.5 rounded-2xl border border-line bg-surface-2 px-4 text-left active:scale-[0.97] transition-transform hover:border-line-strong"
+                  className="flex h-16 flex-col items-start justify-center gap-1.5 rounded-2xl border border-line bg-surface-2 px-4 text-left press-soft transition-[transform,border-color] hover:border-line-strong"
                 >
                   <span className={`material-symbols-outlined text-[19px] ${a.tone}`} aria-hidden="true">{a.icon}</span>
                   <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink">{a.label}</span>
@@ -143,10 +143,11 @@ const SellerDashboard: React.FC = () => {
             {data?.popular_products && data.popular_products.length > 0 ? (
               <div className="flex flex-col gap-2.5">
                 {data.popular_products.map((p) => (
-                  <div
+                  <button
                     key={p.id}
                     onClick={() => navigate(`/seller/edit-product/${p.id}`)}
-                    className="flex items-center justify-between rounded-2xl border border-line bg-surface-2 p-4 cursor-pointer hover:border-brand transition-colors"
+                    aria-label={`Edit ${p.title}`}
+                    className="w-full text-left flex items-center justify-between rounded-2xl border border-line bg-surface-2 p-4 hover:border-brand press-soft transition-[transform,border-color]"
                   >
                     <div className="min-w-0 flex-1 pr-4">
                       <h4 className="text-[14px] font-semibold text-ink truncate leading-tight">{p.title}</h4>
@@ -164,7 +165,7 @@ const SellerDashboard: React.FC = () => {
                         <span className="text-[11px] font-medium text-ink-faint">No outcomes</span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : (
