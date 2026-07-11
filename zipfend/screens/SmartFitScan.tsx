@@ -162,7 +162,7 @@ function buildFirestoreMeasurements(measurements: SmartFitMeasurements) {
 
 /** Glass pill button used over the camera/preview surface. */
 const overlayPillCls =
-  'bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform border border-white/15 cursor-pointer';
+  'bg-black/60 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-2 press border border-white/15 cursor-pointer';
 
 const SmartFitScan: React.FC = () => {
   const navigate = useNavigate();
@@ -224,10 +224,6 @@ const SmartFitScan: React.FC = () => {
       if (sidePreview?.startsWith('blob:')) URL.revokeObjectURL(sidePreview);
     };
   }, [frontPreview, sidePreview]);
-
-  useEffect(() => {
-    console.log('measurement source:', measurements ? 'real' : 'none');
-  }, [measurements]);
 
   useEffect(() => {
     if (step !== 1) {
@@ -351,7 +347,7 @@ const SmartFitScan: React.FC = () => {
     }
 
     if (!auth.currentUser && !hasDemoSession()) {
-      alert('Please login again');
+      showToast('Please sign in again.', 'error');
       return;
     }
 
@@ -442,7 +438,6 @@ const SmartFitScan: React.FC = () => {
       }
 
       updateHeight(heightNum);
-      console.log(`Height saved to profile: ${heightNum}cm`);
       setStep(2);
       if (!cameraError) setTimeout(() => startCamera(), 100);
       return;
@@ -552,14 +547,14 @@ const SmartFitScan: React.FC = () => {
   if (step === 4) {
     return (
       <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
-        <AppBar title="Your measure" hideBack trailing={
-          <button onClick={() => setStep(3)} aria-label="Close" className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform">
+        <AppBar title="Your measurements" hideBack trailing={
+          <button onClick={handleBack} aria-label="Close" className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft press-icon">
             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
           </button>
         } />
         <div className="flex-1 overflow-y-auto px-6 py-8 pb-36">
           <Eyebrow className="text-center mb-3">Estimated via AI</Eyebrow>
-          <h2 className="font-display text-[32px] font-light text-center mb-8">
+          <h2 className="display-1 text-center mb-8">
             Body <em className="font-medium">measurements.</em>
           </h2>
           {showApproximateFitBadge && (
@@ -618,17 +613,23 @@ const SmartFitScan: React.FC = () => {
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 text-center">
           <Spinner size={36} className="text-brand mb-7" />
           <Eyebrow className="mb-3">The scan</Eyebrow>
-          <h2 className="font-display text-[28px] font-light mb-2">Reading your <em className="font-medium">geometry.</em></h2>
+          <h2 className="display-2 mb-2">Reading your <em className="font-medium">geometry.</em></h2>
           <p className="text-ink-soft text-[13.5px]">Extracting keypoints and dimensions</p>
         </div>
       ) : (
         <div className="flex-1 flex flex-col px-6 py-6">
           <div className="mb-6">
+            {/* Segmented progress — forward motion, one bar per step */}
+            <div className="flex gap-1.5 mb-3" role="progressbar" aria-valuenow={step} aria-valuemin={1} aria-valuemax={3} aria-label={`Step ${step} of 3`}>
+              {[1, 2, 3].map(s => (
+                <div key={s} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${s <= step ? 'bg-brand' : 'bg-surface-3'}`} />
+              ))}
+            </div>
             <div className="flex items-center gap-2 mb-3">
               <Eyebrow>Step {step} of 3</Eyebrow>
               {step > 1 && <span className="material-symbols-outlined filled text-success text-[15px]" aria-hidden="true">check_circle</span>}
             </div>
-            <h2 className="font-display text-[28px] leading-[1.08] font-light mb-2">
+            <h2 className="display-2 mb-2">
               {step === 1 ? <>What is your <em className="font-medium">height?</em></> : <>Capture your <em className="font-medium">{step === 2 ? 'front.' : 'profile.'}</em></>}
             </h2>
             <p className="text-ink-soft text-[13.5px]">
@@ -649,6 +650,11 @@ const SmartFitScan: React.FC = () => {
               <div className="relative mb-8">
                 <input
                   type="number"
+                  inputMode="numeric"
+                  enterKeyHint="next"
+                  min={50}
+                  max={250}
+                  aria-label="Height in centimetres"
                   value={heightCm}
                   onChange={(e) => {
                     const nextHeight = e.target.value;
@@ -657,6 +663,7 @@ const SmartFitScan: React.FC = () => {
                     const parsedHeight = parseFloat(nextHeight);
                     updateHeight(Number.isFinite(parsedHeight) && parsedHeight > 0 ? parsedHeight : 0);
                   }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && heightCm) handleNextStep(); }}
                   placeholder="175"
                   className="w-full h-20 bg-surface-1 border border-line rounded-card px-5 pr-16 text-ink font-display font-medium text-[34px] placeholder:text-ink-faint focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition-[border-color,box-shadow] text-center"
                 />
@@ -667,7 +674,7 @@ const SmartFitScan: React.FC = () => {
             <div
               onClick={!isCameraOn && !currentImage ? startCamera : undefined}
               className={`flex-1 bg-surface-1 border border-dashed rounded-card flex flex-col items-center justify-center relative overflow-hidden mb-8 transition-all ${
-                !isCameraOn && !currentImage ? 'border-line-strong active:scale-[0.99] cursor-pointer' : 'border-transparent'
+                !isCameraOn && !currentImage ? 'border-line-strong press-soft cursor-pointer' : 'border-transparent'
               }`}
             >
               <input
@@ -698,7 +705,7 @@ const SmartFitScan: React.FC = () => {
                     </svg>
                   </div>
                   <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3">
-                    <button onClick={handleCapture} aria-label="Capture photo" className="h-16 w-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-2 border-white shadow-xl active:scale-90 transition-transform cursor-pointer z-20">
+                    <button onClick={handleCapture} aria-label="Capture photo" className="h-16 w-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-2 border-white shadow-xl press-icon cursor-pointer z-20">
                       <div className="h-12 w-12 rounded-full bg-white shadow-inner"></div>
                     </button>
                     <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className={`${overlayPillCls} z-20`}>
@@ -735,7 +742,7 @@ const SmartFitScan: React.FC = () => {
                         Camera blocked. Tap to upload instead.
                       </p>
                     )}
-                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="mt-5 border border-line-strong px-5 py-3 rounded-full flex items-center gap-2 active:scale-95 transition-transform cursor-pointer">
+                    <label htmlFor={step === 2 ? "upload-front" : "upload-side"} onClick={(e) => e.stopPropagation()} className="mt-5 border border-line-strong px-5 py-3 rounded-full flex items-center gap-2 press cursor-pointer">
                       <span className="material-symbols-outlined text-ink-soft text-[15px]" aria-hidden="true">upload</span>
                       <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft">{step === 2 ? 'Upload front photo' : 'Upload side photo'}</span>
                     </label>
