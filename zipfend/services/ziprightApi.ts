@@ -81,6 +81,7 @@ export function getBackendBaseUrl() {
 }
 
 const auth = getAuth();
+let anonymousAuthFailed = false;
 
 async function ensureAuthUser() {
   if (auth.currentUser) {
@@ -89,11 +90,12 @@ async function ensureAuthUser() {
 
   // If we have a demo session but no Firebase user, try anonymous sign-in
   // to get a real Firebase token for API calls
-  if (hasDemoSession()) {
+  if (hasDemoSession() && !anonymousAuthFailed) {
     try {
       const result = await signInAnonymously(auth);
       return result.user;
     } catch (err) {
+      anonymousAuthFailed = true;
       console.warn('[ziprightApi] Anonymous auth failed, proceeding without token:', err);
       return null;
     }

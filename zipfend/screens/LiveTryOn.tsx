@@ -12,6 +12,12 @@ const L_ANKLE = 27;
 const R_ANKLE = 28;
 
 const SMOOTHING = 0.35; // EMA factor: higher = snappier, lower = smoother
+const MAX_POSE_FPS = 30;
+const MIN_POSE_INTERVAL_MS = 1000 / MAX_POSE_FPS;
+const MAX_GARMENT_SPRITE_DIMENSION = 1536;
+const MEDIAPIPE_WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm';
+const POSE_MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 
 interface Anchor {
   cx: number;
@@ -24,11 +30,18 @@ interface Anchor {
 /** Remove a near-white studio background so the garment composites cleanly. */
 function prepareGarmentSprite(image: HTMLImageElement): HTMLCanvasElement | HTMLImageElement {
   const canvas = document.createElement('canvas');
-  canvas.width = image.naturalWidth;
-  canvas.height = image.naturalHeight;
-  const ctx = canvas.getContext('2d');
+  const sourceWidth = Math.max(image.naturalWidth, 1);
+  const sourceHeight = Math.max(image.naturalHeight, 1);
+  const scale = Math.min(1, MAX_GARMENT_SPRITE_DIMENSION / Math.max(sourceWidth, sourceHeight));
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+  // This one-time preprocessing reads pixels back to the CPU. Avoid a GPU
+  // readback stall and retain enough detail for the 1280px render target.
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return image;
-  ctx.drawImage(image, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
   try {
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const px = data.data;
@@ -60,6 +73,9 @@ const LiveTryOn: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const videoFrameCallbackRef = useRef<number | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+  const renderContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const anchorRef = useRef<Anchor | null>(null);
   const opacityRef = useRef(0.92);
 
@@ -67,10 +83,15 @@ const LiveTryOn: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [opacity, setOpacity] = useState(0.92);
   const [fps, setFps] = useState(0);
+  const statusRef = useRef(status);
 
   useEffect(() => {
     opacityRef.current = opacity;
   }, [opacity]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     if (!garmentUrl) {
@@ -85,13 +106,53 @@ const LiveTryOn: React.FC = () => {
     let spriteRatio = 1.3; // height / width fallback
     let cancelled = false;
     let lastVideoTime = -1;
+    let lastPoseInferenceAt = Number.NEGATIVE_INFINITY;
     let lastLandmarks: any[] | null = null;
     let frameCount = 0;
     let fpsWindowStart = performance.now();
 
+    anchorRef.current = null;
+
+    const setTrackerStatus = (next: 'tracking' | 'no-person') => {
+      if (statusRef.current === next) return;
+      statusRef.current = next;
+      setStatus(next);
+    };
+
+    const syncCanvasSize = (canvas: HTMLCanvasElement, video: HTMLVideoElement) => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (!width || !height || (canvas.width === width && canvas.height === height)) return;
+
+      canvas.width = width;
+      canvas.height = height;
+      const context = renderContextRef.current;
+      if (context) {
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+      }
+    };
+
+    const cancelScheduledFrame = () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      const video = videoRef.current;
+      if (video && videoFrameCallbackRef.current !== null && 'cancelVideoFrameCallback' in video) {
+        video.cancelVideoFrameCallback(videoFrameCallbackRef.current);
+        videoFrameCallbackRef.current = null;
+      }
+    };
+
     const loadGarment = () =>
       new Promise<void>((resolve, reject) => {
         const img = new Image();
+        img.decoding = 'async';
         img.crossOrigin = 'anonymous';
         img.onload = () => {
           sprite = prepareGarmentSprite(img);
@@ -101,6 +162,7 @@ const LiveTryOn: React.FC = () => {
         img.onerror = () => {
           // Retry without CORS (sprite will be tainted but still drawable).
           const plain = new Image();
+          plain.decoding = 'async';
           plain.onload = () => {
             sprite = plain;
             spriteRatio = plain.naturalHeight / Math.max(plain.naturalWidth, 1);
@@ -115,41 +177,70 @@ const LiveTryOn: React.FC = () => {
     const setup = async () => {
       try {
         await loadGarment();
+        if (cancelled) return;
 
-        const vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm'
-        );
-        landmarker = await PoseLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          numPoses: 1,
-        });
+        const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL);
+        if (cancelled) return;
+
+        const createLandmarker = (delegate: 'GPU' | 'CPU') =>
+          PoseLandmarker.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
+            runningMode: 'VIDEO',
+            numPoses: 1,
+          });
+
+        try {
+          landmarker = await createLandmarker('GPU');
+        } catch (gpuError) {
+          if (cancelled) return;
+          // A usable CPU tracker is preferable to failing the complete try-on
+          // experience on devices without a compatible WebGL delegate.
+          console.warn('Live try-on GPU tracker unavailable; using CPU fallback.', gpuError);
+          landmarker = await createLandmarker('CPU');
+        }
+        if (cancelled) {
+          landmarker?.close();
+          return;
+        }
 
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
-        if (cancelled) return;
+        if (cancelled) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
 
         const video = videoRef.current;
-        if (!video) return;
+        if (!video) {
+          throw new Error('Camera preview is unavailable.');
+        }
         video.srcObject = stream;
         await video.play();
+        if (cancelled) return;
 
         const canvas = canvasRef.current;
-        if (!canvas) return;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        if (!canvas) {
+          throw new Error('Try-on canvas is unavailable.');
+        }
+        const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
+        if (!context) throw new Error('Canvas rendering is unavailable.');
+        renderContextRef.current = context;
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+        syncCanvasSize(canvas, video);
 
+        statusRef.current = 'tracking';
         setStatus('tracking');
-        rafRef.current = requestAnimationFrame(renderLoop);
+        scheduleNextFrame();
       } catch (error: any) {
         console.error('Live try-on setup failed:', error);
         if (!cancelled) {
+          stream?.getTracks().forEach(track => track.stop());
+          landmarker?.close();
+          landmarker = null;
+          if (videoRef.current) videoRef.current.srcObject = null;
           setStatus('error');
           setErrorMessage(
             error?.name === 'NotAllowedError'
@@ -217,30 +308,56 @@ const LiveTryOn: React.FC = () => {
       };
     };
 
-    const renderLoop = () => {
-      if (cancelled) return;
+    function scheduleNextFrame() {
+      if (cancelled || document.visibilityState !== 'visible') return;
+
       const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (!video || !canvas || !ctx || video.readyState < 2) {
-        rafRef.current = requestAnimationFrame(renderLoop);
+      if (video && 'requestVideoFrameCallback' in video) {
+        videoFrameCallbackRef.current = video.requestVideoFrameCallback((now) => {
+          videoFrameCallbackRef.current = null;
+          renderLoop(now);
+        });
         return;
       }
 
-      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+      rafRef.current = requestAnimationFrame(renderLoop);
+    }
+
+    function renderLoop(now: number) {
+      if (cancelled || document.visibilityState !== 'visible') return;
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = renderContextRef.current;
+      if (!video || !canvas || !ctx || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        cancelScheduledFrame();
+        timeoutRef.current = window.setTimeout(() => {
+          timeoutRef.current = null;
+          renderLoop(performance.now());
+        }, 100);
+        return;
       }
 
-      // Mirrored selfie view
-      ctx.save();
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-      ctx.restore();
+      syncCanvasSize(canvas, video);
+      if (!canvas.width || !canvas.height) {
+        cancelScheduledFrame();
+        timeoutRef.current = window.setTimeout(() => {
+          timeoutRef.current = null;
+          renderLoop(performance.now());
+        }, 100);
+        return;
+      }
 
-      if (landmarker && video.currentTime !== lastVideoTime) {
+      // Mirrored selfie view. setTransform avoids save/restore work on every frame.
+      ctx.setTransform(-1, 0, 0, 1, canvas.width, 0);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+      const hasNewVideoFrame = video.currentTime !== lastVideoTime;
+      if (landmarker && hasNewVideoFrame && now - lastPoseInferenceAt >= MIN_POSE_INTERVAL_MS) {
         lastVideoTime = video.currentTime;
-        const result = landmarker.detectForVideo(video, performance.now());
+        lastPoseInferenceAt = now;
+        const result = landmarker.detectForVideo(video, now);
         lastLandmarks = result.landmarks?.[0] ?? null;
       }
 
@@ -249,40 +366,55 @@ const LiveTryOn: React.FC = () => {
         if (target) {
           const anchor = smooth(target);
           anchorRef.current = anchor;
-          ctx.save();
-          ctx.globalAlpha = opacityRef.current;
-          ctx.translate(anchor.cx, anchor.cy);
-          ctx.rotate(anchor.angle);
-          ctx.drawImage(sprite, -anchor.width / 2, -anchor.height / 2, anchor.width, anchor.height);
-          ctx.restore();
-          setStatus(prev => (prev === 'tracking' ? prev : 'tracking'));
+          if (anchor.width > 0 && anchor.height > 0 && Number.isFinite(anchor.width) && Number.isFinite(anchor.height) && Number.isFinite(anchor.angle) && Number.isFinite(anchor.cx) && Number.isFinite(anchor.cy)) {
+            ctx.save();
+            ctx.globalAlpha = opacityRef.current;
+            ctx.translate(anchor.cx, anchor.cy);
+            ctx.rotate(anchor.angle);
+            ctx.drawImage(sprite, -anchor.width / 2, -anchor.height / 2, anchor.width, anchor.height);
+            ctx.restore();
+          }
+          setTrackerStatus('tracking');
         } else {
           anchorRef.current = null;
-          setStatus(prev => (prev === 'no-person' ? prev : 'no-person'));
+          setTrackerStatus('no-person');
         }
       } else if (!lastLandmarks) {
         anchorRef.current = null;
-        setStatus(prev => (prev === 'no-person' ? prev : 'no-person'));
+        setTrackerStatus('no-person');
       }
 
       frameCount += 1;
-      const now = performance.now();
       if (now - fpsWindowStart >= 1000) {
         setFps(Math.round((frameCount * 1000) / (now - fpsWindowStart)));
         frameCount = 0;
         fpsWindowStart = now;
       }
 
-      rafRef.current = requestAnimationFrame(renderLoop);
+      scheduleNextFrame();
+    }
+
+    const handleVisibilityChange = () => {
+      cancelScheduledFrame();
+      if (!cancelled && document.visibilityState === 'visible') {
+        lastVideoTime = -1;
+        scheduleNextFrame();
+      }
     };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     setup();
 
     return () => {
       cancelled = true;
-      cancelAnimationFrame(rafRef.current);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cancelScheduledFrame();
       stream?.getTracks().forEach(track => track.stop());
+      if (videoRef.current) videoRef.current.srcObject = null;
       landmarker?.close();
+      renderContextRef.current = null;
+      sprite = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [garmentUrl, clothType]);

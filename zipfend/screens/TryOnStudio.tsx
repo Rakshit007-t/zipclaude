@@ -7,11 +7,13 @@ import {
   startTryOn,
   waitForTryOn,
   TryOnAvatarMissingError,
+  TryOnPollingCancelledError,
   type ClothType,
   type TryOnEngine,
   type TryOnQuality,
 } from '../services/tryonService';
 import { recordJourneyEvent } from '../services/styleJourney';
+import { toImageDataUrl } from '../utils/media';
 
 // Persist the running job id so the generation survives page refresh,
 // minimize, or the phone locking — the server keeps rendering meanwhile.
@@ -40,18 +42,17 @@ const WAIT_HINTS = [
 ];
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const VTO_UPLOAD_MAX_DIMENSION = 2048;
+const VTO_UPLOAD_QUALITY = 0.9;
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (file.size > MAX_IMAGE_BYTES) {
-      reject(new Error('Image is too large (max 10 MB).'));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Could not read the image.'));
-    reader.readAsDataURL(file);
-  });
+async function fileToDataUrl(file: File): Promise<string> {
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error('Image is too large (max 10 MB).');
+  }
+
+  // Preserve 2K-quality source detail while avoiding a full-resolution base64
+  // copy in React state and the try-on request body.
+  return toImageDataUrl(file, VTO_UPLOAD_MAX_DIMENSION, VTO_UPLOAD_QUALITY);
 }
 
 const TryOnStudio: React.FC = () => {
@@ -74,9 +75,48 @@ const TryOnStudio: React.FC = () => {
   const [engine, setEngine] = useState<TryOnEngine | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [hintIndex, setHintIndex] = useState(0);
+  const [loadingPresets, setLoadingPresets] = useState(false);
+
+  const loadDemoPresets = async () => {
+    setLoadingPresets(true);
+    try {
+      const demoModelUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop';
+      const demoGarmentUrl = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop';
+
+      const modelRes = await fetch(demoModelUrl);
+      const modelBlob = await modelRes.blob();
+      const modelDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Could not encode demo model'));
+        reader.readAsDataURL(modelBlob);
+      });
+
+      setPersonPreview(modelDataUrl);
+      setGarmentPreview(demoGarmentUrl);
+      setGarmentIsUpload(false);
+      setResultUrl(null);
+      showToast('Demo presets loaded successfully', 'success');
+    } catch (err: any) {
+      console.error('Failed to load demo presets:', err);
+      showToast('Failed to load demo presets. Please try uploading manually.', 'error');
+    } finally {
+      setLoadingPresets(false);
+    }
+  };
 
   const personInputRef = useRef<HTMLInputElement>(null);
   const garmentInputRef = useRef<HTMLInputElement>(null);
+  const activePollRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      activePollRef.current?.abort();
+    };
+  }, []);
 
   // Rotate anticipation hints during generation
   useEffect(() => {
@@ -86,12 +126,17 @@ const TryOnStudio: React.FC = () => {
   }, [generating]);
 
   const trackJob = async (jobId: string) => {
-    setGenerating(true);
+    activePollRef.current?.abort();
+    const controller = new AbortController();
+    activePollRef.current = controller;
+    if (mountedRef.current) setGenerating(true);
     try {
       const result = await waitForTryOn(jobId, (pct, stageLabel) => {
+        if (!mountedRef.current || controller.signal.aborted) return;
         setProgress(pct);
         if (stageLabel) setStage(stageLabel);
-      });
+      }, controller.signal);
+      if (!mountedRef.current || controller.signal.aborted) return;
       setResultUrl(result.imageUrl);
       setEngine(result.engine);
       recordJourneyEvent('tryon_generated');
@@ -99,6 +144,10 @@ const TryOnStudio: React.FC = () => {
         showToast('Quick preview shown — AI engine busy, try again', 'success');
       }
     } catch (error: any) {
+      if (error instanceof TryOnPollingCancelledError || controller.signal.aborted) {
+        return;
+      }
+      if (!mountedRef.current) return;
       if (error instanceof TryOnAvatarMissingError) {
         showToast('Upload a photo of yourself first', 'error');
       } else {
@@ -106,8 +155,13 @@ const TryOnStudio: React.FC = () => {
         showToast(error?.message || 'Try-on failed. Please try again.', 'error');
       }
     } finally {
-      localStorage.removeItem(ACTIVE_JOB_KEY);
-      setGenerating(false);
+      if (activePollRef.current === controller) {
+        activePollRef.current = null;
+        if (!controller.signal.aborted) {
+          localStorage.removeItem(ACTIVE_JOB_KEY);
+          if (mountedRef.current) setGenerating(false);
+        }
+      }
     }
   };
 
@@ -162,8 +216,10 @@ const TryOnStudio: React.FC = () => {
         quality,
       });
       localStorage.setItem(ACTIVE_JOB_KEY, jobId);
+      if (!mountedRef.current) return;
       await trackJob(jobId);
     } catch (error: any) {
+      if (!mountedRef.current) return;
       setGenerating(false);
       if (error instanceof TryOnAvatarMissingError) {
         showToast('Upload a photo of yourself first', 'error');
@@ -211,7 +267,7 @@ const TryOnStudio: React.FC = () => {
       className="relative flex-1 aspect-[3/4] rounded-card border border-line bg-surface-2 overflow-hidden active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
     >
       {preview ? (
-        <img src={preview} className="absolute inset-0 h-full w-full object-cover" alt="" />
+        <img src={preview} decoding="async" className="absolute inset-0 h-full w-full object-cover" alt="" />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
           <div className="h-12 w-12 rounded-full bg-brand/10 flex items-center justify-center">
@@ -262,6 +318,7 @@ const TryOnStudio: React.FC = () => {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                       src={resultUrl}
+                      decoding="async"
                       className="h-full w-full object-contain"
                       alt="Try-on result"
                     />
@@ -345,6 +402,18 @@ const TryOnStudio: React.FC = () => {
           )}
         </div>
 
+        {/* Demo Presets Trigger */}
+        <div className="flex justify-center max-w-sm mx-auto">
+          <button
+            onClick={loadDemoPresets}
+            disabled={loadingPresets}
+            className="text-[12px] font-semibold uppercase tracking-[0.12em] text-brand hover:text-brand-strong disabled:opacity-40 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">{loadingPresets ? 'sync' : 'auto_awesome'}</span>
+            {loadingPresets ? 'Loading presets...' : 'Use Demo Presets'}
+          </button>
+        </div>
+
         {/* Cloth type */}
         <div className="max-w-sm mx-auto">
           <Eyebrow className="mb-2.5" id="cloth-type-label">Garment Type</Eyebrow>
@@ -400,6 +469,7 @@ const TryOnStudio: React.FC = () => {
               animate={{ scale: 1 }}
               transition={springs.gentle}
               src={resultUrl}
+              decoding="async"
               className="max-h-full max-w-full object-contain"
               alt="Try-on result full screen"
             />

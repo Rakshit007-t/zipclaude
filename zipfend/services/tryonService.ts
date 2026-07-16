@@ -45,6 +45,50 @@ export interface TryOnParams {
 const POLL_INTERVAL_MS = 2500;
 const MAX_WAIT_MS = 15 * 60 * 1000;
 
+export class TryOnPollingCancelledError extends Error {
+  constructor() {
+    super('Try-on polling was cancelled.');
+    this.name = 'TryOnPollingCancelledError';
+  }
+}
+
+function throwIfPollingCancelled(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new TryOnPollingCancelledError();
+  }
+}
+
+function waitForPollInterval(signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(cleanupAndResolve, POLL_INTERVAL_MS);
+
+    function cleanup() {
+      clearTimeout(timeoutId);
+      signal.removeEventListener('abort', onAbort);
+    }
+
+    function cleanupAndResolve() {
+      cleanup();
+      resolve();
+    }
+
+    function onAbort() {
+      cleanup();
+      reject(new TryOnPollingCancelledError());
+    }
+
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 function resolveImageUrl(raw: string | null | undefined): string | null {
   if (!raw) return null;
   return raw.startsWith('/') ? `${getBackendBaseUrl()}${raw}` : raw;
@@ -77,10 +121,10 @@ export async function startTryOn({
   return payload.data.job_id as string;
 }
 
-export async function getTryOnJob(jobId: string): Promise<TryOnJobStatus> {
+export async function getTryOnJob(jobId: string, signal?: AbortSignal): Promise<TryOnJobStatus> {
   const response = await authorizedFetch(
     `${getBackendBaseUrl()}/tryon-job/${encodeURIComponent(jobId)}`,
-    { method: 'GET' }
+    { method: 'GET', signal }
   );
   const payload = await response.json().catch(() => null);
   if (!response.ok || !payload?.data) {
@@ -103,11 +147,24 @@ export async function getTryOnJob(jobId: string): Promise<TryOnJobStatus> {
 
 export async function waitForTryOn(
   jobId: string,
-  onProgress?: (progress: number, stage: string) => void
+  onProgress?: (progress: number, stage: string) => void,
+  signal?: AbortSignal,
 ): Promise<TryOnResult> {
   const startedAt = Date.now();
   for (;;) {
-    const job = await getTryOnJob(jobId);
+    throwIfPollingCancelled(signal);
+
+    let job: TryOnJobStatus;
+    try {
+      job = await getTryOnJob(jobId, signal);
+    } catch (error: any) {
+      if (signal?.aborted || error?.name === 'AbortError') {
+        throw new TryOnPollingCancelledError();
+      }
+      throw error;
+    }
+
+    throwIfPollingCancelled(signal);
     onProgress?.(job.progress, job.stage);
     if (job.status === 'done' && job.imageUrl) {
       return { imageUrl: job.imageUrl, engine: job.engine || 'overlay' };
@@ -119,16 +176,17 @@ export async function waitForTryOn(
     if (Date.now() - startedAt > MAX_WAIT_MS) {
       throw new Error('Try-on is taking too long. Check back later — it may still finish.');
     }
-    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+    await waitForPollInterval(signal);
   }
 }
 
 export async function generateTryOnImage(
   params: TryOnParams,
-  onProgress?: (progress: number, stage: string) => void
+  onProgress?: (progress: number, stage: string) => void,
+  signal?: AbortSignal,
 ): Promise<TryOnResult> {
   const jobId = await startTryOn(params);
-  return waitForTryOn(jobId, onProgress);
+  return waitForTryOn(jobId, onProgress, signal);
 }
 
 export class TryOnAvatarMissingError extends Error {
