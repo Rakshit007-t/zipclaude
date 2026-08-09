@@ -9,8 +9,14 @@ load_dotenv()
 
 
 class Settings:
-    # App Settings
+    # App & Auth Settings
     ENV: str = os.getenv("ENV", "development")
+    AUTH_PROVIDER: str = os.getenv("AUTH_PROVIDER", "firebase").strip().lower()
+
+    # Supabase (Adapter Ready)
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "").strip()
+    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "").strip()
+    SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "").strip()
 
     # External APIs
     REPLICATE_API_TOKEN: str | None = os.getenv("REPLICATE_API_TOKEN")
@@ -34,6 +40,14 @@ class Settings:
         "FIREBASE_CLIENT_X509_CERT_URL",
         "",
     ).strip()
+    # Temporary control for operator-confirmed wallet credits. Replace this
+    # endpoint guard with payment-provider verification when payments launch.
+    WALLET_TOPUP_SECRET: str = os.getenv("WALLET_TOPUP_SECRET", "")
+    # Gift payments remain unavailable until provider credentials and a signed
+    # webhook flow are configured. Browser requests never verify payments.
+    PAYMENT_PROVIDER: str = os.getenv("PAYMENT_PROVIDER", "").strip().lower()
+    RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
+    RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
     FIREBASE_TOKEN_URI: str = os.getenv(
         "FIREBASE_TOKEN_URI",
         "https://oauth2.googleapis.com/token",

@@ -76,6 +76,8 @@ const TryOnStudio: React.FC = () => {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [hintIndex, setHintIndex] = useState(0);
   const [loadingPresets, setLoadingPresets] = useState(false);
+  const [selectedSize, setSelectedSize] = useState('M');
+  const passedProduct = incomingProduct;
 
   const loadDemoPresets = async () => {
     setLoadingPresets(true);
@@ -304,13 +306,13 @@ const TryOnStudio: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={springs.gentle}
-              className="relative rounded-card overflow-hidden border border-line bg-black aspect-[3/4] max-w-sm mx-auto"
+              className="relative h-[72dvh] min-h-[470px] max-h-[660px] w-full overflow-hidden bg-black mx-auto shadow-elev-float flex flex-col"
             >
               {resultUrl && !generating && (
                 <>
                   <button
                     onClick={() => setViewerOpen(true)}
-                    className="absolute inset-0 h-full w-full"
+                    className="relative flex-1 w-full overflow-hidden bg-black"
                     aria-label="View result full screen"
                   >
                     <motion.img
@@ -319,34 +321,77 @@ const TryOnStudio: React.FC = () => {
                       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                       src={resultUrl}
                       decoding="async"
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-cover"
                       alt="Try-on result"
                     />
+                    <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px] text-success" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white">
+                        98% Fit Match
+                      </span>
+                    </div>
                   </button>
-                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md pointer-events-none">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand">
-                      {engine === 'overlay' ? 'Preview' : engine === 'catvton_cloud' ? 'AI Render · Cloud' : 'AI Render · Local'}
-                    </span>
-                  </div>
-                  <div className="absolute top-3 right-3 flex gap-2">
-                    <IconButton icon="ios_share" aria-label="Share result" variant="overlay" size="sm" onClick={shareResult} />
-                    <a
-                      href={resultUrl}
-                      download="zipright-tryon.png"
-                      aria-label="Download result"
-                      className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-md text-white flex items-center justify-center active:scale-[0.92] transition-transform"
-                    >
-                      <span className="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
-                    </a>
-                  </div>
-                  <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full bg-black/50 pointer-events-none">
-                    <span className="text-[11px] text-ink-invert/80">Tap to zoom</span>
+
+                  {/* Clean Result Information Card */}
+                  <div className="absolute inset-x-0 bottom-0 p-4 pt-12 bg-gradient-to-t from-black via-black/95 to-transparent flex flex-col gap-3 text-white">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-on-media">Recommended size · M</p>
+                        <h3 className="font-display text-[19px] font-medium text-white line-clamp-1">
+                          {passedProduct?.title || passedProduct?.brand || 'Luxury Tailored Piece'}
+                        </h3>
+                        <p className="text-[14px] font-medium text-white/75">{passedProduct?.brand || 'ZipRIGHT edit'} · {passedProduct?.price || '₹3,990'}</p>
+                      </div>
+                      <button
+                        onClick={() => showToast('Saved to Wishlist', 'success')}
+                        className="h-9 w-9 rounded-full border border-white/35 flex items-center justify-center text-white active:scale-90 transition-transform"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">favorite_border</span>
+                      </button>
+                    </div>
+
+                    {/* Size Selector */}
+                    <div className="flex gap-2">
+                      {['S', 'M', 'L', 'XL'].map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setSelectedSize(s)}
+                          className={`flex-1 py-1.5 rounded-xl text-[12px] font-semibold transition-colors ${selectedSize === s ? 'bg-white text-black' : 'bg-white/15 text-white hover:bg-white/25'}`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* CTAs: Buy Now + Try Again */}
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        fullWidth
+                        size="sm"
+                        onClick={generate}
+                        loading={generating}
+                      >
+                        Try Again
+                      </Button>
+                      <Button
+                        variant="primary"
+                        fullWidth
+                        size="sm"
+                        icon="shopping_bag"
+                        onClick={() => {
+                          showToast('Added to Cart', 'success');
+                          navigate('/cart');
+                        }}
+                      >
+                        Buy Now
+                      </Button>
+                    </div>
                   </div>
                 </>
               )}
               {generating && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-black/80 px-8">
-                  {/* Ambient pulse behind the ring */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-surface-0/95 backdrop-blur-md px-8">
                   <motion.div
                     aria-hidden="true"
                     className="absolute h-56 w-56 rounded-full bg-brand/20 blur-3xl"
@@ -355,12 +400,12 @@ const TryOnStudio: React.FC = () => {
                   />
                   <ProgressRing value={progress} size={132} strokeWidth={6} color="var(--brand)" aria-label="Render progress">
                     <div className="text-center">
-                      <span className="block font-display text-[30px] font-medium text-ink-invert leading-none">{progress}%</span>
+                      <span className="block font-display text-[30px] font-medium text-ink leading-none">{progress}%</span>
                     </div>
                   </ProgressRing>
                   <div className="text-center relative z-10">
                     <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-brand">
-                      {stage}
+                      AI Fitting Engine
                     </span>
                     <AnimatePresence mode="wait">
                       <motion.span
@@ -369,15 +414,12 @@ const TryOnStudio: React.FC = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.4 }}
-                        className="block mt-2 text-[12px] text-ink-invert/70"
+                        className="block mt-2 text-[13px] text-ink font-medium"
                       >
                         {WAIT_HINTS[hintIndex]}
                       </motion.span>
                     </AnimatePresence>
                   </div>
-                  <span className="text-[11px] text-ink-invert/50 text-center relative z-10">
-                    Keeps rendering even if you minimize or close the app
-                  </span>
                 </div>
               )}
             </motion.div>

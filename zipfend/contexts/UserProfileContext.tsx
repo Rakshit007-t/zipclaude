@@ -9,8 +9,9 @@ import React, {
   ReactNode,
 } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { deleteField, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { deleteFitProfileApi } from '../services/ziprightApi';
 
 export type UserBaseSize = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
 export type UserFitPreference = 'slim' | 'regular' | 'relaxed' | 'loose';
@@ -28,6 +29,11 @@ export interface UserMeasurements {
 }
 
 export interface UserProfile {
+  username?: string;
+  displayName?: string;
+  photoURL?: string;
+  onboardingCompleted?: boolean;
+  fitProfileCompleted?: boolean;
   profileId?: string;
   profileName: string;
   gender: string;
@@ -61,12 +67,12 @@ interface UserProfileContextType {
   updateBaseSize: (baseSize?: UserBaseSize) => void;
   updateFitPreference: (fitPreference?: UserFitPreference) => void;
   updateMeasurements: (measurements: UserMeasurements) => void;
+  deleteFitProfile: (profileId: string) => Promise<void>;
   clearProfile: () => void;
 }
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
 const LOCAL_PROFILE_PREFIX = 'zipright_fit_profile:';
 const VALID_BASE_SIZES: UserBaseSize[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const VALID_FIT_PREFERENCES: UserFitPreference[] = ['slim', 'regular', 'relaxed', 'loose'];
@@ -291,24 +297,6 @@ function mergeProfile(
   };
 }
 
-function getDemoUserId() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(DEMO_AUTH_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return typeof parsed?.uid === 'string' ? parsed.uid : null;
-  } catch {
-    return null;
-  }
-}
-
-function getStorageOwnerId(user?: User | null) {
-  return getDemoUserId() || user?.uid || null;
-}
-
 function getLocalProfileKey(ownerId?: string | null) {
   return ownerId ? `${LOCAL_PROFILE_PREFIX}${ownerId}` : null;
 }
@@ -349,14 +337,15 @@ function writeLocalProfile(ownerId: string | null | undefined, profile: UserProf
   }
 }
 
+function getStorageOwnerId(user?: User | null) {
+  return user?.uid || null;
+}
+
 function resolveCurrentOwnerId(ownerId?: string | null) {
   return ownerId || getStorageOwnerId(auth.currentUser);
 }
 
 function removeLocalProfile(ownerId?: string | null) {
-  if (typeof window === 'undefined') {
-    return;
-  }
 
   const key = getLocalProfileKey(ownerId);
   if (!key) {
@@ -366,6 +355,33 @@ function removeLocalProfile(ownerId?: string | null) {
   try {
     window.localStorage.removeItem(key);
   } catch {}
+}
+
+function getFitProfileId(profile: Record<string, unknown>) {
+  const value = profile.profileId ?? profile.id;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function profileFieldsFromFitProfile(profile: Record<string, unknown>) {
+  const profileId = getFitProfileId(profile);
+  return {
+    profileId,
+    profileName: normalizeString(profile.profileName),
+    gender: normalizeString(profile.gender),
+    preferredBrand: normalizeString(profile.preferredBrand),
+    usualSize: normalizeString(profile.usualSize),
+    baseSize: normalizeBaseSize(profile.baseSize ?? profile.usualSize),
+    height: clampPositive(profile.height),
+    weight: clampPositive(profile.weight),
+    bodyShape: normalizeString(profile.bodyShape),
+    shoulderType: normalizeString(profile.shoulderType),
+    fitPreference: normalizeFitPreference(profile.fitPreference),
+    selectedProfileId: profileId,
+    selectedProfile: profileId,
+    recommendationPreferences: normalizePlainRecord(profile.recommendationPreferences),
+    measurements: normalizeMeasurements(profile.measurements),
+    smartFit: normalizeMeasurements(profile.smartFit),
+  };
 }
 
 async function fetchUserProfile(user?: User | null) {
@@ -420,6 +436,87 @@ export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ childre
     setUserProfileState(nextProfile);
     writeLocalProfile(storageOwnerIdRef.current, nextProfile);
     return nextProfile;
+  }, []);
+
+  const deleteFitProfile = useCallback(async (profileId: string) => {
+    const normalizedProfileId = profileId.trim();
+    if (!normalizedProfileId) {
+      throw new Error('A fit profile is required for deletion.');
+    }
+
+    const user = auth.currentUser;
+    const ownerId = resolveCurrentOwnerId(storageOwnerIdRef.current);
+    const localProfiles = normalizeProfileRecords(userProfileRef.current.fitProfiles);
+    let profiles = localProfiles;
+
+    if (user && !user.isAnonymous) {
+      const userRef = doc(db, 'users', user.uid);
+      const snapshot = await getDoc(userRef);
+      const remoteProfiles = normalizeProfileRecords(snapshot.data()?.fitProfiles);
+      profiles = remoteProfiles.length ? remoteProfiles : localProfiles;
+      const remainingProfiles = profiles.filter(profile => getFitProfileId(profile) !== normalizedProfileId);
+
+      if (remainingProfiles.length === profiles.length) {
+        throw new Error('This fit profile no longer exists. Refresh and try again.');
+      }
+
+      const nextProfile = remainingProfiles.find(profile => profile.isPrimary === true) || remainingProfiles[0];
+      if (nextProfile) {
+        await setDoc(userRef, {
+          ...profileFieldsFromFitProfile(nextProfile),
+          fitProfiles: remainingProfiles,
+          fitProfileCompleted: true,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      } else {
+        await setDoc(userRef, {
+          fitProfiles: [],
+          fitProfileCompleted: false,
+          profileId: deleteField(),
+          profileName: deleteField(),
+          gender: deleteField(),
+          preferredBrand: deleteField(),
+          usualSize: deleteField(),
+          baseSize: deleteField(),
+          height: deleteField(),
+          weight: deleteField(),
+          bodyShape: deleteField(),
+          shoulderType: deleteField(),
+          fitPreference: deleteField(),
+          selectedProfileId: deleteField(),
+          selectedProfile: deleteField(),
+          recommendationPreferences: deleteField(),
+          measurements: deleteField(),
+          smartFit: deleteField(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
+
+      try {
+        await deleteFitProfileApi(normalizedProfileId);
+      } catch (e) {
+        console.warn('[UserProfileContext] Backend delete sync notice:', e);
+      }
+
+      profiles = remainingProfiles;
+    } else {
+      profiles = profiles.filter(profile => getFitProfileId(profile) !== normalizedProfileId);
+    }
+
+    const nextProfile = profiles.find(profile => profile.isPrimary === true) || profiles[0];
+    storageOwnerIdRef.current = ownerId;
+    if (!nextProfile) {
+      removeLocalProfile(ownerId);
+      setUserProfileState(defaultUserProfile);
+      return;
+    }
+
+    const nextLocalProfile = normalizeUserProfileDoc({
+      ...profileFieldsFromFitProfile(nextProfile),
+      fitProfiles: profiles,
+    });
+    setUserProfileState(nextLocalProfile);
+    writeLocalProfile(ownerId, nextLocalProfile);
   }, []);
 
   useEffect(() => {
@@ -520,11 +617,12 @@ export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ childre
         return nextProfile;
       });
     },
+    deleteFitProfile,
     clearProfile: () => {
       removeLocalProfile(storageOwnerIdRef.current);
       setUserProfileState(defaultUserProfile);
     },
-  }), [isHydrated, refreshProfile, setProfile, updateProfile, userProfileState]);
+  }), [deleteFitProfile, isHydrated, refreshProfile, setProfile, updateProfile, userProfileState]);
 
   return (
     <UserProfileContext.Provider value={contextValue}>

@@ -52,15 +52,10 @@ interface UnifiedProduct {
 const SESSION_HISTORY_KEY = 'zr_session_history';
 const ADD_PRODUCT_DRAFT_KEY = 'zr_add_product_draft';
 const ACTIVE_RECOMMENDATION_KEY = 'zr_active_recommendation';
-const DEMO_AUTH_KEY = 'zipright_demo_user';
 
 interface AddProductDraft {
   link: string;
   activeTab: 'link' | 'image';
-}
-
-function hasDemoSession() {
-  return Boolean(localStorage.getItem(DEMO_AUTH_KEY));
 }
 
 function readAddProductDraft(): AddProductDraft {
@@ -492,7 +487,7 @@ const AddProduct: React.FC = () => {
       return;
     }
     const user = auth.currentUser;
-    if (!user && !hasDemoSession()) {
+    if (!user) {
       setRequestError('Please login to analyze products');
       showToast("Please login to analyze products", "error");
       return;

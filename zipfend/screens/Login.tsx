@@ -5,14 +5,16 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   RecaptchaVerifier,
-  signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
+  sendPasswordResetEmail,
+  sendEmailVerification,
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { Button, Wordmark } from '../components/ui';
+import { formatFirebaseAuthError } from '../utils/firebaseErrors';
 
 declare global {
   interface Window {
@@ -21,9 +23,9 @@ declare global {
   }
 }
 
-type AuthStep = 'input' | 'otp' | 'profile' | 'forgot-password';
+type AuthStep = 'input' | 'otp' | 'profile' | 'forgot-password' | 'email-verify';
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
+const PHONE_AUTH_ENABLED = true;
 
 const countryCodes = [
   { name: 'India', code: '+91', iso: 'IN', requiredLength: 10 },
@@ -69,8 +71,55 @@ const Login: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [resendMessage, setResendMessage] = useState('');
+  const [passwordResetMessage, setPasswordResetMessage] = useState('');
   const [error, setError] = useState('');
+
+  const firebasePhoneErrorMessage = (err: unknown, fallback: string) => {
+    return formatFirebaseAuthError(err, fallback);
+  };
+
+  const firebaseEmailErrorMessage = (err: unknown, fallback: string) => {
+    return formatFirebaseAuthError(err, fallback);
+  };
+
+  function clearRecaptchaVerifier() {
+    if (!window.recaptchaVerifier) return;
+    try {
+      window.recaptchaVerifier.clear();
+    } catch (recaptchaError) {
+      console.warn('Unable to clear the previous reCAPTCHA verifier:', recaptchaError);
+    }
+    window.recaptchaVerifier = null;
+  }
+
+  function createRecaptchaVerifier() {
+    clearRecaptchaVerifier();
+    const container = document.getElementById('recaptcha-container');
+    if (!container) {
+      throw new Error('reCAPTCHA could not be initialized. Refresh the page and try again.');
+    }
+    container.replaceChildren();
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, container, {
+      size: 'invisible',
+      'expired-callback': () => {
+        clearRecaptchaVerifier();
+        setError('reCAPTCHA expired. Please try again.');
+      },
+    });
+    return window.recaptchaVerifier;
+  }
+
+  function getPasswordResetActionCodeSettings() {
+    const configuredUrl = import.meta.env.VITE_PASSWORD_RESET_CONTINUE_URL?.trim();
+    const url = configuredUrl || `${window.location.origin}/#/login?passwordReset=complete`;
+    const redirectUrl = new URL(url);
+    if (!['https:', 'http:'].includes(redirectUrl.protocol)) {
+      throw new Error('Password reset redirect URL must use HTTP or HTTPS.');
+    }
+    return { url: redirectUrl.toString(), handleCodeInApp: false };
+  }
 
   // Reset phone if it exceeds length when country changes
   useEffect(() => {
@@ -82,60 +131,19 @@ const Login: React.FC = () => {
   // Clear recaptchaVerifier on unmount to prevent "reCAPTCHA client element has been removed" error
   useEffect(() => {
     return () => {
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {
-          console.error('Error clearing recaptcha:', e);
-        }
-        window.recaptchaVerifier = null;
-      }
+      clearRecaptchaVerifier();
     };
   }, []);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setTimeout(() => setResendCooldown(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [resendCooldown]);
+
   const createSessionAndNavigate = async (requiresProfile = false) => {
     setIsLoading(false);
-    navigate(requiresProfile ? '/fit-profile' : '/home');
-  };
-
-  const createLocalDemoSession = (phoneNumber?: string) => {
-    localStorage.setItem(DEMO_AUTH_KEY, JSON.stringify({
-      uid: `demo-${phoneNumber || 'investor'}`,
-      phoneNumber: phoneNumber || '',
-      displayName: 'ZipRIGHT Demo',
-      photoURL: null,
-    }));
-    window.dispatchEvent(new Event('zipright-demo-auth-changed'));
-    setIsLoading(false);
-    navigate('/home', { replace: true });
-  };
-
-  const handleFastPhoneLogin = async () => {
-    const phoneNumber = `${selectedCountry.code}${phone}`;
-    try {
-      await signInAnonymously(auth);
-      await createSessionAndNavigate(false);
-    } catch (err) {
-      console.warn('[Login] Anonymous Firebase auth unavailable, using local demo session.', err);
-      createLocalDemoSession(phoneNumber);
-    }
-  };
-
-  const startDemoOtpFlow = () => {
-    const phoneNumber = `${selectedCountry.code}${phone}`;
-    setConfirmationResult({
-      isDemo: true,
-      confirm: async (code: string) => {
-        if (code !== '123456') {
-          throw new Error('Invalid demo OTP. Use 123456.');
-        }
-        createLocalDemoSession(phoneNumber);
-        return { user: null };
-      },
-    });
-    setOtp(['', '', '', '', '', '']);
-    setIsLoading(false);
-    setStep('otp');
+    navigate(requiresProfile ? '/fit-profile' : '/home', { replace: true });
   };
 
   const handleGoogleLogin = async () => {
@@ -178,6 +186,34 @@ const Login: React.FC = () => {
     else setStep('input');
   };
 
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError('Enter your email address to reset your password.');
+      return;
+    }
+
+    setError('');
+    setPasswordResetMessage('');
+    setIsLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, normalizedEmail, getPasswordResetActionCodeSettings());
+      // Do not reveal whether this email belongs to an account.
+      setPasswordResetMessage('If an account exists for this email, a password reset link has been sent.');
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      if (err?.code === 'auth/invalid-email') {
+        setError('Enter a valid email address.');
+      } else if (err?.code === 'auth/too-many-requests') {
+        setError('Too many reset requests. Please wait a moment and try again.');
+      } else {
+        setError('Unable to send a reset link right now. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleContinue = async () => {
     setError('');
     if (authMethod === 'phone') {
@@ -187,62 +223,16 @@ const Login: React.FC = () => {
       }
       setIsLoading(true);
       try {
-        startDemoOtpFlow();
-        return;
-
-        if (window.recaptchaVerifier) {
-          try {
-            window.recaptchaVerifier.clear();
-          } catch (e) {
-            console.warn('Error clearing reCAPTCHA:', e);
-          }
-          window.recaptchaVerifier = null;
-        }
-
-        // Ensure the container is empty before creating a new one
-        const container = document.getElementById('recaptcha-container');
-        if (container) container.innerHTML = '';
-
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          size: 'invisible',
-          'callback': () => {
-            // reCAPTCHA solved
-          },
-          'expired-callback': () => {
-            // Response expired. Ask user to solve reCAPTCHA again.
-            setError('reCAPTCHA expired. Please try again.');
-          }
-        });
-
         const phoneNumber = `${selectedCountry.code}${phone}`;
-        const confirmation = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
+        const confirmation = await signInWithPhoneNumber(auth, phoneNumber, createRecaptchaVerifier());
         setConfirmationResult(confirmation);
         setIsLoading(false);
         setStep('otp');
       } catch (err: any) {
         console.error('SMS sending error:', err);
-        if (err.code === 'auth/billing-not-enabled') {
-          setError('Phone authentication requires Firebase billing to be enabled. Please upgrade to the Blaze plan in your Firebase console.');
-        } else if (err.code === 'auth/operation-not-allowed') {
-          if (err.message.includes('region enabled')) {
-            setError('SMS sending is restricted for this region. Please enable your country in the Firebase Console (Authentication > Settings > SMS Region Policy).');
-          } else {
-            setError('Phone Authentication is not enabled in your Firebase project. Please enable it in the Firebase Console (Authentication > Sign-in method).');
-          }
-        } else if (err.message.includes('reCAPTCHA')) {
-          setError('reCAPTCHA error. Please refresh the page and try again.');
-        } else {
-          setError(err.message || 'Failed to send verification code.');
-        }
+        setError(firebasePhoneErrorMessage(err, 'Failed to send a verification code.'));
         setIsLoading(false);
-
-        // Cleanup reCAPTCHA on error
-        if (window.recaptchaVerifier) {
-          try {
-            window.recaptchaVerifier.clear();
-          } catch (e) { }
-          window.recaptchaVerifier = null;
-        }
+        clearRecaptchaVerifier();
       }
     } else if (authMethod === 'email') {
       if (!email || !password) {
@@ -255,12 +245,41 @@ const Login: React.FC = () => {
         if (isSignUp) {
           const result = await createUserWithEmailAndPassword(auth, email, password);
           user = result.user;
+          try {
+            await sendEmailVerification(user);
+          } catch (verr) {
+            console.warn('Send email verification warning:', verr);
+          }
+
+          const userDocRef = doc(db, 'users', user.uid);
+          const defaultUsername = `user_${user.uid.replace(/[-_]/g, '').slice(0, 8).toLowerCase()}`;
+          await setDoc(userDocRef, {
+            uid: user.uid,
+            email: user.email,
+            emailVerified: false,
+            username: defaultUsername,
+            displayName: '',
+            onboardingCompleted: true,
+            fitProfileCompleted: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+
+          setIsLoading(false);
+          setStep('email-verify');
+          return;
         } else {
           const result = await signInWithEmailAndPassword(auth, email, password);
           user = result.user;
+          await user.reload();
+
+          if (!user.emailVerified) {
+            setIsLoading(false);
+            setStep('email-verify');
+            return;
+          }
         }
 
-        // Wait a moment for Firestore auth state to sync
         await new Promise(resolve => setTimeout(resolve, 500));
 
         const userDocRef = doc(db, 'users', user.uid);
@@ -269,7 +288,6 @@ const Login: React.FC = () => {
           userDoc = await getDoc(userDocRef);
         } catch (e: any) {
           if (e.code === 'permission-denied') {
-            // Retry once after a longer delay
             await new Promise(resolve => setTimeout(resolve, 1000));
             userDoc = await getDoc(userDocRef);
           } else {
@@ -277,10 +295,10 @@ const Login: React.FC = () => {
           }
         }
 
-        createSessionAndNavigate(!userDoc.exists());
+        createSessionAndNavigate(!userDoc.exists() || !userDoc.data()?.fitProfileCompleted);
       } catch (err: any) {
         console.error('Email auth error:', err);
-        setError(err.message || 'Authentication failed.');
+        setError(firebaseEmailErrorMessage(err, 'Authentication failed.'));
         setIsLoading(false);
       }
     }
@@ -295,15 +313,13 @@ const Login: React.FC = () => {
     setIsLoading(true);
     setError('');
     try {
-      if (confirmationResult?.isDemo) {
-        await confirmationResult.confirm(otpString);
-        return;
+      if (!confirmationResult) {
+        throw new Error('Request a new verification code and try again.');
       }
 
       const result = await confirmationResult.confirm(otpString);
       const user = result.user;
 
-      // Wait a moment for Firestore auth state to sync
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const userDocRef = doc(db, 'users', user.uid);
@@ -312,7 +328,6 @@ const Login: React.FC = () => {
         userDoc = await getDoc(userDocRef);
       } catch (e: any) {
         if (e.code === 'permission-denied') {
-          // Retry once after a longer delay
           await new Promise(resolve => setTimeout(resolve, 1000));
           userDoc = await getDoc(userDocRef);
         } else {
@@ -321,63 +336,51 @@ const Login: React.FC = () => {
       }
 
       if (!userDoc.exists()) {
+        const defaultUsername = `user_${user.uid.replace(/[-_]/g, '').slice(0, 8).toLowerCase()}`;
+        await setDoc(userDocRef, {
+          uid: user.uid,
+          phoneNumber: user.phoneNumber,
+          username: defaultUsername,
+          displayName: '',
+          onboardingCompleted: true,
+          fitProfileCompleted: false,
+          usage: { tryOns: 0 },
+          walletBalanceRupees: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
         createSessionAndNavigate(true);
         return;
       } else {
-        createSessionAndNavigate(false);
+        createSessionAndNavigate(!userDoc.data()?.fitProfileCompleted);
       }
     } catch (err: any) {
       console.error('OTP verification error:', err);
-      setError(err.message || 'Invalid verification code.');
+      setError(firebasePhoneErrorMessage(err, 'Invalid verification code.'));
       setIsLoading(false);
     }
   };
 
   const handleResendCode = async () => {
-    if (isResending) return;
+    if (isResending || resendCooldown > 0) return;
     setIsResending(true);
     setResendMessage('');
     setError('');
     try {
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) { }
-        window.recaptchaVerifier = null;
+      if (!PHONE_AUTH_ENABLED) {
+        throw new Error('Phone sign-in is not enabled for this environment.');
       }
 
-      // Ensure the container is empty before creating a new one
-      const container = document.getElementById('recaptcha-container');
-      if (container) container.innerHTML = '';
-
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible'
-      });
-
       const phoneNumber = `${selectedCountry.code}${phone}`;
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
+      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, createRecaptchaVerifier());
       setConfirmationResult(confirmation);
       setResendMessage(`Verification code sent to ${selectedCountry.code} ${phone}`);
+      setResendCooldown(30);
       setTimeout(() => setResendMessage(''), 5000);
     } catch (err: any) {
       console.error('Resend error:', err);
-      if (err.code === 'auth/billing-not-enabled') {
-        setError('Phone authentication requires Firebase billing to be enabled. Please upgrade to the Blaze plan in your Firebase console.');
-      } else if (err.code === 'auth/operation-not-allowed') {
-        if (err.message.includes('region enabled')) {
-          setError('SMS sending is restricted for this region. Please enable your country in the Firebase Console (Authentication > Settings > SMS Region Policy).');
-        } else {
-          setError('Phone Authentication is not enabled in your Firebase project. Please enable it in the Firebase Console.');
-        }
-      } else {
-        setError(err.message || 'Failed to resend code.');
-      }
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) { }
-        window.recaptchaVerifier = null;
-      }
+      setError(firebasePhoneErrorMessage(err, 'Failed to resend the verification code.'));
+      clearRecaptchaVerifier();
     } finally {
       setIsResending(false);
     }
@@ -568,6 +571,16 @@ const Login: React.FC = () => {
                 </div>
               )}
 
+              {authMethod === 'email' && !isSignUp && (
+                <button
+                  type="button"
+                  onClick={() => { setError(''); setPasswordResetMessage(''); setStep('forgot-password'); }}
+                  className="-mt-5 mb-7 block ml-auto text-[12px] font-semibold text-ink underline underline-offset-4"
+                >
+                  Forgot Password?
+                </button>
+              )}
+
               {error && (
                 <p role="alert" className="mb-6 text-center text-[13px] font-medium leading-snug text-danger">
                   {error}
@@ -637,12 +650,6 @@ const Login: React.FC = () => {
               <p className="text-ink-soft text-[13.5px] mb-2">
                 Code sent to {selectedCountry.code} {phone}
               </p>
-              {confirmationResult?.isDemo && (
-                <p className="text-brand text-[12px] font-semibold mb-2">
-                  Demo OTP: 123456
-                </p>
-              )}
-
               <div className="flex justify-between gap-2.5 mt-8 mb-10 w-full">
                 {otp.map((digit, i) => (
                   <input
@@ -675,10 +682,10 @@ const Login: React.FC = () => {
               <div className="mt-10 flex flex-col items-center gap-5">
                 <button
                   onClick={handleResendCode}
-                  disabled={isResending}
+                  disabled={isResending || resendCooldown > 0}
                   className="text-[12px] font-semibold uppercase tracking-[0.1em] text-ink underline underline-offset-4 disabled:text-ink-faint disabled:no-underline"
                 >
-                  {isResending ? 'Sending…' : 'Resend code'}
+                  {isResending ? 'Sending…' : resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
                 </button>
                 {resendMessage && <p className="text-[12px] text-success font-medium">{resendMessage}</p>}
 
@@ -768,6 +775,142 @@ const Login: React.FC = () => {
               <Button size="lg" fullWidth loading={isLoading} onClick={handleSaveProfile} className="mt-12">
                 Finish setup
               </Button>
+            </motion.div>
+          )}
+
+          {step === 'forgot-password' && (
+            <motion.div
+              key="forgot-password"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="max-w-sm mx-auto w-full pt-6"
+            >
+              <p className="eyebrow mb-3">Password reset</p>
+              <h1 className="font-display text-[36px] leading-[1.06] font-light mb-2">
+                Reset your <em className="font-medium">password.</em>
+              </h1>
+              <p className="text-ink-soft text-[13.5px] mb-10">
+                We’ll email you a secure link to choose a new password.
+              </p>
+
+              <div className={`${underlineField} mb-7`}>
+                <label className="eyebrow !text-[9px] mb-1 block">Email address</label>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  aria-label="Email address for password reset"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  className="h-14 w-full bg-transparent font-medium outline-none placeholder:text-ink-faint text-ink text-[16px]"
+                />
+              </div>
+
+              {error && <p role="alert" className="mb-5 text-center text-[13px] font-medium text-danger">{error}</p>}
+              {passwordResetMessage && <p role="status" className="mb-5 text-center text-[13px] font-medium text-success">{passwordResetMessage}</p>}
+
+              <Button size="lg" fullWidth loading={isLoading} onClick={handleForgotPassword}>
+                Send reset link
+              </Button>
+              <button onClick={handleBack} className="mt-7 w-full text-[12px] font-semibold text-ink underline underline-offset-4">
+                Back to sign in
+              </button>
+            </motion.div>
+          )}
+
+          {step === 'email-verify' && (
+            <motion.div
+              key="email-verify"
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              className="max-w-sm mx-auto w-full pt-6 text-center"
+            >
+              <div className="w-16 h-16 rounded-full bg-brand/10 border border-brand/30 flex items-center justify-center mx-auto mb-6">
+                <span className="material-symbols-outlined text-brand text-[32px]">mark_email_unread</span>
+              </div>
+              <p className="eyebrow mb-2">Email Verification</p>
+              <h1 className="font-display text-[32px] leading-[1.08] font-light mb-3">
+                Verify your <em className="font-medium">email.</em>
+              </h1>
+              <p className="text-ink-soft text-[13.5px] leading-relaxed mb-8">
+                We sent a verification link to <strong className="text-ink font-medium">{email || auth.currentUser?.email}</strong>. Please verify your email to access ZipRIGHT.
+              </p>
+
+              {resendMessage && (
+                <p className="mb-5 text-center text-[13px] font-medium text-success bg-success/10 p-3 rounded-xl border border-success/20">
+                  {resendMessage}
+                </p>
+              )}
+              {error && (
+                <p role="alert" className="mb-5 text-center text-[13px] font-medium text-danger bg-danger/10 p-3 rounded-xl border border-danger/20">
+                  {error}
+                </p>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <Button
+                  size="lg"
+                  fullWidth
+                  loading={isLoading}
+                  onClick={async () => {
+                    setIsLoading(true);
+                    setError('');
+                    try {
+                      await auth.currentUser?.reload();
+                      const currentUser = auth.currentUser;
+                      if (currentUser?.emailVerified) {
+                        const userDocRef = doc(db, 'users', currentUser.uid);
+                        const userDoc = await getDoc(userDocRef);
+                        await setDoc(userDocRef, { emailVerified: true }, { merge: true });
+                        createSessionAndNavigate(!userDoc.exists() || !userDoc.data()?.fitProfileCompleted);
+                      } else {
+                        setError('Email is not verified yet. Please check your inbox and click the verification link.');
+                      }
+                    } catch (e: any) {
+                      setError(e.message || 'Verification check failed.');
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                >
+                  Refresh Verification Status
+                </Button>
+
+                <Button
+                  variant="outline"
+                  fullWidth
+                  disabled={isResending || resendCooldown > 0}
+                  onClick={async () => {
+                    if (!auth.currentUser) return;
+                    setIsResending(true);
+                    setError('');
+                    setResendMessage('');
+                    try {
+                      await sendEmailVerification(auth.currentUser);
+                      setResendMessage('Verification email sent! Please check your inbox.');
+                      setResendCooldown(30);
+                    } catch (e: any) {
+                      setError(e.message || 'Unable to send verification email.');
+                    } finally {
+                      setIsResending(false);
+                    }
+                  }}
+                >
+                  {isResending ? 'Sending...' : resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Verification Email'}
+                </Button>
+              </div>
+
+              <button
+                onClick={async () => {
+                  try { await auth.signOut(); } catch {}
+                  setStep('input');
+                }}
+                className="mt-8 text-[12px] font-semibold text-ink-faint hover:text-ink underline underline-offset-4"
+              >
+                Sign in with another account
+              </button>
             </motion.div>
           )}
         </AnimatePresence>

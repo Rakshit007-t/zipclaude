@@ -22,11 +22,11 @@ logger = logging.getLogger(__name__)
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_MAX_REQUESTS = 10
 MAX_URL_LENGTH = 2048
-HTTP_CONNECT_TIMEOUT_SECONDS = 2
-HTTP_READ_TIMEOUT_SECONDS = 3
-PLAYWRIGHT_NAVIGATION_TIMEOUT_MS = 3000
-PLAYWRIGHT_FALLBACK_WAIT_MS = 800
-PLAYWRIGHT_POST_SCROLL_WAIT_MS = 500
+HTTP_CONNECT_TIMEOUT_SECONDS = 5
+HTTP_READ_TIMEOUT_SECONDS = 20
+PLAYWRIGHT_NAVIGATION_TIMEOUT_MS = 15000
+PLAYWRIGHT_FALLBACK_WAIT_MS = 1200
+PLAYWRIGHT_POST_SCROLL_WAIT_MS = 750
 PLAYWRIGHT_HUMAN_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -586,6 +586,11 @@ def _get_cached_response(url: str) -> ExtractProductResponse | None:
 
 
 def _store_cached_response(url: str, response: ExtractProductResponse) -> None:
+    # Keep successful retailer results warm, but do not preserve an incomplete
+    # fallback that would prevent the next request from trying again.
+    if not _is_complete_extraction(response):
+        return
+
     global _last_cleanup_time
     url_hash = _get_url_hash(url)
     with _cache_lock:
@@ -611,6 +616,15 @@ def _store_cached_response(url: str, response: ExtractProductResponse) -> None:
 
         expires_at = now_time + CACHE_TTL_SECONDS
         _product_cache[url_hash] = (expires_at, ExtractProductResponse.model_validate(response.model_dump()))
+
+
+def _is_complete_extraction(response: ExtractProductResponse) -> bool:
+    return bool(
+        clean_title(response.title)
+        and str(response.brand or '').strip()
+        and str(response.category or '').strip()
+        and str(response.image or '').strip()
+    )
 
 
 def _extract_from_url(url: str) -> ExtractProductResponse:
@@ -983,9 +997,9 @@ def fetch_page_with_playwright(url: str) -> tuple[str, BeautifulSoup, str]:
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(_fetch_page_with_playwright_internal, url)
         try:
-            return future.result(timeout=4.5)
+            return future.result(timeout=18.0)
         except concurrent.futures.TimeoutError:
-            logger.warning("Playwright timeout (4.5s) exceeded for url=%s. Falling back to requests.", url)
+            logger.warning("Playwright timeout (18s) exceeded for url=%s. Falling back to requests.", url)
             return _fetch_page_with_requests_fallback(url)
         except Exception as exc:
             logger.warning("Playwright thread execution failed for url=%s: %s", url, exc)

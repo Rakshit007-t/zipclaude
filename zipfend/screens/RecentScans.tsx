@@ -5,11 +5,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { listCloset, onClosetChange, removeFromCloset } from '../services/closet';
 import { AppBar, EmptyState, Button, Spinner } from '../components/ui';
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
-
-function hasDemoSession() {
-  return Boolean(localStorage.getItem(DEMO_AUTH_KEY));
-}
 
 interface WardrobeItem {
   id: string;
@@ -30,7 +25,7 @@ const RecentScans: React.FC = () => {
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user && !hasDemoSession()) {
+    if (!user) {
       navigate('/login');
       return;
     }

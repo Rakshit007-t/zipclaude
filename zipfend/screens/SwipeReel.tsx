@@ -1,374 +1,227 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
+import { auth } from '../firebase';
+import { Button, EmptyState, Input, Sheet, Spinner } from '../components/ui';
 import { useToast } from '../contexts/ToastContext';
-import { demoProducts } from '../services/demoProducts';
-import {
-  addToCloset,
-  addToCloset as addPass,
-  closetCount,
-  inCloset,
-  listCloset,
-  onClosetChange,
-  removeFromCloset,
-  toggleCloset,
-} from '../services/closet';
+import { authorizedFetch, getBackendBaseUrl } from '../services/ziprightApi';
+import { blockUser, report, searchUsers, socialUser, type PublicProfile } from '../services/social';
+import { addToCloset } from '../services/closet';
 
-interface Product {
-  id: string;
-  title: string;
-  brand: string;
-  price: string;
-  image: string;
-  category: string;
-  type: string;
-  url: string;
-  affiliateLink?: string;
-}
+type Reel = {
+  id: string; user_id: string; user_display_name: string; user_username: string;
+  user_photo_url?: string | null; caption: string; media_url?: string | null;
+  thumbnail_url?: string | null; likes_count: number; comments_count: number;
+  shares_count: number; is_liked_by_me: boolean;
+};
+type Comment = {
+  id: string; user_id: string; user_display_name: string; user_username: string;
+  user_photo_url?: string | null; text: string;
+};
 
-const toClosetItem = (p: Product) => ({
-  id: p.id,
-  title: p.title,
-  brand: p.brand,
-  price: p.price,
-  image: p.image,
-  url: p.url,
-  affiliateLink: p.affiliateLink,
-  category: p.category,
-});
-
-/** Glass action on the reel's right rail. */
-const RailAction: React.FC<{ icon: string; label: string; onClick: () => void; filled?: boolean; tint?: string }> = ({ icon, label, onClick, filled, tint }) => (
-  <button onClick={onClick} className="flex flex-col items-center gap-1.5 active:scale-90 transition-transform" aria-label={label}>
-    <div className="h-12 w-12 rounded-full bg-black/35 backdrop-blur-md flex items-center justify-center border border-white/15">
-      <span className="material-symbols-outlined text-[22px]" style={{ color: tint || '#ffffff', fontVariationSettings: filled ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">{icon}</span>
-    </div>
-    <span className="text-white/90 text-[9px] font-semibold uppercase tracking-[0.14em]">{label}</span>
-  </button>
+const IconAction = ({ icon, label, onClick, filled }: { icon: string; label: string; onClick: () => void; filled?: boolean }) => (
+  <motion.button whileTap={{ scale: 0.88 }} onClick={onClick} aria-label={label} className="flex h-11 w-11 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur-md ring-1 ring-white/20">
+    <span className={`material-symbols-outlined text-[22px] ${filled ? 'filled' : ''}`}>{icon}</span>
+  </motion.button>
 );
 
-/**
- * The Reel — a vertical runway of pieces with Tinder mechanics.
- * Scroll = browse · swipe right = to bag · swipe left = pass · double-tap = wishlist.
- * Every action is real (closet service → localStorage + Firestore mirror).
- */
+const avatar = (name: string, url?: string | null) => url
+  ? <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+  : <span className="flex h-full w-full items-center justify-center bg-surface-2 text-sm font-semibold text-ink">{name.slice(0, 1).toUpperCase()}</span>;
+
 const SwipeReel: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const [reels, setReels] = useState<Reel[]>([]);
+  const [index, setIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [recipientTerm, setRecipientTerm] = useState('');
+  const [recipients, setRecipients] = useState<PublicProfile[]>([]);
 
-  const [deck, setDeck] = useState<Product[]>([]);
-  const [likedTick, setLikedTick] = useState(0); // re-render hearts on closet change
-  const [bagCount, setBagCount] = useState(() => closetCount('cart'));
-  const [heartBurst, setHeartBurst] = useState<Record<string, boolean>>({});
-  const [showHint, setShowHint] = useState(() => !localStorage.getItem('zr_reel_hint'));
+  const reel = reels[index];
 
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const lastTapRef = useRef<Record<string, number>>({});
-  const dragRef = useRef<{
-    startX: number; startY: number; currentX: number;
-    productId: string | null; isDragging: boolean; isHorizontal: boolean | null;
-  }>({ startX: 0, startY: 0, currentX: 0, productId: null, isDragging: false, isHorizontal: null });
-
-  // Build the deck: everything not previously passed
   useEffect(() => {
-    const passed = new Set(listCloset('passed').map(i => i.id));
-    setDeck((demoProducts as Product[]).filter(p => !passed.has(p.id)));
+    let cancelled = false;
+    void (async () => {
+      setLoading(true); setError(null);
+      try {
+        const response = await authorizedFetch(`${getBackendBaseUrl()}/feed/reels`);
+        if (!response.ok) throw new Error('Could not load reels.');
+        const payload = await response.json();
+        if (!cancelled) setReels(payload.data?.posts || []);
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load reels.');
+      } finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => onClosetChange(() => {
-    setBagCount(closetCount('cart'));
-    setLikedTick(t => t + 1);
-  }), []);
+  useEffect(() => {
+    if (!commentsOpen || !reel) return;
+    let cancelled = false;
+    void (async () => {
+      setCommentsLoading(true);
+      try {
+        const response = await authorizedFetch(`${getBackendBaseUrl()}/social/posts/${encodeURIComponent(reel.id)}/comments`);
+        if (!response.ok) throw new Error('Could not load comments.');
+        const payload = await response.json();
+        if (!cancelled) setComments(payload.data || []);
+      } catch {
+        if (!cancelled) showToast('Could not load comments.', 'error');
+      } finally { if (!cancelled) setCommentsLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [commentsOpen, reel?.id, showToast]);
 
   useEffect(() => {
-    if (!showHint) return;
-    const t = setTimeout(() => {
-      setShowHint(false);
-      localStorage.setItem('zr_reel_hint', '1');
-    }, 3200);
-    return () => clearTimeout(t);
-  }, [showHint]);
+    if (!shareOpen || recipientTerm.trim().length < 2) { setRecipients([]); return; }
+    let cancelled = false;
+    void searchUsers(recipientTerm).then(results => { if (!cancelled) setRecipients(results); }).catch(() => {
+      if (!cancelled) setRecipients([]);
+    });
+    return () => { cancelled = true; };
+  }, [shareOpen, recipientTerm]);
 
-  const removeFromDeck = (id: string) => setDeck(prev => prev.filter(p => p.id !== id));
-
-  const handleBag = (product: Product) => {
-    const added = addToCloset('cart', toClosetItem(product));
-    showToast(added ? `${product.brand} added to bag` : 'Already in your bag', added ? 'success' : 'info');
+  const requireUser = () => {
+    if (socialUser()) return true;
+    showToast('Sign in to use social actions.', 'error');
+    return false;
   };
 
-  const handlePass = (product: Product) => {
-    addPass('passed', toClosetItem(product));
+  const toggleLike = async () => {
+    if (!reel || busy || !requireUser()) return;
+    setBusy(true);
+    try {
+      const response = await authorizedFetch(`${getBackendBaseUrl()}/social/posts/${encodeURIComponent(reel.id)}/like`, { method: 'POST' });
+      if (!response.ok) throw new Error();
+      const payload = await response.json();
+      setReels(current => current.map(item => item.id === reel.id ? { ...item, is_liked_by_me: payload.data.liked, likes_count: payload.data.likes_count } : item));
+    } catch { showToast('Could not update like.', 'error'); } finally { setBusy(false); }
   };
 
-  // Reel hearts are LIKES (taste signal) — wishlist saving lives in the Marketplace.
-  const handleLike = (product: Product) => {
-    const liked = toggleCloset('liked', toClosetItem(product));
-    showToast(liked ? 'Liked ♥' : 'Like removed', 'success');
-    return liked;
+  const sendComment = async () => {
+    const text = comment.trim();
+    if (!reel || !text || busy || !requireUser()) return;
+    setBusy(true);
+    try {
+      const response = await authorizedFetch(`${getBackendBaseUrl()}/social/posts/${encodeURIComponent(reel.id)}/comments`, { method: 'POST', body: JSON.stringify({ text }) });
+      if (!response.ok) throw new Error();
+      const payload = await response.json();
+      setComments(current => [...current, payload.data]);
+      setComment('');
+      setReels(current => current.map(item => item.id === reel.id ? { ...item, comments_count: item.comments_count + 1 } : item));
+    } catch { showToast('Comment was not posted. Please try again.', 'error'); } finally { setBusy(false); }
   };
 
-  // ── Gesture handling (pointer-based, vertical scroll stays native) ──
-  const handleDragStart = (e: React.PointerEvent, productId: string) => {
-    dragRef.current = { startX: e.clientX, startY: e.clientY, currentX: 0, productId, isDragging: false, isHorizontal: null };
+  const sendShare = async (recipient: PublicProfile) => {
+    if (!reel || busy || !requireUser()) return;
+    setBusy(true);
+    try {
+      const response = await authorizedFetch(`${getBackendBaseUrl()}/social/posts/${encodeURIComponent(reel.id)}/share`, { method: 'POST', body: JSON.stringify({ recipient_uid: recipient.uid }) });
+      if (!response.ok) throw new Error();
+      setShareOpen(false); setRecipientTerm('');
+      showToast(`Shared with ${recipient.displayName}.`, 'success');
+    } catch { showToast('Could not share this reel.', 'error'); } finally { setBusy(false); }
   };
 
-  const handleDragMove = (e: React.PointerEvent, productId: string, index: number) => {
-    const d = dragRef.current;
-    if (d.productId !== productId) return;
-
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    if (d.isHorizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 10)) {
-      d.isHorizontal = Math.abs(dx) > Math.abs(dy);
-    }
-    if (d.isHorizontal !== true) return;
-
-    d.isDragging = true;
-    d.currentX = dx;
-    e.preventDefault();
-
-    const card = cardRefs.current[index];
-    if (card) {
-      const rotate = Math.min(Math.max(dx / 18, -9), 9);
-      card.style.transition = 'none';
-      card.style.transform = `translateX(${dx}px) rotate(${rotate}deg)`;
-    }
-    const bagStamp = document.getElementById(`stamp-bag-${productId}`);
-    const passStamp = document.getElementById(`stamp-pass-${productId}`);
-    if (bagStamp) bagStamp.style.opacity = dx > 0 ? String(Math.min(1, dx / 90)) : '0';
-    if (passStamp) passStamp.style.opacity = dx < 0 ? String(Math.min(1, -dx / 90)) : '0';
+  const copyLink = async () => {
+    if (!reel) return;
+    const url = `${window.location.origin}${window.location.pathname}#/reels/${encodeURIComponent(reel.id)}`;
+    try { await navigator.clipboard.writeText(url); showToast('Link copied.', 'success'); }
+    catch { showToast('Could not copy link.', 'error'); }
   };
 
-  const handleDragEnd = (e: React.PointerEvent, product: Product, index: number) => {
-    const d = dragRef.current;
-    if (d.productId !== product.id) return;
+  const getReelProduct = (r: Reel) => ({
+    id: r.id,
+    title: r.caption || 'Fashion Reel Look',
+    brand: r.user_display_name || 'ZipRIGHT Atelier',
+    price: '₹2,999',
+    image: r.media_url || r.thumbnail_url || '',
+    url: window.location.href,
+  });
 
-    const card = cardRefs.current[index];
-    const resetStamps = () => {
-      const b = document.getElementById(`stamp-bag-${product.id}`);
-      const p = document.getElementById(`stamp-pass-${product.id}`);
-      if (b) b.style.opacity = '0';
-      if (p) p.style.opacity = '0';
-    };
+  const handleAddToCart = () => {
+    if (!reel) return;
+    const added = addToCloset('cart', getReelProduct(reel));
+    if (added) showToast('Added to Cart', 'success');
+    else showToast('Already in Cart', 'info');
+  };
 
-    if (!d.isDragging) {
-      // Tap — detect double-tap → wishlist
-      const now = Date.now();
-      if (now - (lastTapRef.current[product.id] || 0) < 300) {
-        const saved = handleLike(product);
-        if (saved) {
-          setHeartBurst(prev => ({ ...prev, [product.id]: true }));
-          setTimeout(() => setHeartBurst(prev => ({ ...prev, [product.id]: false })), 650);
-        }
-      }
-      lastTapRef.current[product.id] = now;
-      d.productId = null;
-      return;
-    }
+  const handleAddToWishlist = () => {
+    if (!reel) return;
+    const added = addToCloset('likes', getReelProduct(reel));
+    if (added) showToast('Saved to Wishlist', 'success');
+    else showToast('Already in Wishlist', 'info');
+  };
 
-    const dx = d.currentX;
-    d.isDragging = false;
-    d.productId = null;
-
-    if (dx > 90) {
-      // RIGHT → TO BAG, card exits right
-      if (card) {
-        card.style.transition = 'transform 0.28s ease';
-        card.style.transform = 'translateX(115vw) rotate(16deg)';
-      }
-      handleBag(product);
-      setTimeout(() => { removeFromDeck(product.id); resetStamps(); }, 260);
-    } else if (dx < -90) {
-      // LEFT → PASS, card exits left
-      if (card) {
-        card.style.transition = 'transform 0.28s ease';
-        card.style.transform = 'translateX(-115vw) rotate(-16deg)';
-      }
-      handlePass(product);
-      setTimeout(() => { removeFromDeck(product.id); resetStamps(); }, 260);
+  const handleDragEnd = (_: any, info: { offset: { x: number; y: number } }) => {
+    const { x, y } = info.offset;
+    if (Math.abs(x) > Math.abs(y)) {
+      if (x > 80) handleAddToCart();
+      else if (x < -80) handleAddToWishlist();
     } else {
-      // Snap back
-      if (card) {
-        card.style.transition = 'transform 0.3s ease';
-        card.style.transform = '';
-        setTimeout(() => { if (card) card.style.transition = 'none'; }, 300);
+      if (y < -80 && reels.length > 1) {
+        setIndex(current => (current + 1) % reels.length);
+      } else if (y > 80 && reels.length > 1) {
+        setIndex(current => (current - 1 + reels.length) % reels.length);
       }
-      resetStamps();
     }
   };
 
-  const resetPasses = () => {
-    listCloset('passed').forEach(i => removeFromCloset('passed', i.id));
-    setDeck(demoProducts as Product[]);
-    showToast('Deck refreshed — everything is back', 'success');
-  };
+  if (loading) return <main className="flex min-h-dvh items-center justify-center bg-surface-0"><Spinner size={30} /></main>;
+  if (error) return <main className="p-6 pt-24"><EmptyState icon="error" title="Reels unavailable" description={error} action={<Button onClick={() => window.location.reload()}>Try again</Button>} /></main>;
+  if (!reel) return <main className="p-6 pt-24"><EmptyState icon="movie" title="No reels yet" description="Published reels will appear here. There are no demo reels in this feed." /></main>;
 
   return (
-    <div className="h-dvh w-full bg-black overflow-hidden relative">
-      <style>{`
-        @keyframes heartPop {
-          0% { transform: scale(0); opacity: 1; }
-          50% { transform: scale(1.3); opacity: 1; }
-          100% { transform: scale(0); opacity: 0; }
-        }
-      `}</style>
-
-      {/* First-run hint */}
-      {showHint && (
-        <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none">
-          <div className="bg-black/75 backdrop-blur-xl rounded-[1.75rem] px-8 py-7 border border-white/10 text-center mx-8">
-            <p className="text-white/40 text-[9px] font-semibold uppercase tracking-[0.2em] mb-5">How the reel works</p>
-            <div className="flex items-center justify-center gap-7 mb-5">
-              <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-[#f2705c] text-[22px]" aria-hidden="true">swipe_left</span>
-                <span className="text-[#f2705c] text-[10px] font-semibold uppercase tracking-[0.1em]">Pass</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-white/40 text-[22px]" aria-hidden="true">swipe_vertical</span>
-                <span className="text-white/40 text-[10px] uppercase tracking-[0.1em]">Scroll</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-[#5fce8f] text-[22px]" aria-hidden="true">swipe_right</span>
-                <span className="text-[#5fce8f] text-[10px] font-semibold uppercase tracking-[0.1em]">To bag</span>
-              </div>
-            </div>
-            <p className="text-white/40 text-[11px]">Double-tap to like ♥</p>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-5 pt-5 pt-safe pb-10 pointer-events-none"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)' }}>
-        <button
-          aria-label="Go back"
-          onClick={() => navigate(-1)}
-          className="h-10 w-10 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center pointer-events-auto active:scale-90 transition-transform"
+    <main className="relative isolate h-screen min-h-[640px] max-h-dvh overflow-hidden bg-black text-white touch-none select-none">
+      <AnimatePresence mode="wait">
+        <motion.section
+          key={reel.id}
+          drag
+          dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+          dragElastic={0.5}
+          onDragEnd={handleDragEnd}
+          initial={{ opacity: 0, scale: 1.025 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.35 }}
+          className="absolute inset-0 bg-surface-3 cursor-grab active:cursor-grabbing"
         >
-          <span className="material-symbols-outlined text-white text-[19px]" aria-hidden="true">arrow_back</span>
-        </button>
-        <div className="flex flex-col items-center">
-          <span className="text-white text-[10px] font-semibold uppercase tracking-[0.22em]">The Reel</span>
-          <span className="text-white/50 text-[10px] mt-0.5">{deck.length} pieces on the runway</span>
+          {reel.media_url ? <img src={reel.media_url} alt={reel.caption || 'Reel'} className="h-full w-full object-cover pointer-events-none" /> : <div className="h-full w-full bg-gradient-to-br from-surface-3 to-ink" />}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/85 pointer-events-none" />
+        </motion.section>
+      </AnimatePresence>
+      <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
+        <button onClick={() => navigate(`/profile/${reel.user_id}`)} className="flex items-center gap-2.5 text-left"><span className="h-9 w-9 overflow-hidden rounded-full border border-white/60">{avatar(reel.user_display_name, reel.user_photo_url)}</span><span className="text-[13px] font-semibold tracking-wide">@{reel.user_username}</span></button>
+        <div className="flex items-center gap-2">
+          {reels.length > 1 && <button onClick={() => setIndex(current => (current + 1) % reels.length)} className="rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] backdrop-blur">Next</button>}
         </div>
-        <button
-          aria-label={`Bag, ${bagCount} items`}
-          onClick={() => navigate('/cart')}
-          className="relative h-10 w-10 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center pointer-events-auto active:scale-90 transition-transform"
-        >
-          <span className="material-symbols-outlined text-white text-[19px]" aria-hidden="true">shopping_bag</span>
-          {bagCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-[#5fce8f] text-black text-[9px] font-bold flex items-center justify-center">{bagCount}</span>
-          )}
-        </button>
-      </div>
-
-      {/* Empty deck */}
-      {deck.length === 0 ? (
-        <div className="h-full w-full flex flex-col items-center justify-center px-10 text-center">
-          <div className="h-16 w-16 rounded-full border border-white/20 flex items-center justify-center mb-6">
-            <span className="material-symbols-outlined text-white/40 text-[28px]" aria-hidden="true">styler</span>
-          </div>
-          <p className="text-white/40 text-[9px] font-semibold uppercase tracking-[0.2em] mb-3">Runway cleared</p>
-          <h2 className="text-white font-display text-[26px] font-light mb-3">You've seen it <em className="font-medium">all.</em></h2>
-          <p className="text-white/55 text-[13px] leading-relaxed mb-8">Bring back the pieces you passed on, or check what's in your bag.</p>
-          <div className="flex flex-col gap-3 w-full max-w-[240px]">
-            <button onClick={resetPasses} className="h-12 rounded-full bg-[#f1ede3] text-[#14120f] font-semibold text-[11px] uppercase tracking-[0.12em] active:scale-95 transition-transform">
-              Refresh the deck
-            </button>
-            <button onClick={() => navigate('/cart')} className="h-12 rounded-full border border-white/20 text-white/80 font-semibold text-[11px] uppercase tracking-[0.12em] active:scale-95 transition-transform">
-              View bag
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* REEL */
-        <div className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory" style={{ WebkitOverflowScrolling: 'touch' }}>
-          {deck.map((product, index) => (
-            <div key={product.id} className="h-dvh w-full flex-shrink-0 relative bg-black snap-start snap-always overflow-hidden">
-              {/* Swipeable card */}
-              <div
-                ref={el => { cardRefs.current[index] = el; }}
-                className="absolute inset-0"
-                onPointerDown={(e) => handleDragStart(e, product.id)}
-                onPointerMove={(e) => handleDragMove(e, product.id, index)}
-                onPointerUp={(e) => handleDragEnd(e, product, index)}
-                onPointerCancel={(e) => handleDragEnd(e, product, index)}
-                style={{ touchAction: 'pan-y' }}
-              >
-                <img
-                  src={product.image}
-                  alt={product.title}
-                  className="h-full w-full object-cover opacity-0 transition-opacity duration-500"
-                  onLoad={(e) => e.currentTarget.classList.remove('opacity-0')}
-                  loading={index > 1 ? 'lazy' : 'eager'}
-                  referrerPolicy="no-referrer"
-                  draggable={false}
-                />
-                <div className="absolute inset-0 pointer-events-none"
-                  style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 40%, transparent 62%, rgba(0,0,0,0.45) 100%)' }} />
-
-                {/* Tinder stamps */}
-                <div id={`stamp-bag-${product.id}`} className="absolute top-24 left-6 z-30 pointer-events-none" style={{ opacity: 0, transform: 'rotate(-12deg)' }}>
-                  <div className="border-[3px] border-[#5fce8f] rounded-xl px-4 py-1.5">
-                    <span className="text-[#5fce8f] font-display font-semibold text-[26px] tracking-wide">TO BAG</span>
-                  </div>
-                </div>
-                <div id={`stamp-pass-${product.id}`} className="absolute top-24 right-6 z-30 pointer-events-none" style={{ opacity: 0, transform: 'rotate(12deg)' }}>
-                  <div className="border-[3px] border-[#f2705c] rounded-xl px-4 py-1.5">
-                    <span className="text-[#f2705c] font-display font-semibold text-[26px] tracking-wide">PASS</span>
-                  </div>
-                </div>
-
-                {/* Heart burst */}
-                {heartBurst[product.id] && (
-                  <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
-                    <span className="material-symbols-outlined text-[#e89b6b] text-[92px]" style={{ fontVariationSettings: "'FILL' 1", animation: 'heartPop 0.6s ease forwards' }}>favorite</span>
-                  </div>
-                )}
-
-                {/* Caption */}
-                <div className="absolute bottom-10 left-0 right-20 pl-5 pb-safe">
-                  <p className="text-white/50 text-[9px] font-semibold uppercase tracking-[0.2em] mb-1.5">{product.category || 'The Edit'}</p>
-                  <p className="text-white font-display text-[30px] font-medium leading-tight">{product.brand}</p>
-                  <p className="text-white/75 text-[13px] mt-1 line-clamp-1">{product.title}</p>
-                  <p className="text-white font-semibold text-[16px] mt-1.5">{product.price}</p>
-                  <button
-                    onClick={() => navigate('/recommendation', { state: { product, productUrl: product.affiliateLink || product.url, source: 'reel' } })}
-                    className="mt-3.5 h-10 px-5 rounded-full border border-white/30 text-white text-[10px] font-semibold uppercase tracking-[0.14em] active:scale-95 transition-transform"
-                  >
-                    My size in this
-                  </button>
-                </div>
-              </div>
-
-              {/* Right rail (outside the swipe transform so it stays put) */}
-              <div className="absolute right-4 bottom-36 z-40 flex flex-col items-center gap-4">
-                <RailAction
-                  icon="favorite"
-                  label="Like"
-                  filled={inCloset('liked', product.id)}
-                  tint={inCloset('liked', product.id) ? '#e89b6b' : undefined}
-                  onClick={() => handleLike(product)}
-                />
-                <RailAction icon="shopping_bag" label="Bag" tint="#5fce8f" onClick={() => { handleBag(product); }} />
-                <RailAction icon="view_in_ar" label="Try-on" onClick={() => navigate('/tryon-studio', { state: { product } })} />
-                <RailAction icon="featured_seasonal_and_gifts" label="Gift" tint="#d6ae5f" onClick={() => navigate('/gift-look', { state: { product } })} />
-                <RailAction
-                  icon="ios_share"
-                  label="Share"
-                  onClick={async () => {
-                    try {
-                      if (navigator.share) await navigator.share({ title: `${product.brand} — ${product.title}`, url: product.url });
-                      else { await navigator.clipboard.writeText(product.url); showToast('Link copied to clipboard!', 'success'); }
-                    } catch {}
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+      </header>
+      <aside className="absolute bottom-[196px] right-5 z-10 flex flex-col items-center gap-2">
+        <IconAction icon="favorite" filled={reel.is_liked_by_me} label="Like" onClick={toggleLike} /><span className="text-[10px]">{reel.likes_count}</span>
+        <IconAction icon="chat_bubble" label="Comment" onClick={() => setCommentsOpen(true)} /><span className="text-[10px]">{reel.comments_count}</span>
+        <IconAction icon="shopping_bag" label="Add to Cart" onClick={handleAddToCart} />
+        <IconAction icon="bookmark" label="Add to Wishlist" onClick={handleAddToWishlist} />
+        <IconAction icon="send" label="Share" onClick={() => setShareOpen(true)} />
+        <IconAction icon="more_horiz" label="More" onClick={() => setMoreOpen(true)} />
+      </aside>
+      <section className="absolute inset-x-0 bottom-0 z-10 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pr-20">
+        <p className="text-[14px] font-semibold">{reel.user_display_name}</p>
+        <p className="mt-1 max-w-[290px] text-[13px] leading-relaxed text-white/85">{reel.caption || 'No caption.'}</p>
+        <p className="mt-2 text-[10px] text-white/50 tracking-wider uppercase">Swipe ↑↓ for Reel | Swipe → Cart | Swipe ← Wishlist</p>
+      </section>
+      <Sheet title="Share" open={shareOpen} onClose={() => setShareOpen(false)}><Input value={recipientTerm} onChange={event => setRecipientTerm(event.target.value)} placeholder="Search username or name" /><div className="mt-4 space-y-2">{recipients.map(recipient => <button key={recipient.uid} disabled={busy} onClick={() => void sendShare(recipient)} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-surface-2"><span className="h-10 w-10 overflow-hidden rounded-full">{avatar(recipient.displayName, recipient.photoURL)}</span><span><b className="block text-sm text-ink">{recipient.displayName}</b><small className="text-ink-faint">@{recipient.username}</small></span></button>)}{recipientTerm.trim().length >= 2 && !recipients.length && <p className="py-6 text-center text-sm text-ink-faint">No matching members.</p>}</div><Button variant="secondary" fullWidth className="mt-5" onClick={() => void copyLink()}>Copy link</Button></Sheet>
+      <Sheet title="Options" open={moreOpen} onClose={() => setMoreOpen(false)}><button onClick={() => void copyLink()} className="flex w-full border-b border-line py-4 text-left text-ink">Copy link</button><button onClick={() => { void report('post', reel.id, 'Other').then(() => showToast('Report submitted.', 'success')).catch(() => showToast('Could not submit report.', 'error')); setMoreOpen(false); }} className="flex w-full border-b border-line py-4 text-left text-ink">Report</button><button onClick={() => { void blockUser({ uid: reel.user_id, displayName: reel.user_display_name, username: reel.user_username, photoURL: reel.user_photo_url || null }).then(() => { setReels(current => current.filter(item => item.id !== reel.id)); setIndex(0); showToast('Creator blocked.', 'success'); }).catch(() => showToast('Could not block creator.', 'error')); setMoreOpen(false); }} className="flex w-full py-4 text-left text-danger">Block creator</button></Sheet>
+      <Sheet title="Comments" open={commentsOpen} onClose={() => setCommentsOpen(false)}><div className="space-y-5 pb-20">{commentsLoading ? <div className="flex justify-center py-10"><Spinner size={24} /></div> : comments.map(entry => <div key={entry.id} className="flex gap-3"><span className="h-9 w-9 shrink-0 overflow-hidden rounded-full">{avatar(entry.user_display_name, entry.user_photo_url)}</span><p className="pt-0.5 text-[13px] text-ink"><strong className="mr-1.5">@{entry.user_username}</strong>{entry.text}</p></div>)}</div><div className="sticky bottom-0 flex items-center gap-2 border-t border-line bg-surface-1 py-3"><span className="h-8 w-8 shrink-0 overflow-hidden rounded-full">{avatar(auth.currentUser?.displayName || 'You', auth.currentUser?.photoURL)}</span><Input value={comment} onChange={event => setComment(event.target.value.slice(0, 500))} onKeyDown={event => event.key === 'Enter' && void sendComment()} placeholder="Add a comment..." className="flex-1 !rounded-full" /><button disabled={busy} onClick={() => void sendComment()} className="text-[11px] font-semibold text-brand">Post</button></div></Sheet>
+    </main>
   );
 };
 

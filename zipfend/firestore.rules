@@ -1,80 +1,81 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isOwnerEvent() {
-      return request.auth != null
-             && request.resource.data.userId == request.auth.uid;
-    }
-
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    // Admin documents are server-managed. A client can never create or edit
+    // them, so this check cannot be escalated from a normal profile write.
     function isAdmin() {
-      return request.auth != null
-             && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.status == 'active';
+    }
+    function publicProfileFieldsOnly() {
+      return request.resource.data.keys().hasOnly([
+        'uid', 'displayName', 'displayNameLower', 'username', 'photoURL',
+        'bio', 'website', 'location', 'followersCount', 'followingCount',
+        'postsCount', 'lastActiveAt', 'updatedAt'
+      ]);
+    }
+    function ownProfileFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'displayName', 'displayNameLower', 'username', 'photoURL', 'bio',
+        'website', 'location', 'birthday', 'gender', 'pronouns', 'bannerImage',
+        'lastActiveAt', 'updatedAt'
+      ]);
     }
 
-    match /users/{userId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+    // Private account/fit documents. These are never a public-profile source.
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasOnly([
+          'displayName', 'displayNameLower', 'username', 'photoURL', 'bio',
+          'website', 'location', 'birthday', 'gender', 'pronouns', 'bannerImage',
+          'lastActiveAt', 'updatedAt'
+        ]);
+      allow update: if isSelf(uid) && ownProfileFieldsOnly();
+      allow delete: if false;
+
+      // Fit data, measurements and recommendations are owner/admin only.
+      match /fitProfiles/{document=**} { allow read, write: if isSelf(uid) || isAdmin(); }
+      match /recommendations/{document=**} { allow read, write: if isSelf(uid) || isAdmin(); }
+      match /smartFitScans/{document=**} { allow read, write: if isSelf(uid) || isAdmin(); }
+      // Follow/block graph is server-authoritative; clients may read only their
+      // own edges while the API writes both sides and maintains counters.
+      match /following/{targetUid} { allow read: if isSelf(uid) || isAdmin(); allow write: if false; }
+      match /followers/{followerUid} { allow read: if isSelf(uid) || isAdmin(); allow write: if false; }
+      match /blocked/{targetUid} { allow read, write: if isSelf(uid) || isAdmin(); }
     }
 
-    match /recommendation_generated_events/{eventId} {
-      allow create: if isOwnerEvent();
-      allow read: if isAdmin();
-      allow update, delete: if false;
+    // Deliberately separate, minimised public profile projection.
+    match /publicProfiles/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(uid) && publicProfileFieldsOnly()
+        && request.resource.data.uid == uid;
+      allow delete: if false;
     }
 
-    match /recommendation_viewed_events/{eventId} {
-      allow create: if isOwnerEvent();
-      allow read: if isAdmin();
-      allow update, delete: if false;
-    }
+    // All social mutations, rewards, gifts, transactions and moderation
+    // evidence are written by authenticated backend services, never browsers.
+    match /admins/{document=**} { allow read, write: if false; }
+    match /gifts/{document=**} { allow read, write: if false; }
+    match /rewardTransactions/{document=**} { allow read, write: if false; }
+    match /reports/{document=**} { allow read, write: if false; }
+    match /conversations/{document=**} { allow read, write: if false; }
+    match /posts/{document=**} { allow read: if signedIn(); allow write: if false; }
+    match /looks/{document=**} { allow read: if signedIn(); allow write: if false; }
 
-    match /recommendation_accepted_events/{eventId} {
-      allow create: if isOwnerEvent();
-      allow read: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    match /recommendation_rejected_events/{eventId} {
-      allow create: if isOwnerEvent();
-      allow read: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    match /recommendation_feedback_events/{eventId} {
-      allow create: if isOwnerEvent();
-      allow read: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    match /product_purchased_events/{eventId} {
-      allow create: if isOwnerEvent();
-      allow read: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    match /size_exchanged_events/{eventId} {
-      allow create: if isOwnerEvent();
-      allow read: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    match /size_returned_events/{eventId} {
-      allow create: if isOwnerEvent();
-      allow read: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    match /brand_fit_insights/{brandId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /public/{doc=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /recommendation_generated_events/{eventId} { allow create: if signedIn() && request.resource.data.userId == request.auth.uid; allow read: if isAdmin(); allow update, delete: if false; }
+    match /recommendation_viewed_events/{eventId} { allow create: if signedIn() && request.resource.data.userId == request.auth.uid; allow read: if isAdmin(); allow update, delete: if false; }
+    match /recommendation_accepted_events/{eventId} { allow create: if signedIn() && request.resource.data.userId == request.auth.uid; allow read: if isAdmin(); allow update, delete: if false; }
+    match /recommendation_rejected_events/{eventId} { allow create: if signedIn() && request.resource.data.userId == request.auth.uid; allow read: if isAdmin(); allow update, delete: if false; }
+    match /recommendation_feedback_events/{eventId} { allow create: if signedIn() && request.resource.data.userId == request.auth.uid; allow read: if isAdmin(); allow update, delete: if false; }
+    match /product_purchased_events/{eventId} { allow create: if signedIn() && request.resource.data.userId == request.auth.uid; allow read: if isAdmin(); allow update, delete: if false; }
+    match /size_exchanged_events/{eventId} { allow create: if signedIn() && request.resource.data.userId == request.auth.uid; allow read: if isAdmin(); allow update, delete: if false; }
+    match /size_returned_events/{eventId} { allow create: if signedIn() && request.resource.data.userId == request.auth.uid; allow read: if isAdmin(); allow update, delete: if false; }
+    match /brand_fit_insights/{brandId} { allow read, write: if isAdmin(); }
+    match /public/{document=**} { allow read: if true; allow write: if false; }
+    match /{document=**} { allow read, write: if false; }
   }
 }

@@ -1,5 +1,9 @@
-import { db } from '../firebase';
-import { doc, getDoc, increment, setDoc, updateDoc } from 'firebase/firestore';
+/**
+ * Local UI preferences only.
+ *
+ * Try-on access is deliberately not decided here: the backend owns the
+ * Firestore transaction that applies the three free uses and wallet charge.
+ */
 
 export type UserRole = 'user' | 'seller' | 'admin';
 
@@ -7,36 +11,33 @@ export const PLANS = {
   FREE: {
     id: 'free',
     name: 'Basic',
-    limits: { sizeRecs: 10, tryOns: 5, profiles: 3 }
+    limits: { sizeRecs: 10, profiles: 3 },
   },
   STARTER: {
     id: 'starter',
     name: 'Starter',
-    limits: { sizeRecs: 25, tryOns: 15, profiles: 3 }
+    limits: { sizeRecs: 25, profiles: 3 },
   },
   PRO: {
     id: 'pro',
     name: 'Pro',
-    limits: { sizeRecs: 100, tryOns: 50, profiles: 5 }
+    limits: { sizeRecs: 100, profiles: 5 },
   },
   ELITE: {
     id: 'elite',
     name: 'Elite',
-    limits: { sizeRecs: 9999, tryOns: 9999, profiles: 10 }
-  }
+    limits: { sizeRecs: 9999, profiles: 10 },
+  },
 };
 
-export const getUserRole = (): UserRole => {
-  return (localStorage.getItem('zipright_role') as UserRole) || 'user';
-};
+export const getUserRole = (): UserRole =>
+  (localStorage.getItem('zipright_role') as UserRole) || 'user';
 
 export const setUserRole = (role: UserRole) => {
   localStorage.setItem('zipright_role', role);
 };
 
-export const getSellerStatus = () => {
-  return localStorage.getItem('zipright_seller_status') || 'none';
-};
+export const getSellerStatus = () => localStorage.getItem('zipright_seller_status') || 'none';
 
 export const setSellerStatus = (status: string) => {
   localStorage.setItem('zipright_seller_status', status);
@@ -44,50 +45,5 @@ export const setSellerStatus = (status: string) => {
 
 export const getUserPlan = () => {
   const planId = localStorage.getItem('zipright_plan') || 'free';
-  return Object.values(PLANS).find(p => p.id === planId) || PLANS.FREE;
-};
-
-export const getUsage = () => {
-  const usage = localStorage.getItem('zipright_usage');
-  return usage ? JSON.parse(usage) : { sizeRecs: 0, tryOns: 0 };
-};
-
-export const incrementUsage = (type: 'sizeRecs' | 'tryOns') => {
-  const usage = getUsage();
-  usage[type] += 1;
-  localStorage.setItem('zipright_usage', JSON.stringify(usage));
-};
-
-export const checkLimit = (type: 'sizeRecs' | 'tryOns') => {
-  const plan = getUserPlan();
-  const usage = getUsage();
-  return usage[type] < plan.limits[type];
-};
-
-export const getFirestoreUserPlan = async (uid: string) => {
-  const userDoc = await getDoc(doc(db, 'users', uid));
-  if (userDoc.exists()) {
-    const planId = userDoc.data().planId || 'free';
-    return Object.values(PLANS).find(p => p.id === planId) || PLANS.FREE;
-  }
-  return PLANS.FREE;
-};
-
-export const checkFirestoreLimit = async (uid: string, type: 'sizeRecs' | 'tryOns') => {
-  const userDoc = await getDoc(doc(db, 'users', uid));
-  if (userDoc.exists()) {
-    const userData = userDoc.data();
-    const planId = userData.planId || 'free';
-    const plan = Object.values(PLANS).find(p => p.id === planId) || PLANS.FREE;
-    const usage = userData.usage?.[type] || 0;
-    return usage < plan.limits[type];
-  }
-  return true;
-};
-
-export const incrementFirestoreUsage = async (uid: string, type: 'sizeRecs' | 'tryOns') => {
-  const userRef = doc(db, 'users', uid);
-  await updateDoc(userRef, {
-    [`usage.${type}`]: increment(1)
-  });
+  return Object.values(PLANS).find(plan => plan.id === planId) || PLANS.FREE;
 };

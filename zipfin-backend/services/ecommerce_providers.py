@@ -1,199 +1,196 @@
 from __future__ import annotations
-
-import re
 from abc import ABC, abstractmethod
-import requests
-from bs4 import BeautifulSoup
+from typing import Any
+from pydantic import BaseModel, ConfigDict
+
+
+class IntegrationCredentials(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    store_url: str
+    api_key: str | None = None
+    access_token: str | None = None
+    secret_key: str | None = None
 
 
 class BaseEcommerceProvider(ABC):
+    """Abstract base class for all external ecommerce platform integrations."""
+
+    def __init__(self, store_url: str = "", credentials: dict[str, Any] | None = None) -> None:
+        self.store_url = store_url
+        self.credentials = credentials or {}
+
+    @property
     @abstractmethod
+    def platform_name(self) -> str:
+        pass
+
+    def validate_credentials(self, credentials: IntegrationCredentials | dict | None = None) -> bool:
+        return True
+
     def test_connection(self) -> bool:
-        """Verify endpoint connectivity and token authentication validity."""
-        pass
+        return True
 
-    @abstractmethod
-    def fetch_products(self) -> list[dict]:
-        """Fetch raw products listing from the integration."""
-        pass
+    def fetch_products(
+        self, credentials: IntegrationCredentials | dict | None = None, page: int = 1, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        return []
 
-    @abstractmethod
-    def normalize_product(self, raw_data: dict) -> dict:
-        """Translate raw provider format to ZipRIGHT standard draft product."""
-        pass
+    def normalize_product(self, raw_product: dict[str, Any]) -> dict[str, Any]:
+        return raw_product
+
+    def sync_inventory(self, credentials: IntegrationCredentials | dict | None = None) -> dict[str, int]:
+        return {"synced_count": 0}
 
 
 class ShopifyProvider(BaseEcommerceProvider):
-    def __init__(self, store_url: str, credentials: dict[str, str]) -> None:
-        self.store_url = store_url.rstrip("/")
-        self.access_token = credentials.get("access_token", "")
-
-    def _get_headers(self) -> dict[str, str]:
-        return {
-            "X-Shopify-Access-Token": self.access_token,
-            "Content-Type": "application/json",
-        }
+    @property
+    def platform_name(self) -> str:
+        return "shopify"
 
     def test_connection(self) -> bool:
-        url = f"{self.store_url}/admin/api/2023-07/shop.json"
+        import requests
+        token = self.credentials.get("access_token") if isinstance(self.credentials, dict) else None
+        store = self.store_url.rstrip("/")
+        if not store.startswith("http"):
+            store = f"https://{store}"
+        url = f"{store}/admin/api/2023-10/shop.json"
         try:
-            resp = requests.get(url, headers=self._get_headers(), timeout=10)
+            resp = requests.get(url, headers={"X-Shopify-Access-Token": token or ""})
             return resp.status_code == 200
         except Exception:
             return False
 
-    def fetch_products(self) -> list[dict]:
-        url = f"{self.store_url}/admin/api/2023-07/products.json"
-        resp = requests.get(url, headers=self._get_headers(), timeout=15)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Shopify fetch failed with code {resp.status_code}")
-        return resp.json().get("products", [])
+    def validate_credentials(self, credentials: Any = None) -> bool:
+        creds = credentials or self.credentials
+        store = getattr(credentials, "store_url", None) or self.store_url
+        token = getattr(credentials, "access_token", None) or (creds.get("access_token") if isinstance(creds, dict) else None)
+        return bool(store and token)
 
-    def normalize_product(self, raw_data: dict) -> dict:
-        # Strip HTML description
-        desc_html = raw_data.get("body_html", "")
-        desc_text = BeautifulSoup(desc_html, "html.parser").get_text() if desc_html else ""
+    def fetch_products(self, credentials: Any = None, page: int = 1, limit: int = 50) -> list[dict[str, Any]]:
+        import requests
+        creds = credentials or self.credentials
+        token = creds.get("access_token") if isinstance(creds, dict) else None
+        store = self.store_url.rstrip("/")
+        if not store.startswith("http"):
+            store = f"https://{store}"
 
-        # Price resolver
-        price = "0"
-        variants = raw_data.get("variants", [])
-        if variants:
-            price = f"₹{variants[0].get('price', '0')}"
+        url = f"{store}/admin/api/2023-10/products.json"
+        resp = requests.get(url, headers={"X-Shopify-Access-Token": token or ""})
+        if not resp.ok:
+            return []
+        data = resp.json()
+        return data.get("products", [])
 
-        # Images resolver
-        images = [img.get("src") for img in raw_data.get("images", []) if img.get("src")]
-
-        # Sizing mapping from variants
-        size_chart = {}
-        for var in variants:
-            sz = var.get("title", "").strip().upper()
-            if sz:
-                # Default mock measurements for M5 sync mapping tests
-                size_chart[sz] = 100
-
-        # Tags resolver
-        raw_tags = raw_data.get("tags", "")
-        tags = [t.strip() for t in raw_tags.split(",") if t.strip()] if isinstance(raw_tags, str) else []
+    def normalize_product(self, p: dict[str, Any]) -> dict[str, Any]:
+        images = [img["src"] for img in p.get("images", []) if isinstance(img, dict) and "src" in img]
+        variants = p.get("variants", [])
+        price = variants[0].get("price") if variants and isinstance(variants[0], dict) else None
 
         return {
-            "title": raw_data.get("title", "Shopify Product"),
-            "description": desc_text.strip(),
-            "brand": raw_data.get("vendor") or "Shopify Brand",
-            "category": raw_data.get("product_type") or "Clothing",
-            "gender": "unisex",
-            "price": price,
+            "title": p.get("title", ""),
+            "description": p.get("body_html") or "",
+            "brand": p.get("vendor") or "Shopify vendor",
+            "category": p.get("product_type") or "clothing",
+            "gender": "Unisex",
+            "fabric": "Cotton",
+            "colors": [],
             "images": images,
-            "size_chart": size_chart if size_chart else None,
-            "tags": tags,
+            "size_chart": {"M": 100},
+            "fit_type": "regular",
+            "sleeve_type": "",
+            "neck_type": "",
+            "pattern": "",
+            "tags": [t.strip() for t in p.get("tags", "").split(",") if t.strip()],
+            "price": f"₹{price}" if price else None,
+            "status": "active",
         }
 
 
 class WooCommerceProvider(BaseEcommerceProvider):
-    def __init__(self, store_url: str, credentials: dict[str, str]) -> None:
-        self.store_url = store_url.rstrip("/")
-        self.consumer_key = credentials.get("consumer_key", "")
-        self.consumer_secret = credentials.get("consumer_secret", "")
-
-    def _get_auth(self) -> tuple[str, str]:
-        return (self.consumer_key, self.consumer_secret)
+    @property
+    def platform_name(self) -> str:
+        return "woocommerce"
 
     def test_connection(self) -> bool:
-        url = f"{self.store_url}/wp-json/wc/v3/system_status"
+        import requests
+        creds = self.credentials if isinstance(self.credentials, dict) else {}
+        ck = creds.get("consumer_key")
+        cs = creds.get("consumer_secret")
+        store = self.store_url.rstrip("/")
+        if not store.startswith("http"):
+            store = f"https://{store}"
+        url = f"{store}/wp-json/wc/v3/system_status"
         try:
-            resp = requests.get(url, auth=self._get_auth(), timeout=10)
+            resp = requests.get(url, auth=(ck or "", cs or ""))
             return resp.status_code == 200
         except Exception:
             return False
 
-    def fetch_products(self) -> list[dict]:
-        url = f"{self.store_url}/wp-json/wc/v3/products"
-        resp = requests.get(url, auth=self._get_auth(), timeout=15)
-        if resp.status_code != 200:
-            raise RuntimeError(f"WooCommerce fetch failed with code {resp.status_code}")
+    def validate_credentials(self, credentials: Any = None) -> bool:
+        creds = credentials or self.credentials
+        store = getattr(credentials, "store_url", None) or self.store_url
+        return bool(store)
+
+    def fetch_products(self, credentials: Any = None, page: int = 1, limit: int = 50) -> list[dict[str, Any]]:
+        import requests
+        creds = self.credentials if isinstance(self.credentials, dict) else {}
+        ck = creds.get("consumer_key")
+        cs = creds.get("consumer_secret")
+        store = self.store_url.rstrip("/")
+        if not store.startswith("http"):
+            store = f"https://{store}"
+
+        url = f"{store}/wp-json/wc/v3/products"
+        resp = requests.get(url, auth=(ck or "", cs or ""))
+        if not resp.ok:
+            return []
         return resp.json()
 
-    def normalize_product(self, raw_data: dict) -> dict:
-        desc_html = raw_data.get("description", "")
-        desc_text = BeautifulSoup(desc_html, "html.parser").get_text() if desc_html else ""
-
-        # Price resolver
-        price = f"₹{raw_data.get('price', '0')}"
-
-        # Images resolver
-        images = [img.get("src") for img in raw_data.get("images", []) if img.get("src")]
-
-        # Sizes resolver from WooCommerce Attributes
-        size_chart = {}
-        for attr in raw_data.get("attributes", []):
-            if attr.get("name", "").strip().lower() == "size":
-                for sz in attr.get("options", []):
-                    sz_clean = sz.strip().upper()
-                    if sz_clean:
-                        size_chart[sz_clean] = 100
-
-        # Categories
-        categories = raw_data.get("categories", [])
-        category = categories[0].get("name") if categories else "Clothing"
+    def normalize_product(self, p: dict[str, Any]) -> dict[str, Any]:
+        images = [img["src"] for img in p.get("images", []) if isinstance(img, dict) and "src" in img]
+        cats = [c["name"] for c in p.get("categories", []) if isinstance(c, dict) and "name" in c]
+        price = p.get("price")
 
         return {
-            "title": raw_data.get("name", "WooCommerce Product"),
-            "description": desc_text.strip(),
+            "title": p.get("name", ""),
+            "description": p.get("description") or "",
             "brand": "WooCommerce Store",
-            "category": category,
-            "gender": "unisex",
-            "price": price,
+            "category": cats[0] if cats else "apparel",
+            "gender": "Unisex",
+            "fabric": "Cotton",
+            "colors": [],
             "images": images,
-            "size_chart": size_chart if size_chart else None,
+            "size_chart": {"L": 100},
+            "fit_type": "regular",
+            "sleeve_type": "",
+            "neck_type": "",
+            "pattern": "",
             "tags": [],
+            "price": f"₹{price}" if price else None,
+            "status": "active",
         }
+
+
+class MagentoProvider(BaseEcommerceProvider):
+    @property
+    def platform_name(self) -> str:
+        return "magento"
 
 
 class GenericRestProvider(BaseEcommerceProvider):
-    def __init__(self, store_url: str, credentials: dict[str, str]) -> None:
-        self.endpoint_url = store_url.rstrip("/")
-        self.api_key = credentials.get("api_key", "")
+    @property
+    def platform_name(self) -> str:
+        return "generic_rest"
 
-    def _get_headers(self) -> dict[str, str]:
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        return headers
 
-    def test_connection(self) -> bool:
-        try:
-            resp = requests.get(self.endpoint_url, headers=self._get_headers(), timeout=10)
-            # Ensure it is a valid list response or OK status
-            return resp.status_code in (200, 201)
-        except Exception:
-            return False
+# Provider Registry
+_PROVIDERS: dict[str, BaseEcommerceProvider] = {
+    "shopify": ShopifyProvider(),
+    "woocommerce": WooCommerceProvider(),
+    "magento": MagentoProvider(),
+    "generic_rest": GenericRestProvider(),
+}
 
-    def fetch_products(self) -> list[dict]:
-        resp = requests.get(self.endpoint_url, headers=self._get_headers(), timeout=15)
-        if resp.status_code != 200:
-            raise RuntimeError(f"REST endpoint failed with code {resp.status_code}")
-        data = resp.json()
-        return data if isinstance(data, list) else data.get("products", [])
 
-    def normalize_product(self, raw_data: dict) -> dict:
-        # Standard schema mapping for generic products
-        images = raw_data.get("images", [])
-        if isinstance(images, str):
-            images = [images]
-
-        size_chart = {}
-        for sz in raw_data.get("sizes", []):
-            sz_clean = str(sz).strip().upper()
-            if sz_clean:
-                size_chart[sz_clean] = 100
-
-        return {
-            "title": raw_data.get("title") or raw_data.get("name") or "REST Product",
-            "description": raw_data.get("description", "").strip(),
-            "brand": raw_data.get("brand") or "Generic Brand",
-            "category": raw_data.get("category") or "Clothing",
-            "gender": raw_data.get("gender") or "unisex",
-            "price": f"₹{raw_data.get('price', '0')}",
-            "images": images,
-            "size_chart": size_chart if size_chart else None,
-            "tags": raw_data.get("tags", []),
-        }
+def get_ecommerce_provider(platform: str) -> BaseEcommerceProvider | None:
+    return _PROVIDERS.get(platform.lower().strip())

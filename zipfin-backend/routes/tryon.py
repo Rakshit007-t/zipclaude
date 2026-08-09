@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from core.api import success_response
 from models.schema import (
@@ -11,7 +11,9 @@ from models.schema import (
     TryOnJobCreateResponse,
     TryOnJobStatusResponse,
 )
-from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user
+from services.firebase_auth import AuthenticatedUser, get_current_user
+from services.request_rate_limiter import enforce_rate_limit
+from services.tryon_access import consume_tryon_credit
 from services.tryon_engine import process_tryon_request
 from services.tryon_jobs import get_job, start_tryon_job
 
@@ -54,10 +56,18 @@ def log_tryon_event(user_id: str, product_image_url: str) -> None:
     status_code=status.HTTP_200_OK,
 )
 async def tryon_image(
+    request: Request,
     payload: TryOnImageRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[TryOnImageResponse]:
     try:
+        client_ip = request.client.host if request.client else "unknown"
+        enforce_rate_limit(
+            key=f"tryon-image:{current_user.uid}:{client_ip}",
+            max_requests=10,
+            window_seconds=60,
+            detail="Rate limit exceeded for Virtual Try-On requests.",
+        )
         if payload.user_id != current_user.uid:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -66,6 +76,7 @@ async def tryon_image(
                     "details": {"code": "user_mismatch"},
                 },
             )
+        consume_tryon_credit(current_user)
         logger.info(
             "Processing try-on request: user_id=%s product_image_url=%s cloth_type=%s quality=%s",
             payload.user_id,
@@ -108,8 +119,9 @@ async def tryon_image(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_tryon_job(
+    request: Request,
     payload: TryOnImageRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[TryOnJobCreateResponse]:
     """Start a try-on generation job that keeps running server-side even if
     the client disconnects (app minimized/closed)."""
@@ -126,6 +138,16 @@ async def create_tryon_job(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Provide product_image_url or garment_image.",
         )
+    client_ip = request.client.host if request.client else "unknown"
+    enforce_rate_limit(
+        key=f"tryon-job:{current_user.uid}:{client_ip}",
+        max_requests=10,
+        window_seconds=60,
+        detail="Rate limit exceeded for Virtual Try-On requests.",
+    )
+    # Reserve the free use / deduct the wallet before the background worker can
+    # reach generate_vton_image().
+    consume_tryon_credit(current_user)
     if payload.product_image_url:
         await asyncio.to_thread(log_tryon_event, payload.user_id, str(payload.product_image_url))
     job_id = start_tryon_job(
@@ -156,7 +178,7 @@ async def create_tryon_job(
 )
 async def tryon_job_status(
     job_id: str,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[TryOnJobStatusResponse]:
     job = get_job(job_id)
     if job is None:

@@ -3,13 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { listCloset, onClosetChange, removeFromCloset } from '../services/closet';
+import { useAppNavigation } from '../utils/useAppNavigation';
 import { AppBar, EmptyState, Button, Spinner } from '../components/ui';
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
-
-function hasDemoSession() {
-  return Boolean(localStorage.getItem(DEMO_AUTH_KEY));
-}
 
 interface WishlistItem {
   id: string;
@@ -23,13 +19,13 @@ interface WishlistItem {
 }
 
 const Wishlist: React.FC = () => {
-  const navigate = useNavigate();
+  const { navigate, goBack } = useAppNavigation();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user && !hasDemoSession()) {
+    if (!user) {
       navigate('/login');
       return;
     }
@@ -45,7 +41,7 @@ const Wishlist: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
-      <AppBar title="Wishlist" onBack={() => navigate('/home')} />
+      <AppBar title="Wishlist" onBack={() => goBack('/marketplace')} />
 
       <div className="flex-1 p-6">
         {loading ? (

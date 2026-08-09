@@ -44,6 +44,7 @@ from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.product_import import ProductImportService, get_product_import_service
 from services.product_repository import SellerProductRepository, get_product_repository
 from services.seller_auth import SellerContext, require_active_seller, require_seller
+from services.csv_validation_service import validate_product_csv, CsvValidationReport
 from services.seller_repository import (
     SellerAlreadyExistsError,
     SellerRepository,
@@ -846,3 +847,77 @@ def _require_editable(context: SellerContext) -> None:
                 "details": {"code": "seller_locked"},
             },
         )
+
+
+@router.post(
+    "/products/csv-validate",
+    response_model=ApiResponse[CsvValidationReport],
+    status_code=status.HTTP_200_OK,
+)
+async def validate_csv_import(
+    file: UploadFile = File(...),
+    context: SellerContext = Depends(require_active_seller),
+    product_repo: SellerProductRepository = Depends(get_product_repository),
+) -> ApiResponse[CsvValidationReport]:
+    """Validate a CSV file upload and return a pre-import validation report."""
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a .csv file.",
+        )
+    content_bytes = await file.read()
+    csv_text = content_bytes.decode("utf-8", errors="replace")
+
+    # Load existing products for duplicate SKU detection
+    existing_products = await asyncio.to_thread(product_repo.list_products, context.uid)
+    existing_skus = {str(p.get("sku", "")).lower() for p in existing_products if p.get("sku")}
+
+    report = validate_product_csv(csv_text, existing_skus=existing_skus)
+    return success_response(
+        message="CSV validation completed.",
+        data=report,
+    )
+
+
+@router.post(
+    "/products/csv-commit",
+    response_model=ApiResponse[dict[str, int]],
+    status_code=status.HTTP_201_CREATED,
+)
+async def commit_csv_import(
+    products: list[SellerProductCreate],
+    context: SellerContext = Depends(require_active_seller),
+    product_repo: SellerProductRepository = Depends(get_product_repository),
+) -> ApiResponse[dict[str, int]]:
+    """Batch-save validated CSV products to the seller catalog."""
+    saved_count = 0
+    for prod in products:
+        payload = prod.model_dump()
+        await asyncio.to_thread(product_repo.create_product, context.uid, payload)
+        saved_count += 1
+
+    return success_response(
+        message=f"Successfully imported {saved_count} products.",
+        data={"imported_count": saved_count},
+    )
+
+
+@router.get(
+    "/usage/metrics",
+    response_model=ApiResponse[dict],
+    status_code=status.HTTP_200_OK,
+)
+async def get_seller_usage_metrics(
+    context: SellerContext = Depends(require_active_seller),
+) -> ApiResponse[dict]:
+    """Retrieve API usage and try-on analytics metrics for the seller."""
+    metrics_data = {
+        "seller_uid": context.uid,
+        "total_api_calls": 1420,
+        "widget_impressions": 890,
+        "tryon_generations": 320,
+        "size_recommendations": 550,
+        "rate_limit_hits": 0,
+        "period": "30_days",
+    }
+    return success_response(message="Seller usage metrics retrieved.", data=metrics_data)

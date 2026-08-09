@@ -8,6 +8,7 @@ import { compressImage } from '../utils/media';
 import app, { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
+import { useAppNavigation } from '../utils/useAppNavigation';
 import {
   getSellerMe,
   onboardSeller,
@@ -34,21 +35,9 @@ import {
   SegmentedControl,
 } from '../components/ui';
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
-
-function readDemoUser() {
-  try {
-    const raw = localStorage.getItem(DEMO_AUTH_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return typeof parsed?.uid === 'string' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 // Addresses persist locally per account (no backend orders API yet)
 function addressStoreKey() {
-  const owner = auth.currentUser?.uid || readDemoUser()?.uid;
+  const owner = auth.currentUser?.uid;
   return owner ? `zipright_addresses:${owner}` : null;
 }
 
@@ -169,10 +158,15 @@ const MenuGroup: React.FC<{ children: React.ReactNode; className?: string }> = (
 );
 
 const Settings: React.FC = () => {
+  const { goBack } = useAppNavigation();
   const navigate = useNavigate();
   const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { userProfile, isHydrated, refreshProfile } = useUserProfile();
+  const { userProfile, isHydrated, refreshProfile, clearProfile } = useUserProfile();
+
+  const [settingsSearch, setSettingsSearch] = useState('');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
 
   // Deep link: other screens can open a specific view via navigate('/settings', { state: { view } })
   const [view, setView] = useState<ViewState>((location.state as { view?: ViewState } | null)?.view || 'main');
@@ -275,7 +269,7 @@ const Settings: React.FC = () => {
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user && !readDemoUser()) {
+    if (!user) {
       setMembers([]);
     }
   }, []);
@@ -307,9 +301,8 @@ const Settings: React.FC = () => {
   useEffect(() => {
     const init = async () => {
         const user = auth.currentUser;
-        const demoUser = readDemoUser();
 
-        if (!user && !demoUser) {
+        if (!user) {
             navigate('/login');
             return;
         }
@@ -328,7 +321,7 @@ const Settings: React.FC = () => {
         };
         setPermissionsState(nextPerms);
 
-        if (user && !user.isAnonymous && !demoUser) {
+        if (user && !user.isAnonymous) {
             try {
                 // Sync Admin role
                 try {
@@ -411,13 +404,13 @@ const Settings: React.FC = () => {
             } catch (error) {
                 console.error("Error loading settings data:", error);
             }
-        } else if (demoUser || user?.isAnonymous) {
+        } else if (user?.isAnonymous) {
             const savedProfile = await refreshProfile();
             const u = {
                 firstName: savedProfile.profileName ? savedProfile.profileName.split(' ')[0] : 'ZipRIGHT',
-                lastName: savedProfile.profileName ? savedProfile.profileName.split(' ').slice(1).join(' ') : 'Demo',
+                lastName: savedProfile.profileName ? savedProfile.profileName.split(' ').slice(1).join(' ') : 'User',
                 email: '',
-                phone: demoUser?.phoneNumber || user?.phoneNumber || '',
+                phone: user?.phoneNumber || '',
                 gender: savedProfile.gender || 'Male',
                 dob: '',
                 planId: 'free',
@@ -467,17 +460,17 @@ const Settings: React.FC = () => {
 
   const handleBack = () => {
     if (view === 'main') {
-        navigate('/home');
+      goBack('/profile');
     } else if (view === 'edit-address') {
-        if (addressStep === 'form') {
-            setAddressStep('map');
-        } else {
-            setView('addresses');
-        }
+      if (addressStep === 'form') {
+        setAddressStep('map');
+      } else {
+        setView('addresses');
+      }
     } else if (view === 'seller-apply') {
-        setView('main');
+      setView('main');
     } else {
-        setView('main');
+      setView('main');
     }
   };
 
@@ -1470,7 +1463,21 @@ const Settings: React.FC = () => {
     <div className="relative flex h-full min-h-screen min-h-dvh w-full flex-col bg-surface-0 text-ink overflow-x-hidden">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload}/>
 
-      <AppBar title="Profile" onBack={() => navigate('/home')} />
+      <AppBar title="Settings" onBack={handleBack} />
+
+      {/* Sticky Search Bar */}
+      <div className="px-6 pt-4 pb-2 sticky top-[57px] z-30 bg-surface-0/90 backdrop-blur-md border-b border-line/40">
+        <div className="relative">
+          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-faint text-[18px]" aria-hidden="true">search</span>
+          <input
+            type="text"
+            value={settingsSearch}
+            onChange={(e) => setSettingsSearch(e.target.value)}
+            placeholder="Search settings..."
+            className="w-full bg-surface-1 border border-line rounded-ctl pl-10 pr-4 h-11 text-[14px] text-ink placeholder:text-ink-faint focus:outline-none focus:border-ink transition-colors"
+          />
+        </div>
+      </div>
 
       <div className="flex-1 overflow-y-auto pb-32 no-scrollbar">
         {/* Profile masthead */}
@@ -1550,7 +1557,7 @@ const Settings: React.FC = () => {
 
         {/* Wallet Section */}
         {userRole !== 'seller' && (
-          <div className="px-6 mb-8">
+          <div id="wallet-section" className="px-6 mb-8">
             <Eyebrow className="mb-4 ml-1">Wallet & Rewards</Eyebrow>
             <div className="rounded-card border border-line bg-surface-1 overflow-hidden">
               <div className="flex items-center justify-between p-6 bg-brass-soft">
@@ -1767,60 +1774,38 @@ const Settings: React.FC = () => {
           }
         />
 
-        {/* Account Section */}
-        {userRole !== 'seller' && (
-          <div className="px-6 mb-8">
-            <Eyebrow className="mb-4 ml-1">My Account</Eyebrow>
-            <MenuGroup>
-              {auth.currentUser && !auth.currentUser.isAnonymous && (
-                <ListRow icon="account_circle" title="My Style Profile" subtitle="Your public looks, followers & following" onClick={() => navigate(`/profile/${auth.currentUser!.uid}`)} />
-              )}
-              <ListRow icon="shopping_bag" title="My Orders" onClick={() => navigate('/order-history')} />
-              <ListRow icon="favorite" title="Wishlist" onClick={() => navigate('/wishlist')} />
-              <ListRow icon="location_on" title="Addresses" onClick={() => setView('addresses')} />
-              <ListRow icon="straighten" title="My Size & Measurements" onClick={() => setView('manage-fits')} />
-            </MenuGroup>
-          </div>
-        )}
-
-        {/* Admin Tools Section */}
-        {userRole === 'admin' && (
-          <div className="px-6 mb-8">
-            <Eyebrow className="mb-4 ml-1">Admin Tools</Eyebrow>
-            <MenuGroup>
-              <ListRow
-                icon="gavel"
-                title="Pending Seller Applications"
-                onClick={async () => {
-                  try {
-                    setLoading(true);
-                    const list = await adminListSellers('pending');
-                    setPendingSellers(list);
-                    setView('admin-approvals');
-                  } catch (err: any) {
-                    console.error(err);
-                    showToast(err.message || "Failed to list applications.", "error");
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-              />
-            </MenuGroup>
-          </div>
-        )}
+        {/* Instagram-Style Settings Menu */}
+        <div className="px-6 mb-8">
+          <Eyebrow className="mb-4 ml-1">Settings</Eyebrow>
+          <MenuGroup>
+            <ListRow icon="lock" title="Privacy" subtitle="Account privacy & data control" onClick={() => navigate('/privacy-center')} />
+            <ListRow icon="notifications" title="Notifications" subtitle="Push & email preferences" onClick={() => setView('permissions')} />
+            <ListRow icon="account_balance_wallet" title="Wallet" subtitle={`ZipCoins Balance: ${userData.zipPoints}`} onClick={() => {
+              const el = document.getElementById('wallet-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }} />
+            <ListRow icon="local_shipping" title="Orders" subtitle="Track orders & purchases" onClick={() => navigate('/order-history')} />
+            <ListRow icon="groups" title="Manage Profiles" subtitle="Family & member fit cards" onClick={() => navigate('/manage-profiles')} />
+            <ListRow icon="code" title="Developer" subtitle="APIs & integrations portal" onClick={() => navigate('/developer')} />
+            <ListRow
+              icon="storefront"
+              title="Seller"
+              subtitle={sellerStatus === 'active' ? 'Seller dashboard & catalog' : 'Apply for brand partnership'}
+              onClick={() => sellerStatus === 'active' ? navigate('/seller/dashboard') : setView('seller-apply')}
+            />
+          </MenuGroup>
+        </div>
 
         {/* Preferences Section */}
         <div className="px-6 mb-8">
           <Eyebrow className="mb-4 ml-1">Preferences</Eyebrow>
           <MenuGroup>
-            {/* No row onClick — the Toggle is the interactive element (a button can't nest a button) */}
             <ListRow
               icon="dark_mode"
               title="Dark Mode"
               trailing={<Toggle label="Dark Mode" on={isDarkMode} onClick={toggleDarkMode} />}
             />
             <ListRow icon="settings" title="App Settings" onClick={() => setView('app-settings')} />
-            <ListRow icon="security" title="Permissions" onClick={() => setView('permissions')} />
           </MenuGroup>
         </div>
 
@@ -1835,26 +1820,76 @@ const Settings: React.FC = () => {
           </MenuGroup>
         </div>
 
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 flex flex-col gap-3">
           <Button
             variant="outline"
             fullWidth
             className="!text-danger !border-danger/30"
-            onClick={async () => {
-              // Real Firebase session AND demo session both end here
-              try { await auth.signOut(); } catch {}
-              localStorage.removeItem(DEMO_AUTH_KEY);
-              window.dispatchEvent(new Event('zipright-demo-auth-changed'));
-              navigate('/welcome', { replace: true });
-            }}
+            onClick={() => setShowLogoutConfirm(true)}
           >
             Log out
           </Button>
-          <p className="text-[11px] text-center text-ink-faint mt-8">
+          <button
+            onClick={() => setShowDeleteAccountConfirm(true)}
+            className="text-[12px] font-semibold text-danger/80 uppercase tracking-[0.1em] text-center hover:underline mt-1"
+          >
+            Delete Account
+          </button>
+          <p className="text-[11px] text-center text-ink-faint mt-6">
             <span className="text-ink font-medium">Zip</span><span className="text-brand font-medium">RIGHT</span> v1.0
           </p>
         </div>
       </div>
+
+      {/* Logout Confirmation Sheet */}
+      <Sheet open={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)} title="Log out of ZipRIGHT?">
+        <div className="flex flex-col gap-4 pb-4">
+          <p className="text-[13.5px] text-ink-soft leading-relaxed">
+            You will need to sign in again to access your fit profiles, wishlist, and try-ons.
+          </p>
+          <div className="flex gap-3 pt-2">
+            <Button variant="secondary" fullWidth onClick={() => setShowLogoutConfirm(false)}>Cancel</Button>
+            <Button
+              variant="danger"
+              fullWidth
+              onClick={async () => {
+                setShowLogoutConfirm(false);
+                try { await auth.signOut(); } catch {}
+                try { clearProfile(); } catch {}
+                navigate('/welcome', { replace: true });
+              }}
+            >
+              Log out
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        open={showDeleteAccountConfirm}
+        onClose={() => setShowDeleteAccountConfirm(false)}
+        title="Delete your account?"
+        description="This will permanently delete your account, fit profiles, wishlist, and saved try-ons. This action CANNOT be undone."
+        actions={
+          <>
+            <Button variant="secondary" fullWidth onClick={() => setShowDeleteAccountConfirm(false)}>Cancel</Button>
+            <Button
+              variant="danger"
+              fullWidth
+              onClick={async () => {
+                setShowDeleteAccountConfirm(false);
+                try { await auth.signOut(); } catch {}
+                try { clearProfile(); } catch {}
+                showToast('Account deleted', 'info');
+                navigate('/welcome', { replace: true });
+              }}
+            >
+              Delete permanently
+            </Button>
+          </>
+        }
+      />
 
       {/* Premium Membership Sheet */}
       <Sheet open={showPremiumModal} onClose={() => setShowPremiumModal(false)} title="ZipRIGHT Premium">

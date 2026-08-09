@@ -1,14 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
+import { useUserProfile } from '../contexts/UserProfileContext';
+import { useAppNavigation } from '../utils/useAppNavigation';
+import { compressImage } from '../utils/media';
+import { calculateRank } from '../services/rewards';
+import { listCloset } from '../services/closet';
 import {
   PublicProfile, getProfile, follow, unfollow, onFollowing, onBlocked,
   blockUser, unblockUser, report, isOnline,
 } from '../services/social';
-import { AppBar, Button, EmptyState, Eyebrow, Sheet, Spinner } from '../components/ui';
+import { AppBar, Badge, Button, EmptyState, Eyebrow, Sheet, Spinner } from '../components/ui';
 
 interface LookThumb {
   id: string;
@@ -25,40 +32,115 @@ const REPORT_REASONS = [
   'Something else',
 ];
 
+const HIGHLIGHTS = [
+  { id: 'fits', title: 'Precision Fits', icon: 'straighten', badge: 'AI' },
+  { id: 'vto', title: 'Try-Ons', icon: 'view_in_ar', badge: '3D' },
+  { id: 'street', title: 'Street Style', icon: 'style', badge: '' },
+  { id: 'favs', title: 'Top Looks', icon: 'auto_awesome', badge: '' },
+];
+
+type ProfileTab = 'posts' | 'tagged' | 'saved';
+
 const UserProfile: React.FC = () => {
-  const { uid } = useParams<{ uid: string }>();
-  const navigate = useNavigate();
+  const { uid: paramUid } = useParams<{ uid: string }>();
+  const { navigate, goBack } = useAppNavigation();
   const { showToast } = useToast();
+  const { userProfile, setUserProfile } = useUserProfile();
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const currentUser = auth.currentUser;
+  const targetUid = paramUid || currentUser?.uid;
+  const isMe = !paramUid || paramUid === currentUser?.uid;
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [looks, setLooks] = useState<LookThumb[]>([]);
   const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
   const [blockedSet, setBlockedSet] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [zipCoins, setZipCoins] = useState(0);
+  const [giftsGiven, setGiftsGiven] = useState(0);
 
-  const isMe = uid === auth.currentUser?.uid;
-  const followed = !!uid && followingSet.has(uid);
-  const blocked = !!uid && blockedSet.has(uid);
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    try {
+      showToast('Compressing & uploading photo...', 'info');
+      const blob = await compressImage(file, 512, 0.85);
+      const user = auth.currentUser;
+
+      if (user && !user.isAnonymous) {
+        const storageRef = ref(getStorage(), `profiles/${user.uid}.jpg`);
+        await uploadBytes(storageRef, blob);
+        const url = await getDownloadURL(storageRef);
+
+        await updateAuthProfile(user, { photoURL: url }).catch(() => {});
+        setProfile(prev => prev ? { ...prev, photoURL: url } : prev);
+        setUserProfile(prev => ({ ...prev, photoURL: url }));
+        showToast('Profile photo updated!', 'success');
+      } else {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const base64 = ev.target?.result as string;
+          setProfile(prev => prev ? { ...prev, photoURL: base64 } : prev);
+          setUserProfile(prev => ({ ...prev, photoURL: base64 }));
+          try { localStorage.setItem('zipright_profile_photo', base64); } catch {}
+          showToast('Profile photo updated!', 'success');
+        };
+        reader.readAsDataURL(blob);
+      }
+    } catch (err) {
+      console.error('[UserProfile] Avatar upload error:', err);
+      showToast('Could not upload photo. Try again.', 'error');
+    }
+  };
+
+  // Previews
+  const [wishlistItems, setWishlistItems] = useState(() => listCloset('likes'));
+
+  const followed = !!targetUid && followingSet.has(targetUid);
+  const blocked = !!targetUid && blockedSet.has(targetUid);
 
   useEffect(() => {
-    if (!uid) return;
+    if (!targetUid) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
+      setLoading(true);
       const [p, looksSnap] = await Promise.all([
-        getProfile(uid),
+        getProfile(targetUid),
         getDocs(query(
           collection(db, 'looks'),
-          where('creatorId', '==', uid),
+          where('creatorId', '==', targetUid),
           where('status', '==', 'active'),
           orderBy('createdAt', 'desc'),
           limit(30),
         )).catch(() => null),
       ]);
       if (cancelled) return;
-      setProfile(p);
+
+      if (p) {
+        setProfile(p);
+      } else if (isMe && currentUser) {
+        setProfile({
+          uid: currentUser.uid,
+          displayName: currentUser.displayName || userProfile.profileName || 'ZipRIGHT Member',
+          username: userProfile.username || (userProfile.profileName ? userProfile.profileName.toLowerCase().replace(/\s+/g, '_') : 'member'),
+          photoURL: currentUser.photoURL || userProfile.photoURL || '',
+          bio: 'Curating precision fits and luxury edits.',
+          followersCount: 0,
+          followingCount: 0,
+          lastActiveAt: { toMillis: () => Date.now() },
+        });
+      }
+
       if (looksSnap) {
         setLooks(looksSnap.docs.map(d => {
           const data = d.data();
@@ -67,9 +149,10 @@ const UserProfile: React.FC = () => {
       }
       setLoading(false);
     })();
+
     const unsubs = [onFollowing(setFollowingSet), onBlocked(setBlockedSet)];
     return () => { cancelled = true; unsubs.forEach(u => u()); };
-  }, [uid]);
+  }, [targetUid, isMe, currentUser, userProfile.profileName, userProfile.photoURL, userProfile.username]);
 
   const handleFollowToggle = async () => {
     if (!profile || busy) return;
@@ -111,6 +194,20 @@ const UserProfile: React.FC = () => {
     }
   };
 
+  const handleShareProfile = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${profile?.displayName} on ZipRIGHT`, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        showToast('Copied', 'success');
+      }
+    } catch {
+      showToast('Copied', 'success');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen min-h-dvh bg-surface-0 flex items-center justify-center text-ink-faint">
@@ -122,7 +219,7 @@ const UserProfile: React.FC = () => {
   if (!profile) {
     return (
       <div className="min-h-screen min-h-dvh bg-surface-0 text-ink flex flex-col">
-        <AppBar title="Profile" onBack={() => navigate(-1)} />
+        <AppBar title="Profile" onBack={() => goBack('/home')} />
         <div className="flex-1 flex items-center justify-center px-8">
           <EmptyState icon="person_off" title="Profile not found" description="This member may have left ZipRIGHT." />
         </div>
@@ -131,133 +228,293 @@ const UserProfile: React.FC = () => {
   }
 
   const online = isOnline(profile.lastActiveAt);
+  const fitProfilesCount = Array.isArray(userProfile.fitProfiles) ? userProfile.fitProfiles.length : (userProfile.profileName ? 1 : 0);
 
   return (
     <div className="min-h-screen min-h-dvh bg-surface-0 text-ink pb-28">
+      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+      {/* Top Header */}
       <AppBar
         title={`@${profile.username}`}
-        onBack={() => navigate(-1)}
-        trailing={!isMe ? (
-          <button
-            onClick={() => setMenuOpen(true)}
-            aria-label="More options"
-            className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform"
-          >
-            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">more_horiz</span>
-          </button>
-        ) : undefined}
+        onBack={() => goBack('/home')}
+        trailing={
+          isMe ? (
+            <button
+              onClick={() => navigate('/settings')}
+              aria-label="Settings"
+              className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform"
+            >
+              <span className="material-symbols-outlined text-[20px]" aria-hidden="true">menu</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setMenuOpen(true)}
+              aria-label="More options"
+              className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform"
+            >
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">more_horiz</span>
+            </button>
+          )
+        }
       />
 
+      {/* Main Profile Header - Clean Instagram + Apple Layout */}
       <div className="px-6 pt-6">
-        {/* Identity */}
-        <div className="flex items-start gap-5">
-          <div className="relative shrink-0">
-            <div className="h-20 w-20 rounded-full border border-line overflow-hidden flex items-center justify-center bg-surface-1">
+        <div className="flex items-center gap-6">
+          {/* Large Avatar */}
+          <button
+            type="button"
+            onClick={() => isMe && fileInputRef.current?.click()}
+            className="relative shrink-0 group active:scale-95 transition-transform text-left"
+            title={isMe ? 'Tap to change profile picture' : profile.displayName}
+          >
+            <div className="h-20 w-20 rounded-full border border-line p-0.5 overflow-hidden bg-surface-2 shadow-sm group-hover:border-brand">
               {profile.photoURL ? (
-                <img src={profile.photoURL} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                <img src={profile.photoURL} alt={profile.displayName} className="h-full w-full object-cover rounded-full" referrerPolicy="no-referrer" />
               ) : (
-                <span className="font-display text-[28px] font-medium text-ink">{profile.displayName.charAt(0).toUpperCase()}</span>
+                <span className="font-display text-[28px] font-medium text-ink flex items-center justify-center h-full">{(profile.displayName || 'Z').charAt(0).toUpperCase()}</span>
               )}
             </div>
-            {online && (
-              <span
-                className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full bg-success border-2 border-surface-0"
-                aria-label="Online now"
-              />
+            {isMe && (
+              <div className="absolute bottom-0 right-0 bg-brand text-on-brand h-6 w-6 rounded-full flex items-center justify-center border-2 border-surface-0 shadow-sm">
+                <span className="material-symbols-outlined text-[12px]">photo_camera</span>
+              </div>
             )}
-          </div>
-          <div className="min-w-0 pt-1">
-            <h1 className="font-display text-[24px] leading-tight font-medium truncate">{profile.displayName}</h1>
-            <p className="text-ink-faint text-[13px] mt-0.5">@{profile.username}{online ? ' · online' : ''}</p>
-            {profile.bio ? <p className="text-ink-soft text-[13px] leading-relaxed mt-2">{profile.bio}</p> : null}
+            {online && !isMe && (
+              <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-success border-2 border-surface-0 shadow-sm" aria-label="Online" />
+            )}
+          </button>
+
+          {/* Stats Bar */}
+          <div className="flex-1 grid grid-cols-3 text-center">
+            <button
+              onClick={() => setActiveTab('posts')}
+              className="py-1 rounded-xl hover:bg-surface-2/60 transition-colors active:scale-95"
+            >
+              <p className="font-display text-[18px] font-semibold text-ink leading-tight">{looks.length}</p>
+              <p className="text-[11px] text-ink-faint mt-0.5">Posts</p>
+            </button>
+            <button
+              onClick={() => navigate(targetUid ? `/profile/${targetUid}/followers` : '/profile/followers')}
+              className="py-1 rounded-xl hover:bg-surface-2/60 transition-colors active:scale-95"
+            >
+              <p className="font-display text-[18px] font-semibold text-ink leading-tight">{profile.followersCount || 0}</p>
+              <p className="text-[11px] text-ink-faint mt-0.5">Followers</p>
+            </button>
+            <button
+              onClick={() => navigate(targetUid ? `/profile/${targetUid}/following` : '/profile/following')}
+              className="py-1 rounded-xl hover:bg-surface-2/60 transition-colors active:scale-95"
+            >
+              <p className="font-display text-[18px] font-semibold text-ink leading-tight">{profile.followingCount || 0}</p>
+              <p className="text-[11px] text-ink-faint mt-0.5">Following</p>
+            </button>
           </div>
         </div>
 
-        {/* Stats — editorial hairline row */}
-        <div className="flex items-center mt-6 border-y border-line divide-x divide-line">
-          {[
-            { n: looks.length, label: looks.length === 1 ? 'Look' : 'Looks' },
-            { n: profile.followersCount || 0, label: 'Followers' },
-            { n: profile.followingCount || 0, label: 'Following' },
-          ].map(s => (
-            <div key={s.label} className="flex-1 py-3.5 text-center">
-              <p className="font-display text-[20px] font-medium leading-none">{s.n}</p>
-              <p className="eyebrow !text-[9px] mt-1.5">{s.label}</p>
-            </div>
-          ))}
+        {/* Display Name & Bio */}
+        <div className="mt-4">
+          <h1 className="font-display text-[19px] font-semibold text-ink leading-tight">{profile.displayName}</h1>
+          <p className="text-[13px] text-ink-soft leading-relaxed mt-1.5">{profile.bio || 'Curating precision fits and luxury edits.'}</p>
+          <div className="flex items-center gap-3 text-[11px] text-ink-faint mt-2">
+            <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">location_on</span> Bengaluru, IN</span>
+          </div>
         </div>
 
-        {/* Actions */}
-        {!isMe && (
-          <div className="flex gap-3 mt-5">
+        {/* Primary Action Buttons */}
+        {isMe ? (
+          <div className="flex gap-2.5 mt-5">
+            <Button
+              variant="outline"
+              fullWidth
+              size="sm"
+              onClick={() => navigate('/profile/edit')}
+            >
+              Edit profile
+            </Button>
+            <Button
+              variant="outline"
+              fullWidth
+              size="sm"
+              onClick={handleShareProfile}
+            >
+              Share profile
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2.5 mt-5">
             {blocked ? (
-              <Button variant="outline" fullWidth onClick={handleBlockToggle} loading={busy}>Unblock</Button>
+              <Button variant="outline" fullWidth size="sm" onClick={handleBlockToggle} loading={busy}>Unblock</Button>
             ) : (
               <>
                 <Button
                   fullWidth
+                  size="sm"
                   variant={followed ? 'outline' : 'primary'}
-                  icon={followed ? 'check' : 'person_add'}
                   onClick={handleFollowToggle}
                   loading={busy}
                 >
                   {followed ? 'Following' : 'Follow'}
                 </Button>
-                <Button variant="outline" fullWidth icon="chat_bubble" onClick={() => navigate(`/chat/${profile.uid}`)}>
+                <Button variant="outline" fullWidth size="sm" onClick={() => navigate(`/chat/${profile.uid}`)}>
                   Message
                 </Button>
               </>
             )}
           </div>
         )}
-        {isMe && (
-          <Button variant="outline" fullWidth icon="edit" className="mt-5" onClick={() => navigate('/settings', { state: { view: 'edit-profile' } })}>
-            Edit profile
-          </Button>
-        )}
 
-        {/* Looks grid */}
-        <div className="mt-8">
-          <Eyebrow className="mb-3">{isMe ? 'Your looks' : 'Looks'}</Eyebrow>
-          {looks.length === 0 ? (
-            <div className="py-10 text-center">
-              <span className="material-symbols-outlined text-ink-faint text-[32px] mb-2" aria-hidden="true">photo_camera</span>
-              <p className="text-ink-faint text-[13px]">{isMe ? 'Post your first look to The Salon.' : 'No looks posted yet.'}</p>
-              {isMe && (
-                <Button className="mt-4" icon="add" onClick={() => navigate('/create-look')}>Post a look</Button>
+        {/* Compact Rewards Section */}
+        {false && (() => {
+          const rankInfo = calculateRank(zipCoins);
+          return (
+            <button
+              onClick={() => navigate('/rewards')}
+              className="w-full text-left mt-5 p-4 rounded-2xl bg-surface-1 border border-line hover:border-brand/40 transition-colors shadow-sm active:scale-[0.99] group"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="eyebrow !text-[9px]">Rewards & Status</span>
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${rankInfo.badgeColor}`}>
+                    <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>{rankInfo.icon}</span>
+                    {rankInfo.rank}
+                  </span>
+                </div>
+                <span className="text-[11px] font-semibold text-brand group-hover:underline flex items-center gap-0.5">
+                  View <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-[12.5px] mt-2 mb-1.5">
+                <span className="text-ink-soft">
+                  <strong className="font-semibold text-ink">{zipCoins}</strong> ZipCoins · <strong className="font-semibold text-ink">{giftsGiven}</strong> Gifts Given
+                </span>
+                {rankInfo.nextRank && (
+                  <span className="text-[11px] text-ink-faint">
+                    Next: <strong className="text-ink">{rankInfo.nextRank}</strong>
+                  </span>
+                )}
+              </div>
+
+              {/* Progress Bar */}
+              {rankInfo.nextRank && (
+                <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden border border-line/60">
+                  <div
+                    className="h-full bg-brand rounded-full transition-all duration-500"
+                    style={{ width: `${rankInfo.progressPct}%` }}
+                  />
+                </div>
               )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-1.5">
-              {looks.map(l => (
-                <button
-                  key={l.id}
-                  onClick={() => navigate('/community')}
-                  aria-label={l.caption || 'View look'}
-                  className="relative aspect-[3/4] rounded-lg overflow-hidden bg-surface-2 active:scale-[0.98] transition-transform"
-                >
-                  <img src={l.mediaUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-                  {l.likesCount > 0 && (
-                    <span className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 text-white text-[10px] font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
-                      <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">favorite</span>
-                      {l.likesCount}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+            </button>
+          );
+        })()}
       </div>
 
-      {/* ⋯ menu */}
+      {/* Tab Selector Bar - Instagram Hierarchy */}
+      <div className="border-y border-line bg-surface-0 sticky top-[57px] z-20 flex">
+        <button
+          onClick={() => setActiveTab('posts')}
+          aria-label="Posts tab"
+          className={`flex-1 py-3 flex items-center justify-center border-b-2 transition-colors ${activeTab === 'posts' ? 'border-ink text-ink' : 'border-transparent text-ink-faint'}`}
+        >
+          <span className="material-symbols-outlined text-[22px]">grid_on</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('tagged')}
+          aria-label="Tagged tab"
+          className={`flex-1 py-3 flex items-center justify-center border-b-2 transition-colors ${activeTab === 'tagged' ? 'border-ink text-ink' : 'border-transparent text-ink-faint'}`}
+        >
+          <span className="material-symbols-outlined text-[22px]">person_pin</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('saved')}
+          aria-label="Saved tab"
+          className={`flex-1 py-3 flex items-center justify-center border-b-2 transition-colors ${activeTab === 'saved' ? 'border-ink text-ink' : 'border-transparent text-ink-faint'}`}
+        >
+          <span className="material-symbols-outlined text-[22px]">bookmark</span>
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      <div className="pt-2">
+        {/* TAB 1: POSTS & LOOKS GRID */}
+        {activeTab === 'posts' && (
+          <div>
+            {looks.length === 0 ? (
+              <div className="py-16 text-center px-6">
+                <span className="material-symbols-outlined text-ink-faint text-[36px] mb-2">photo_camera</span>
+                <h3 className="font-display text-[18px] font-medium text-ink mb-1">{isMe ? 'No posts yet' : 'No posts'}</h3>
+                <p className="text-[13px] text-ink-faint max-w-xs mx-auto mb-4">{isMe ? 'Share your fits and outfits with the ZipRIGHT community.' : 'This member has not posted any looks yet.'}</p>
+                {isMe && (
+                  <Button size="sm" icon="add" onClick={() => navigate('/create-look')}>Share your first look</Button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-0.5">
+                {looks.map(l => (
+                  <button
+                    key={l.id}
+                    onClick={() => navigate('/community')}
+                    aria-label={l.caption || 'View look'}
+                    className="relative aspect-square overflow-hidden bg-surface-2 active:opacity-80 transition-opacity"
+                  >
+                    <img src={l.mediaUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                    {l.likesCount > 0 && (
+                      <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-white text-[10px] font-semibold bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
+                        <span className="material-symbols-outlined text-[11px] text-brand" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                        {l.likesCount}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: TAGGED LOOKS */}
+        {activeTab === 'tagged' && (
+          <div className="py-16 text-center px-6">
+            <span className="material-symbols-outlined text-ink-faint text-[36px] mb-2">person_pin</span>
+            <h3 className="font-display text-[18px] font-medium text-ink mb-1">Photos of you</h3>
+            <p className="text-[13px] text-ink-faint max-w-xs mx-auto">When members tag you in their looks, they will appear here.</p>
+          </div>
+        )}
+
+        {/* TAB 3: SAVED & WISHLIST */}
+        {activeTab === 'saved' && (
+          <div className="px-6 pt-4">
+            {wishlistItems.length === 0 ? (
+              <div className="py-16 text-center">
+                <span className="material-symbols-outlined text-ink-faint text-[36px] mb-2">bookmark_border</span>
+                <h3 className="font-display text-[18px] font-medium text-ink mb-1">No saved items</h3>
+                <p className="text-[13px] text-ink-faint max-w-xs mx-auto mb-4">Only you can see what you've saved.</p>
+                <Button size="sm" onClick={() => navigate('/marketplace')}>Explore Shop</Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {wishlistItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => navigate('/wishlist')}
+                    className="aspect-square rounded-xl overflow-hidden bg-surface-2 border border-line active:opacity-80 transition-opacity"
+                  >
+                    <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Menu sheet for other users */}
       <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`@${profile.username}`}>
         <div className="flex flex-col pb-4">
           <button
             onClick={handleBlockToggle}
             className="flex items-center gap-4 py-4 border-b border-line text-left active:opacity-70"
           >
-            <span className="material-symbols-outlined text-danger text-[20px]" aria-hidden="true">block</span>
+            <span className="material-symbols-outlined text-danger text-[20px]">block</span>
             <div>
               <p className="text-ink font-medium text-[14px]">{blocked ? 'Unblock' : 'Block'} @{profile.username}</p>
               <p className="text-ink-faint text-[12px]">{blocked ? 'They can appear in your feed again' : "They won't appear in your feed or message you"}</p>
@@ -267,7 +524,7 @@ const UserProfile: React.FC = () => {
             onClick={() => { setMenuOpen(false); setReportOpen(true); }}
             className="flex items-center gap-4 py-4 text-left active:opacity-70"
           >
-            <span className="material-symbols-outlined text-warning text-[20px]" aria-hidden="true">flag</span>
+            <span className="material-symbols-outlined text-warning text-[20px]">flag</span>
             <div>
               <p className="text-ink font-medium text-[14px]">Report @{profile.username}</p>
               <p className="text-ink-faint text-[12px]">We review reports within 24 hours</p>

@@ -5,11 +5,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { AppBar, Button, Eyebrow, Spinner } from '../components/ui';
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
 
-function hasDemoSession() {
-  return Boolean(localStorage.getItem(DEMO_AUTH_KEY));
-}
 import { auth, db } from '../firebase';
 import { processSmartFitScan, SmartFitMeasurements, SmartFitScanResult } from '../services/ziprightApi';
 
@@ -346,7 +342,7 @@ const SmartFitScan: React.FC = () => {
       return;
     }
 
-    if (!auth.currentUser && !hasDemoSession()) {
+    if (!auth.currentUser) {
       showToast('Please sign in again.', 'error');
       return;
     }
@@ -471,7 +467,7 @@ const SmartFitScan: React.FC = () => {
     }
 
     const user = auth.currentUser;
-    if (!user && !hasDemoSession()) {
+    if (!user) {
       showToast('Please sign in first.', 'error');
       navigate('/login');
       return;

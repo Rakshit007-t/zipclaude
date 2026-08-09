@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
+import { useAppNavigation } from '../utils/useAppNavigation';
 import { recordJourneyEvent } from '../services/styleJourney';
-import { AppBar, Badge, Button, Chip, Eyebrow, SegmentedControl, Sheet, Spinner } from '../components/ui';
+import { saveFitProfile, type FitProfilePayload } from '../services/ziprightApi';
+import { AppBar, Badge, Button, Chip, Eyebrow, Modal, SegmentedControl, Sheet, Spinner } from '../components/ui';
 
 interface FitData {
   gender: string;
@@ -51,17 +53,7 @@ const brands = [
 ];
 
 const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const DEMO_AUTH_KEY = 'zipright_demo_user';
 
-function getDemoUserId() {
-  try {
-    const raw = localStorage.getItem(DEMO_AUTH_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return typeof parsed?.uid === 'string' ? parsed.uid : null;
-  } catch {
-    return null;
-  }
-}
 
 function createProfileId(userId: string) {
   const uniqueId =
@@ -315,6 +307,7 @@ const FieldLabel: React.FC<{ label: string; required?: boolean; optional?: boole
 );
 
 const FitProfile: React.FC = () => {
+  const { goBack } = useAppNavigation();
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
@@ -327,6 +320,7 @@ const FitProfile: React.FC = () => {
     updateBodyShape,
     updateBaseSize,
     updateFitPreference,
+    deleteFitProfile,
   } = useUserProfile();
 
   const navigationState = (location.state as any) || {};
@@ -342,6 +336,8 @@ const FitProfile: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [showBodyShapeGuide, setShowBodyShapeGuide] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -681,25 +677,7 @@ const FitProfile: React.FC = () => {
   };
 
   const handleBack = () => {
-    const returnTo = navigationState.returnTo || scanReturnFallbackRef.current;
-    if (returnTo && !isRecommendationRoute(returnTo)) {
-      navigate(returnTo);
-      return;
-    }
-
-    if (window.history.state && window.history.state.idx > 0 && document.referrer) {
-      try {
-        if (new URL(document.referrer).pathname === '/recommendation') {
-          navigate('/settings');
-          return;
-        }
-      } catch {}
-
-      navigate(-1);
-      return;
-    }
-
-    navigate(mode === 'edit' ? '/settings' : '/add-product');
+    goBack('/manage-profiles');
   };
 
   const handleSave = async () => {
@@ -712,7 +690,7 @@ const FitProfile: React.FC = () => {
     if (!fitData.bodyShape) { showToast('Please select your body shape.', 'error'); return; }
 
     const user = auth.currentUser;
-    const userId = getDemoUserId() || user?.uid;
+    const userId = user?.uid;
     if (!userId) { showToast('Please sign in first.', 'error'); navigate('/login'); return; }
 
     if (saving) {
@@ -733,15 +711,8 @@ const FitProfile: React.FC = () => {
             : 'regular';
       const selectedBaseSize = fitData.topSize as any;
 
-      const userRef = user && !user.isAnonymous ? doc(db, 'users', user.uid) : null;
-      const remoteProfileData = userRef
-        ? (await getDoc(userRef)).data()
-        : null;
-      const remoteProfiles = Array.isArray(remoteProfileData?.fitProfiles)
-        ? remoteProfileData.fitProfiles
-        : [];
       const localProfiles = Array.isArray(userProfile.fitProfiles) ? userProfile.fitProfiles : [];
-      const existingProfiles = mergeProfileRecordLists(remoteProfiles, localProfiles);
+      const existingProfiles = mergeProfileRecordLists([], localProfiles);
       const stateMemberId = typeof navigationState.memberId === 'string' ? navigationState.memberId : '';
       const fallbackPrimaryProfileId = userProfile.profileId || `primary-${userId}`;
       const activeProfileId = userProfile.selectedProfileId || fallbackPrimaryProfileId;
@@ -763,9 +734,6 @@ const FitProfile: React.FC = () => {
         ...(waist ? { waist } : {}),
         ...(hips ? { hips } : {}),
       });
-      const hasCompleteSmartFit =
-        isFinitePositiveNumber(nextSmartFit.chest) &&
-        isFinitePositiveNumber(nextSmartFit.waist);
       const nextMeasurements = cleanMeasurements({
         ...userProfile.measurements,
         ...(chest ? { chest } : {}),
@@ -824,15 +792,13 @@ const FitProfile: React.FC = () => {
         selectedProfileId: profileId,
         selectedProfile: profileId,
         recommendationPreferences,
-        updatedAt: serverTimestamp(),
-        ...(mode !== 'edit' ? { createdAt: serverTimestamp() } : {}),
         measurements: nextMeasurements,
         ...(hasAnySmartFit ? { smartFit: nextSmartFit } : {}),
         fitProfiles,
       };
 
-      if (userRef) {
-        await setDoc(userRef, profileData, { merge: true });
+      if (user && !user.isAnonymous) {
+        await saveFitProfile(profileData as FitProfilePayload);
       }
 
       await updateProfile({
@@ -858,16 +824,36 @@ const FitProfile: React.FC = () => {
       if (completeness >= 100) {
         recordJourneyEvent('profile_completed');
       }
-      const requestedReturnTo = typeof navigationState.returnTo === 'string' ? navigationState.returnTo : '';
-      const safeReturnTo = requestedReturnTo && !isRecommendationRoute(requestedReturnTo)
-        ? requestedReturnTo
-        : scanReturnFallbackRef.current || (mode === 'edit' ? '/settings' : '/settings');
-      navigate(safeReturnTo, { replace: true });
+      // Saving a profile completes onboarding. Redirect to Home Dashboard.
+      navigate('/home', { replace: true });
     } catch (e) {
       console.error('[FitProfile] Save failed:', e);
       showToast('Failed to save profile. Please try again.', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    const stateMemberId = typeof navigationState.memberId === 'string' ? navigationState.memberId : '';
+    const profileId = stateMemberId || userProfile.selectedProfileId || userProfile.profileId;
+    if (!profileId) {
+      showToast('This fit profile could not be identified. Refresh and try again.', 'error');
+      setShowDeleteConfirm(false);
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await deleteFitProfile(profileId);
+      setShowDeleteConfirm(false);
+      showToast('Fit profile permanently deleted.', 'success');
+      navigate('/home', { replace: true });
+    } catch (error) {
+      console.error('[FitProfile] Delete failed:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to delete your fit profile. Please try again.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -910,7 +896,7 @@ const FitProfile: React.FC = () => {
           </div>
         </div>
 
-        {/* --- Profile Name --- */}
+        {/* 1. Profile Name */}
         <div className="mb-8">
           <FieldLabel label="Profile name" required />
           <input
@@ -923,76 +909,26 @@ const FitProfile: React.FC = () => {
           />
         </div>
 
-        {/* --- Gender --- */}
-        <div className="mb-8">
-          <FieldLabel label="Gender" hint="Used to apply gender-specific sizing rules." />
-          <SegmentedControl
-            aria-label="Gender"
-            value={fitData.gender}
-            onChange={(g) => {
-              setFitData({ ...fitData, gender: g, bodyShape: '', bustSize: '', hipsSize: '', braCup: '' });
-              updateBodyShape(undefined);
-            }}
-            options={[
-              { value: 'Male', label: 'Male' },
-              { value: 'Female', label: 'Female' },
-              { value: 'Other', label: 'Other' },
-            ]}
-          />
-        </div>
-
-        {/* --- Preferred Brand --- */}
-        <div className="mb-8">
-          <FieldLabel label="Preferred brand" required hint="We use this brand as your sizing reference to compare other brands." />
-          <div className="relative">
+        {/* 2. Smart Fit Scan Card */}
+        <div className="mb-8 bg-ink text-ink-invert rounded-card p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-28 h-28 rounded-full blur-[46px] -mr-8 -mt-8" style={{ background: 'var(--brand)', opacity: 0.3 }} aria-hidden="true"></div>
+          <div className="relative z-10">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-50 mb-2">Smart Fit Scan</p>
+            <h3 className="font-display text-[19px] font-medium mb-1.5">Not sure of your size?</h3>
+            <p className="text-[13px] opacity-70 mb-5 max-w-[85%] leading-relaxed">
+              Scan yourself with AI and auto-fill your measurements.
+            </p>
             <button
-              onClick={() => setShowBrandDropdown(!showBrandDropdown)}
-              aria-expanded={showBrandDropdown}
-              className={`${fieldCls} h-12 flex items-center justify-between text-left`}
+              onClick={() => navigate('/smart-fit-scan')}
+              className="border border-ink-invert/40 text-ink-invert font-semibold text-[11px] uppercase tracking-[0.12em] h-10 px-5 rounded-full inline-flex items-center gap-2 press"
             >
-              <span className={fitData.brand ? 'text-ink' : 'text-ink-faint'}>{fitData.brand || 'Select a brand'}</span>
-              <span className={`material-symbols-outlined text-ink-faint text-[20px] transition-transform ${showBrandDropdown ? 'rotate-180' : ''}`} aria-hidden="true">expand_more</span>
+              Measure now
+              <span className="material-symbols-outlined text-[15px]" aria-hidden="true">arrow_forward</span>
             </button>
-            {showBrandDropdown && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowBrandDropdown(false)}></div>
-                <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-1 border border-line rounded-card shadow-float max-h-60 overflow-y-auto no-scrollbar">
-                  {brands.map((b) => (
-                    <button
-                      key={b}
-                      onClick={() => { setFitData({ ...fitData, brand: b }); setShowBrandDropdown(false); }}
-                      className={`w-full text-left px-5 py-3.5 text-[14px] border-b border-line last:border-none transition-colors ${fitData.brand === b ? 'text-ink font-semibold bg-surface-2' : 'text-ink-soft hover:bg-surface-2/60'}`}
-                    >
-                      {b}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
         </div>
 
-        {/* --- Usual T-Shirt Size --- */}
-        <div className="mb-8">
-          <FieldLabel label="Usual t-shirt size" required hint="Your most reliable size reference for tops and jackets." />
-          <div className="flex flex-wrap gap-2.5">
-            {sizes.map((s) => (
-              <Chip
-                key={s}
-                selected={fitData.topSize === s}
-                className="min-w-[56px]"
-                onClick={() => {
-                  setFitData({ ...fitData, topSize: s });
-                  updateBaseSize(s as any);
-                }}
-              >
-                {s}
-              </Chip>
-            ))}
-          </div>
-        </div>
-
-        {/* --- Height --- */}
+        {/* 3. Height */}
         <div className="mb-8">
           <div className="flex items-start justify-between gap-4">
             <FieldLabel label="Height" required hint="Helps us estimate garment length and proportions." />
@@ -1026,44 +962,73 @@ const FitProfile: React.FC = () => {
           )}
         </div>
 
-        {/* --- Weight & Waist --- */}
-        <div className="flex gap-3 mb-8">
-          <div className="flex-1">
-            <FieldLabel label="Weight" required hint="Helps estimate body build." />
-            <div className="relative">
-              <input type="number" aria-label="Weight in kilograms" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70" className={`${fieldCls} pr-12`} />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">kg</span>
-            </div>
+        {/* 4. Weight */}
+        <div className="mb-8">
+          <FieldLabel label="Weight" required hint="Helps estimate body build." />
+          <div className="relative">
+            <input type="number" aria-label="Weight in kilograms" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70" className={`${fieldCls} pr-12`} />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">kg</span>
           </div>
-          <div className="flex-1">
-            <FieldLabel label="Waist" optional hint="Improves pant size accuracy." />
+        </div>
+
+        {/* 5. Measurements */}
+        <div className="mb-8 space-y-6">
+          <Eyebrow className="!text-[10px]">Body Measurements</Eyebrow>
+          <div>
+            <FieldLabel label="Waist size" optional hint="Improves pant size accuracy." />
             <div className="relative">
               <input type="number" aria-label="Waist in inches" value={fitData.waistSize} onChange={(e) => handleMeasurementChange('waist', e.target.value)} placeholder="32" className={`${fieldCls} pr-12`} />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
             </div>
           </div>
-        </div>
-
-        {/* --- AI Measure Now Card --- */}
-        <div className="mb-8 bg-ink text-ink-invert rounded-card p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-28 h-28 rounded-full blur-[46px] -mr-8 -mt-8" style={{ background: 'var(--brand)', opacity: 0.3 }} aria-hidden="true"></div>
-          <div className="relative z-10">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-50 mb-2">Smart Fit Scan</p>
-            <h3 className="font-display text-[19px] font-medium mb-1.5">Not sure of your size?</h3>
-            <p className="text-[13px] opacity-70 mb-5 max-w-[85%] leading-relaxed">
-              Scan yourself with AI and auto-fill your measurements.
-            </p>
-            <button
-              onClick={() => navigate('/smart-fit-scan')}
-              className="border border-ink-invert/40 text-ink-invert font-semibold text-[11px] uppercase tracking-[0.12em] h-10 px-5 rounded-full inline-flex items-center gap-2 press"
-            >
-              Measure now
-              <span className="material-symbols-outlined text-[15px]" aria-hidden="true">arrow_forward</span>
-            </button>
+          <div>
+            <FieldLabel label="Chest size" optional hint="Improves accuracy for shirts, jackets, and suits." />
+            <div className="relative">
+              <input type="number" aria-label="Chest size in inches" value={fitData.chestSize} onChange={(e) => handleMeasurementChange('chest', e.target.value)} placeholder="e.g., 38" className={`${fieldCls} pr-16`} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">inches</span>
+            </div>
           </div>
+
+          {isFemale && (
+            <div>
+              <FieldLabel label="Hips" optional hint="Critical for dresses, lehengas, and ethnic wear accuracy." />
+              <div className="relative">
+                <input type="number" aria-label="Hips in inches" value={fitData.hipsSize} onChange={(e) => handleMeasurementChange('hips', e.target.value)} placeholder="38" className={`${fieldCls} pr-12`} />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
+              </div>
+            </div>
+          )}
+
+          {isFemale && (
+            <div>
+              <FieldLabel label="Bust size" optional hint="Helps recommend better fitting tops and dresses." />
+              <div className="relative">
+                <input type="number" aria-label="Bust size in inches" value={fitData.bustSize} onChange={(e) => handleMeasurementChange('bust', e.target.value)} placeholder="e.g., 34" className={`${fieldCls} pr-16`} />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">inches</span>
+              </div>
+            </div>
+          )}
+
+          {isFemale && (
+            <div>
+              <FieldLabel label="Bra cup" optional />
+              <div className="flex gap-2.5">
+                {braCups.map((cup) => (
+                  <Chip
+                    key={cup}
+                    selected={fitData.braCup === cup}
+                    className="min-w-[48px]"
+                    onClick={() => setFitData({ ...fitData, braCup: fitData.braCup === cup ? '' : cup })}
+                  >
+                    {cup}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* --- Body Shape --- */}
+        {/* 6. Body Shape */}
         <div className="mb-8">
           <div className="flex items-start justify-between gap-4">
             <FieldLabel label="Body shape" required hint="Body shape helps us adjust size recommendations for better fit." />
@@ -1101,56 +1066,79 @@ const FitProfile: React.FC = () => {
           </div>
         </div>
 
-        {/* --- Chest Size --- */}
-        <div className="mb-8">
-          <FieldLabel label="Chest size" optional hint="Improves accuracy for shirts, jackets, and suits." />
-          <div className="relative">
-            <input type="number" aria-label="Chest size in inches" value={fitData.chestSize} onChange={(e) => handleMeasurementChange('chest', e.target.value)} placeholder="e.g., 38" className={`${fieldCls} pr-16`} />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">inches</span>
-          </div>
-        </div>
+        {/* 7. Everything Else (Gender, Preferred Brand, Usual Size, Fit Preference) */}
+        <div className="mb-8 space-y-8">
+          <Eyebrow className="!text-[10px]">Style & Sizing References</Eyebrow>
 
-        {/* --- Hips (Female only) --- */}
-        {isFemale && (
-          <div className="mb-8">
-            <FieldLabel label="Hips" optional hint="Critical for dresses, lehengas, and ethnic wear accuracy." />
+          {/* Gender */}
+          <div>
+            <FieldLabel label="Gender" hint="Used to apply gender-specific sizing rules." />
+            <SegmentedControl
+              aria-label="Gender"
+              value={fitData.gender}
+              onChange={(g) => {
+                setFitData({ ...fitData, gender: g, bodyShape: '', bustSize: '', hipsSize: '', braCup: '' });
+                updateBodyShape(undefined);
+              }}
+              options={[
+                { value: 'Male', label: 'Male' },
+                { value: 'Female', label: 'Female' },
+                { value: 'Other', label: 'Other' },
+              ]}
+            />
+          </div>
+
+          {/* Preferred Brand */}
+          <div>
+            <FieldLabel label="Preferred brand" required hint="We use this brand as your sizing reference to compare other brands." />
             <div className="relative">
-              <input type="number" aria-label="Hips in inches" value={fitData.hipsSize} onChange={(e) => handleMeasurementChange('hips', e.target.value)} placeholder="38" className={`${fieldCls} pr-12`} />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
+              <button
+                onClick={() => setShowBrandDropdown(!showBrandDropdown)}
+                aria-expanded={showBrandDropdown}
+                className={`${fieldCls} h-12 flex items-center justify-between text-left`}
+              >
+                <span className={fitData.brand ? 'text-ink' : 'text-ink-faint'}>{fitData.brand || 'Select a brand'}</span>
+                <span className={`material-symbols-outlined text-ink-faint text-[20px] transition-transform ${showBrandDropdown ? 'rotate-180' : ''}`} aria-hidden="true">expand_more</span>
+              </button>
+              {showBrandDropdown && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowBrandDropdown(false)}></div>
+                  <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-1 border border-line rounded-card shadow-float max-h-60 overflow-y-auto no-scrollbar">
+                    {brands.map((b) => (
+                      <button
+                        key={b}
+                        onClick={() => { setFitData({ ...fitData, brand: b }); setShowBrandDropdown(false); }}
+                        className={`w-full text-left px-5 py-3.5 text-[14px] border-b border-line last:border-none transition-colors ${fitData.brand === b ? 'text-ink font-semibold bg-surface-2' : 'text-ink-soft hover:bg-surface-2/60'}`}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        )}
 
-        {/* --- Bust Size (Female only) --- */}
-        {isFemale && (
-          <div className="mb-8">
-            <FieldLabel label="Bust size" optional hint="Helps recommend better fitting tops and dresses." />
-            <div className="relative">
-              <input type="number" aria-label="Bust size in inches" value={fitData.bustSize} onChange={(e) => handleMeasurementChange('bust', e.target.value)} placeholder="e.g., 34" className={`${fieldCls} pr-16`} />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">inches</span>
-            </div>
-          </div>
-        )}
-
-        {/* --- Bra Cup (Female only) --- */}
-        {isFemale && (
-          <div className="mb-8">
-            <FieldLabel label="Bra cup" optional />
-            <div className="flex gap-2.5">
-              {braCups.map((cup) => (
+          {/* Usual T-Shirt Size */}
+          <div>
+            <FieldLabel label="Usual t-shirt size" required hint="Your most reliable size reference for tops and jackets." />
+            <div className="flex flex-wrap gap-2.5">
+              {sizes.map((s) => (
                 <Chip
-                  key={cup}
-                  selected={fitData.braCup === cup}
-                  className="min-w-[48px]"
-                  onClick={() => setFitData({ ...fitData, braCup: fitData.braCup === cup ? '' : cup })}
+                  key={s}
+                  selected={fitData.topSize === s}
+                  className="min-w-[56px]"
+                  onClick={() => {
+                    setFitData({ ...fitData, topSize: s });
+                    updateBaseSize(s as any);
+                  }}
                 >
-                  {cup}
+                  {s}
                 </Chip>
               ))}
             </div>
           </div>
-        )}
-
+        </div>
         {/* --- Fit Preference --- */}
         <div className="mb-8">
           <FieldLabel label="Fit preference" hint="Determines how fitted or loose your clothing should feel." />
@@ -1214,6 +1202,18 @@ const FitProfile: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {mode === 'edit' && (
+          <div className="mb-10 border-t border-line pt-7">
+            <Eyebrow className="mb-2 text-danger">Danger zone</Eyebrow>
+            <p className="text-[13px] leading-relaxed text-ink-soft mb-4">
+              Permanently remove this fit profile and its saved measurements. This cannot be undone.
+            </p>
+            <Button variant="outline" size="md" fullWidth icon="delete" onClick={() => setShowDeleteConfirm(true)}>
+              Delete fit profile
+            </Button>
+          </div>
+        )}
 
       </div>
 
@@ -1300,6 +1300,23 @@ const FitProfile: React.FC = () => {
           ))}
         </div>
       </Sheet>
+
+      <Modal
+        open={showDeleteConfirm}
+        onClose={() => !deleting && setShowDeleteConfirm(false)}
+        title="Delete fit profile?"
+        description="This permanently removes the profile and its measurements from your account. This action cannot be undone."
+        actions={(
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="danger" className="flex-1" loading={deleting} onClick={handleDeleteProfile}>
+              Delete
+            </Button>
+          </>
+        )}
+      />
     </div>
   );
 };

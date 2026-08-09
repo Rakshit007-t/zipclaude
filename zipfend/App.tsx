@@ -11,6 +11,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { UserProfileProvider } from './contexts/UserProfileContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ScreenFallback, OfflineBanner, Wordmark } from './components/ui';
+import { ProtectedAdminRoute, ProtectedSellerRoute } from './components/routing/ProtectedRoutes';
 import Splash from './screens/Splash';
 
 // Screens are lazy-loaded: each becomes its own chunk so first paint only
@@ -42,6 +43,10 @@ const CreateLook = React.lazy(() => import('./screens/CreateLook'));
 const StylistChat = React.lazy(() => import('./screens/StylistChat'));
 const SocialHub = React.lazy(() => import('./screens/SocialHub'));
 const UserProfile = React.lazy(() => import('./screens/UserProfile'));
+const EditProfile = React.lazy(() => import('./screens/EditProfile'));
+const ManageProfiles = React.lazy(() => import('./screens/ManageProfiles'));
+const RewardsScreen = React.lazy(() => import('./screens/RewardsScreen'));
+const FollowersList = React.lazy(() => import('./screens/FollowersList'));
 const ChatScreen = React.lazy(() => import('./screens/ChatScreen'));
 const ProductFeed = React.lazy(() => import('./screens/ProductFeed'));
 const AdminAnalytics = React.lazy(() => import('./screens/AdminAnalytics'));
@@ -51,6 +56,9 @@ const SellerEditProduct = React.lazy(() => import('./screens/SellerEditProduct')
 const SellerDashboard = React.lazy(() => import('./screens/SellerDashboard'));
 const SellerIntegration = React.lazy(() => import('./screens/SellerIntegration'));
 const SellerIntegrationSandbox = React.lazy(() => import('./screens/SellerIntegrationSandbox'));
+const DeveloperPortal = React.lazy(() => import('./screens/DeveloperPortal'));
+const BrandProfile = React.lazy(() => import('./screens/BrandProfile'));
+const BrandManagement = React.lazy(() => import('./screens/BrandManagement').then(m => ({ default: m.BrandManagement })));
 
 // Info Pages
 const FAQs = React.lazy(() => import('./screens/FAQs'));
@@ -59,25 +67,7 @@ const TermsOfUse = React.lazy(() => import('./screens/TermsOfUse'));
 const PrivacyPolicy = React.lazy(() => import('./screens/PrivacyPolicy'));
 const PrivacyCenter = React.lazy(() => import('./screens/PrivacyCenter'));
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
 
-function readDemoUser(): User | null {
-  try {
-    const raw = localStorage.getItem(DEMO_AUTH_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.uid) return null;
-    return {
-      uid: parsed.uid,
-      displayName: parsed.displayName || 'ZipRIGHT Demo',
-      phoneNumber: parsed.phoneNumber || null,
-      photoURL: parsed.photoURL || null,
-      email: null,
-    } as User;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The V2 dock — the app's navigation signature. A floating pill that is
@@ -102,7 +92,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
   }, [isZMenuOpen]);
 
   // Show on specific routes
-  const showNav = ['/home', '/marketplace', '/stylist', '/avatar-intro', '/settings', '/friends'].includes(location.pathname);
+  const showNav = ['/home', '/marketplace', '/stylist', '/avatar-intro', '/settings', '/friends', '/profile', '/manage-profiles'].includes(location.pathname);
 
   if (!showNav) return null;
 
@@ -111,7 +101,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
     { icon: 'storefront', label: 'Shop', route: '/marketplace' },
     { icon: 'Z', label: 'Studio', route: 'z-menu' },
     { icon: 'group', label: 'Social', route: '/friends' },
-    { icon: 'account_circle', label: 'You', route: '/settings' },
+    { icon: 'account_circle', label: 'You', route: '/profile' },
   ];
 
   const zMenuOptions = [
@@ -376,7 +366,8 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
     );
   }
 
-  const isAuthenticated = !!user;
+  const isEmailUser = Boolean(user?.email && !user?.phoneNumber);
+  const isAuthenticated = Boolean(user && (!isEmailUser || user.emailVerified));
 
   // Full-bleed mobile shell: single container, overflow-x clipped so no
   // decorative element (shadows, stamps, transforms) can ever create
@@ -386,56 +377,67 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
         <OfflineBanner />
         <Suspense fallback={<ScreenFallback />}>
         <Routes>
-          <Route path="/" element={<Navigate to={isAuthenticated ? '/home' : '/welcome'} />} />
-          <Route path="/welcome" element={isAuthenticated ? <Navigate to="/home" /> : <Welcome />} />
-          <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/home" />} />
+          <Route path="/" element={<Navigate to={isAuthenticated ? '/home' : '/welcome'} replace />} />
+          <Route path="/welcome" element={isAuthenticated ? <Navigate to="/home" replace /> : <Welcome />} />
+          <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/home" replace />} />
 
           {/* MVP Core Flow */}
-          <Route path="/home" element={isAuthenticated ? <Home /> : <Navigate to="/login" />} />
-          <Route path="/reel" element={isAuthenticated ? <SwipeReel /> : <Navigate to="/login" />} />
-          <Route path="/add-product" element={isAuthenticated ? <AddProduct /> : <Navigate to="/login" />} />
-          <Route path="/marketplace" element={isAuthenticated ? <Marketplace /> : <Navigate to="/login" />} />
-          <Route path="/fit-profile" element={isAuthenticated ? <FitProfile /> : <Navigate to="/login" />} />
-          <Route path="/smart-fit-scan" element={isAuthenticated ? <SmartFitScan /> : <Navigate to="/login" />} />
-          <Route path="/recommendation" element={isAuthenticated ? <Recommendation /> : <Navigate to="/login" />} />
-          <Route path="/settings" element={isAuthenticated ? <Settings /> : <Navigate to="/login" />} />
-          <Route path="/seller/add-product" element={isAuthenticated ? <SellerAddProduct /> : <Navigate to="/login" />} />
-          <Route path="/seller/catalog" element={isAuthenticated ? <SellerCatalog /> : <Navigate to="/login" />} />
-          <Route path="/seller/edit-product/:id" element={isAuthenticated ? <SellerEditProduct /> : <Navigate to="/login" />} />
-          <Route path="/seller/dashboard" element={isAuthenticated ? <SellerDashboard /> : <Navigate to="/login" />} />
-          <Route path="/seller/integration" element={isAuthenticated ? <SellerIntegration /> : <Navigate to="/login" />} />
-          <Route path="/seller/integration/sandbox" element={isAuthenticated ? <SellerIntegrationSandbox /> : <Navigate to="/login" />} />
-          <Route path="/how-it-works" element={isAuthenticated ? <ComingSoon featureName="How It Works" /> : <Navigate to="/login" />} />
-          <Route path="/success" element={isAuthenticated ? <ComingSoon featureName="Success" /> : <Navigate to="/login" />} />
+          <Route path="/home" element={isAuthenticated ? <Home /> : <Navigate to="/login" replace />} />
+          <Route path="/reel" element={isAuthenticated ? <SwipeReel /> : <Navigate to="/login" replace />} />
+          <Route path="/add-product" element={isAuthenticated ? <AddProduct /> : <Navigate to="/login" replace />} />
+          <Route path="/marketplace" element={isAuthenticated ? <Marketplace /> : <Navigate to="/login" replace />} />
+          <Route path="/fit-profile" element={isAuthenticated ? <FitProfile /> : <Navigate to="/login" replace />} />
+          <Route path="/smart-fit-scan" element={isAuthenticated ? <SmartFitScan /> : <Navigate to="/login" replace />} />
+          <Route path="/recommendation" element={isAuthenticated ? <Recommendation /> : <Navigate to="/login" replace />} />
+          <Route path="/settings" element={isAuthenticated ? <Settings /> : <Navigate to="/login" replace />} />
+          <Route path="/seller/add-product" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerAddProduct /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/catalog" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerCatalog /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/edit-product/:id" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerEditProduct /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/dashboard" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerDashboard /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/integration" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerIntegration /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/integration/sandbox" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerIntegrationSandbox /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/how-it-works" element={isAuthenticated ? <ComingSoon featureName="How It Works" /> : <Navigate to="/login" replace />} />
+          <Route path="/success" element={isAuthenticated ? <ComingSoon featureName="Success" /> : <Navigate to="/login" replace />} />
 
           {/* Coming Soon Features */}
-          <Route path="/avatar-intro" element={isAuthenticated ? <AvatarIntro /> : <Navigate to="/login" />} />
-          <Route path="/avatar-view" element={isAuthenticated ? <AvatarView /> : <Navigate to="/login" />} />
-          <Route path="/fashion-studio" element={isAuthenticated ? <FashionStudio /> : <Navigate to="/login" />} />
-          <Route path="/live-tryon" element={isAuthenticated ? <LiveTryOn /> : <Navigate to="/login" />} />
-          <Route path="/tryon-studio" element={isAuthenticated ? <TryOnStudio /> : <Navigate to="/login" />} />
-          <Route path="/ai-studio" element={isAuthenticated ? <AIStudio /> : <Navigate to="/login" />} />
+          <Route path="/avatar-intro" element={isAuthenticated ? <AvatarIntro /> : <Navigate to="/login" replace />} />
+          <Route path="/avatar-view" element={isAuthenticated ? <AvatarView /> : <Navigate to="/login" replace />} />
+          <Route path="/fashion-studio" element={isAuthenticated ? <FashionStudio /> : <Navigate to="/login" replace />} />
+          <Route path="/live-tryon" element={isAuthenticated ? <LiveTryOn /> : <Navigate to="/login" replace />} />
+          <Route path="/tryon-studio" element={isAuthenticated ? <TryOnStudio /> : <Navigate to="/login" replace />} />
+          <Route path="/ai-studio" element={isAuthenticated ? <AIStudio /> : <Navigate to="/login" replace />} />
           <Route path="/voice-assistant" element={<ComingSoon featureName="Voice Assistant" />} />
           <Route path="/video-lookbook" element={<ComingSoon featureName="Video Lookbook" />} />
           <Route path="/style-studio" element={<ComingSoon featureName="Style Studio" />} />
-          <Route path="/wishlist" element={isAuthenticated ? <Wishlist /> : <Navigate to="/login" />} />
-          <Route path="/cart" element={isAuthenticated ? <Cart /> : <Navigate to="/login" />} />
-          <Route path="/gift-look" element={isAuthenticated ? <GiftLook /> : <Navigate to="/login" />} />
-          <Route path="/gift-inbox" element={isAuthenticated ? <GiftInbox /> : <Navigate to="/login" />} />
-          <Route path="/community" element={isAuthenticated ? <CommunityFeed /> : <Navigate to="/login" />} />
-          <Route path="/create-look" element={isAuthenticated ? <CreateLook /> : <Navigate to="/login" />} />
-          <Route path="/friends" element={isAuthenticated ? <SocialHub /> : <Navigate to="/login" />} />
-          <Route path="/profile/:uid" element={isAuthenticated ? <UserProfile /> : <Navigate to="/login" />} />
-          <Route path="/chat/:uid" element={isAuthenticated ? <ChatScreen /> : <Navigate to="/login" />} />
-          <Route path="/recent-scans" element={isAuthenticated ? <RecentScans /> : <Navigate to="/login" />} />
-          <Route path="/feed" element={isAuthenticated ? <ProductFeed /> : <Navigate to="/login" />} />
-          <Route path="/admin/analytics" element={isAuthenticated ? <AdminAnalytics /> : <Navigate to="/login" />} />
+          <Route path="/wishlist" element={isAuthenticated ? <Wishlist /> : <Navigate to="/login" replace />} />
+          <Route path="/cart" element={isAuthenticated ? <Cart /> : <Navigate to="/login" replace />} />
+          <Route path="/gift-look" element={isAuthenticated ? <GiftLook /> : <Navigate to="/login" replace />} />
+          <Route path="/gift-inbox" element={isAuthenticated ? <GiftInbox /> : <Navigate to="/login" replace />} />
+          <Route path="/community" element={isAuthenticated ? <CommunityFeed /> : <Navigate to="/login" replace />} />
+          <Route path="/create-look" element={isAuthenticated ? <CreateLook /> : <Navigate to="/login" replace />} />
+          <Route path="/friends" element={isAuthenticated ? <SocialHub /> : <Navigate to="/login" replace />} />
+          <Route path="/rewards" element={isAuthenticated ? <RewardsScreen /> : <Navigate to="/login" replace />} />
+          <Route path="/profile" element={isAuthenticated ? <UserProfile /> : <Navigate to="/login" replace />} />
+          <Route path="/profile/edit" element={isAuthenticated ? <EditProfile /> : <Navigate to="/login" replace />} />
+          <Route path="/profile/followers" element={isAuthenticated ? <FollowersList /> : <Navigate to="/login" replace />} />
+          <Route path="/profile/following" element={isAuthenticated ? <FollowersList /> : <Navigate to="/login" replace />} />
+          <Route path="/profile/:uid" element={isAuthenticated ? <UserProfile /> : <Navigate to="/login" replace />} />
+          <Route path="/profile/:uid/followers" element={isAuthenticated ? <FollowersList /> : <Navigate to="/login" replace />} />
+          <Route path="/profile/:uid/following" element={isAuthenticated ? <FollowersList /> : <Navigate to="/login" replace />} />
+          <Route path="/manage-profiles" element={isAuthenticated ? <ManageProfiles /> : <Navigate to="/login" replace />} />
+          <Route path="/chat/:uid" element={isAuthenticated ? <ChatScreen /> : <Navigate to="/login" replace />} />
+          <Route path="/recent-scans" element={isAuthenticated ? <RecentScans /> : <Navigate to="/login" replace />} />
+          <Route path="/feed" element={isAuthenticated ? <ProductFeed /> : <Navigate to="/login" replace />} />
+          <Route path="/admin" element={isAuthenticated ? <ProtectedAdminRoute user={user}><AdminAnalytics /></ProtectedAdminRoute> : <Navigate to="/login" replace />} />
+          <Route path="/admin/analytics" element={isAuthenticated ? <ProtectedAdminRoute user={user}><AdminAnalytics /></ProtectedAdminRoute> : <Navigate to="/login" replace />} />
           <Route path="/order-history" element={<ComingSoon featureName="Order History" />} />
-          <Route path="/stylist" element={isAuthenticated ? <StylistChat /> : <Navigate to="/login" />} />
+          <Route path="/stylist" element={isAuthenticated ? <StylistChat /> : <Navigate to="/login" replace />} />
           <Route path="/seller-registration" element={<ComingSoon featureName="Seller Registration" />} />
+          <Route path="/developer/*" element={isAuthenticated ? <DeveloperPortal /> : <Navigate to="/login" replace />} />
+          <Route path="/brand/management" element={isAuthenticated ? <BrandManagement /> : <Navigate to="/login" replace />} />
 
           {/* Seller Routes */}
-          <Route path="/seller/*" element={<ComingSoon featureName="Seller Portal" />} />
+          <Route path="/seller/*" element={isAuthenticated ? <ProtectedSellerRoute user={user}><ComingSoon featureName="Seller Portal" /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
 
           {/* Checkout Flow */}
           <Route path="/checkout/*" element={<ComingSoon featureName="Checkout" />} />
@@ -443,13 +445,14 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
 
           {/* Info Pages */}
           <Route path="/faqs" element={<FAQs />} />
+          <Route path="/brand/:slug" element={<BrandProfile />} />
           <Route path="/about-us" element={<AboutUs />} />
           <Route path="/terms-of-use" element={<TermsOfUse />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/privacy-center" element={<PrivacyCenter />} />
 
           {/* Redirect */}
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
         <BottomNav zipPoints={zipPoints} unreadFriends={unreadFriends} profileImage={profileImage} />
@@ -459,7 +462,6 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [demoUser, setDemoUser] = useState<User | null>(() => readDemoUser());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -469,16 +471,6 @@ const App: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const syncDemoUser = () => setDemoUser(readDemoUser());
-    window.addEventListener('zipright-demo-auth-changed', syncDemoUser);
-    window.addEventListener('storage', syncDemoUser);
-    return () => {
-      window.removeEventListener('zipright-demo-auth-changed', syncDemoUser);
-      window.removeEventListener('storage', syncDemoUser);
-    };
   }, []);
 
   // System Adaptable Theme Logic
@@ -515,7 +507,7 @@ const App: React.FC = () => {
       <UserProfileProvider>
         <ErrorBoundary>
           <HashRouter>
-            <AppContent user={demoUser || user} loading={loading} />
+            <AppContent user={user} loading={loading} />
           </HashRouter>
         </ErrorBoundary>
       </UserProfileProvider>

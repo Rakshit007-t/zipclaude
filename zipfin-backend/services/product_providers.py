@@ -80,7 +80,8 @@ class LinkPasteProvider:
 
         extracted = extract_product_details(url, requester_id=requester_id)
         normalized = _normalize_extracted(url, extracted)
-        _set_cache(url, normalized)
+        if _is_cacheable(normalized):
+            _set_cache(url, normalized)
         return normalized
 
 
@@ -173,6 +174,16 @@ def _compute_confidence(*, title: str, brand: str, category: str, image: str, pr
 def _looks_like_placeholder_title(title: str) -> bool:
     normalized = " ".join(title.lower().split())
     return normalized in PLACEHOLDER_TITLES
+
+
+def _is_cacheable(payload: ExtractProductResponse) -> bool:
+    """Persist complete extraction results while leaving partial failures retryable."""
+    return bool(
+        _clean(payload.title)
+        and _clean(payload.brand)
+        and _clean(payload.category)
+        and _clean(payload.image)
+    )
 
 
 def _get_cache(url: str) -> ExtractProductResponse | None:

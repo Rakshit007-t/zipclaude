@@ -1,14 +1,9 @@
+
 import type {
   SizeEngineBaseSize,
   SizeEngineFitPreference,
 } from '../utils/sizeProfile';
 import { getAuth, signInAnonymously } from 'firebase/auth';
-
-const DEMO_AUTH_KEY = 'zipright_demo_user';
-
-function hasDemoSession() {
-  return Boolean(localStorage.getItem(DEMO_AUTH_KEY));
-}
 
 export interface BackendProduct {
   id: string;
@@ -61,6 +56,25 @@ export interface SmartFitScanResult {
   measurements?: SmartFitMeasurements | null;
 }
 
+export interface FitProfilePayload {
+  profileId: string;
+  profileName: string;
+  gender: string;
+  preferredBrand: string;
+  usualSize: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+  baseSize: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+  height: number;
+  weight: number;
+  bodyShape: string;
+  fitPreference: 'slim' | 'regular' | 'relaxed' | 'loose';
+  selectedProfileId: string;
+  selectedProfile: string;
+  recommendationPreferences: Record<string, string>;
+  measurements: PredictSizeMeasurements;
+  smartFit?: PredictSizeMeasurements;
+  fitProfiles: Array<Record<string, unknown>>;
+}
+
 const configuredApiBase = (import.meta.env.VITE_API_URL || '').trim();
 function stripTrailingSlashes(value: string) {
   return value.replace(/\/+$/, '');
@@ -80,17 +94,17 @@ export function getBackendBaseUrl() {
   return API_BASE;
 }
 
+import authClient from './authClient';
+
 const auth = getAuth();
 let anonymousAuthFailed = false;
 
 async function ensureAuthUser() {
-  if (auth.currentUser) {
-    return auth.currentUser;
+  if (authClient.currentUser) {
+    return authClient.currentUser;
   }
 
-  // If we have a demo session but no Firebase user, try anonymous sign-in
-  // to get a real Firebase token for API calls
-  if (hasDemoSession() && !anonymousAuthFailed) {
+  if (!anonymousAuthFailed) {
     try {
       const result = await signInAnonymously(auth);
       return result.user;
@@ -105,7 +119,37 @@ async function ensureAuthUser() {
 }
 
 export function getCurrentUserId(): string {
-  return auth.currentUser?.uid || 'demo-anonymous';
+  return authClient.currentUser?.uid || '';
+}
+
+export async function saveFitProfile(payload: FitProfilePayload): Promise<void> {
+  const response = await authorizedFetch(`${API_BASE}/profiles/me`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail = typeof body?.detail === 'string'
+      ? body.detail
+      : body?.detail?.message || body?.message;
+    throw new Error(detail || 'Unable to save your fit profile.');
+  }
+}
+
+export async function deleteFitProfileApi(profileId?: string): Promise<void> {
+  const url = profileId ? `${API_BASE}/profiles/me?profile_id=${encodeURIComponent(profileId)}` : `${API_BASE}/profiles/me`;
+  const response = await authorizedFetch(url, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail = typeof body?.detail === 'string'
+      ? body.detail
+      : body?.detail?.message || body?.message;
+    throw new Error(detail || 'Unable to delete your fit profile.');
+  }
 }
 
 export async function authorizedFetch(url: string, options: any = {}) {
@@ -121,13 +165,11 @@ export async function authorizedFetch(url: string, options: any = {}) {
   }
 
   if (user) {
-    const token = await user.getIdToken(true);
-    headers['Authorization'] = `Bearer ${token}`;
-  } else if (!hasDemoSession()) {
-    throw new Error('User not authenticated');
+    const token = await authClient.getIdToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
   }
-  // If demo session but no Firebase user, proceed without auth header
-  // The backend will need to handle this case
 
   return fetch(url, {
     ...options,
@@ -137,7 +179,6 @@ export async function authorizedFetch(url: string, options: any = {}) {
 
 export function normalizeUrl(input: string): string {
   let url = input.trim();
-
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = `https://${url}`;
   }
@@ -373,25 +414,40 @@ export async function processSmartFitScan({
 
 export async function extractProduct(url: string): Promise<BackendProduct> {
   const apiUrl = `${getBackendBaseUrl()}/extract-product`;
-  let response: Response;
   const normalizedUrl = validateProductUrl(url);
+  const maxAttempts = 3;
+  let lastError: unknown;
 
-  try {
-    response = await fetchWithTimeout(apiUrl, {
-      method: 'POST',
-      body: JSON.stringify({ url: normalizedUrl }),
-      timeout: 10000,
-    });
-  } catch (error: any) {
-    console.error('[ziprightApi] extractProduct failed:', error);
-    throw new Error(error?.message || 'Data unavailable');
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(apiUrl, {
+        method: 'POST',
+        body: JSON.stringify({ url: normalizedUrl }),
+        // Give retailer pages time to render and the backend time to fall back
+        // from browser extraction to HTTP extraction.
+        timeout: 90000,
+      });
+      const payload = await parseJsonResponse(response);
+      if (response.ok && payload?.data) {
+        return payload.data as BackendProduct;
+      }
+
+      const message = readApiErrorMessage(response, payload, 'Product details are temporarily unavailable.');
+      const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === maxAttempts) {
+        throw new Error(message);
+      }
+      lastError = new Error(message);
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts) break;
+    }
+
+    await new Promise(resolve => window.setTimeout(resolve, 500 * attempt));
   }
 
-  const payload = await parseJsonResponse(response);
-  if (!response.ok || !payload?.data) {
-    throw new Error(readApiErrorMessage(response, payload, 'Data unavailable'));
-  }
-  return payload.data as BackendProduct;
+  console.error('[ziprightApi] extractProduct failed after retries:', lastError);
+  throw new Error(lastError instanceof Error ? lastError.message : 'Product details are temporarily unavailable. Please try again.');
 }
 
 export async function recommendSize(input: {
@@ -517,6 +573,20 @@ export interface SellerMeResponse {
   is_seller: boolean;
   status: 'pending' | 'active' | 'rejected' | 'suspended' | null;
   profile: SellerProfile | null;
+}
+
+export interface AccessStatusResponse {
+  is_admin: boolean;
+  is_seller: boolean;
+}
+
+export async function getAccessStatus(): Promise<AccessStatusResponse> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/auth/access`);
+  const payload = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, payload, 'Unable to verify account access.'));
+  }
+  return payload.data as AccessStatusResponse;
 }
 
 export async function getSellerMe(): Promise<SellerMeResponse> {
@@ -937,6 +1007,121 @@ export async function getPublicRecommendation(payload: {
   return data.data as BackendSizeResult;
 }
 
+export interface ApiKeyMetadata {
+  id: string;
+  name: string;
+  prefix: string;
+  environment?: 'test' | 'live';
+  status: 'active' | 'revoked';
+  created_at: string;
+  last_used_at?: string | null;
+  usage_count?: number;
+}
 
+export interface ApiKeyCreateResponse {
+  id: string;
+  name: string;
+  environment?: 'test' | 'live';
+  raw_key: string;
+  prefix: string;
+  created_at: string;
+}
 
+export async function createDeveloperKey(name: string): Promise<ApiKeyCreateResponse> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/developer/keys`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to create API key.'));
+  }
+  return data.data as ApiKeyCreateResponse;
+}
+
+export async function listDeveloperKeys(): Promise<ApiKeyMetadata[]> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/developer/keys`);
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to fetch API keys.'));
+  }
+  return data.data as ApiKeyMetadata[];
+}
+
+export async function revokeDeveloperKey(keyId: string): Promise<void> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/developer/keys/${keyId}`, {
+    method: 'DELETE',
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to revoke API key.'));
+  }
+}
+
+export interface CsvRowError {
+  row_number: number;
+  field: string;
+  message: string;
+}
+
+export interface CsvValidationReport {
+  total_rows: number;
+  valid_rows_count: number;
+  invalid_rows_count: number;
+  errors: CsvRowError[];
+  valid_products: ProductDraft[];
+}
+
+export async function validateProductCsv(file: File): Promise<CsvValidationReport> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/csv-validate`, {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to validate CSV file.'));
+  }
+  return data.data as CsvValidationReport;
+}
+
+export async function commitCsvImport(products: ProductDraft[]): Promise<{ imported_count: number }> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/seller/products/csv-commit`, {
+    method: 'POST',
+    body: JSON.stringify(products),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to commit CSV product batch.'));
+  }
+  return data.data as { imported_count: number };
+}
+
+export interface TopEndpointMetric {
+  endpoint: string;
+  count: number;
+}
+
+export interface UsageAnalyticsResponse {
+  time_range: '24h' | '7d' | '30d';
+  total_requests: number;
+  successful_requests: number;
+  failed_requests: number;
+  avg_latency_ms: number;
+  p95_latency_ms: number;
+  gpu_time_seconds: number;
+  credits_used: number;
+  top_endpoints: TopEndpointMetric[];
+}
+
+export async function getDeveloperAnalytics(timeRange: '24h' | '7d' | '30d' = '24h'): Promise<UsageAnalyticsResponse> {
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/developer/analytics?time_range=${timeRange}`);
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(response, data, 'Failed to fetch usage analytics.'));
+  }
+  return data.data as UsageAnalyticsResponse;
+}
 

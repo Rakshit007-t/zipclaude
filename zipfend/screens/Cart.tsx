@@ -3,13 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { listCloset, onClosetChange, removeFromCloset } from '../services/closet';
+import { useAppNavigation } from '../utils/useAppNavigation';
 import { AppBar, Button, EmptyState, Spinner } from '../components/ui';
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
-
-function hasDemoSession() {
-  return Boolean(localStorage.getItem(DEMO_AUTH_KEY));
-}
 
 interface CartItem {
   id: string;
@@ -24,13 +20,13 @@ interface CartItem {
 }
 
 const Cart: React.FC = () => {
-  const navigate = useNavigate();
+  const { navigate, goBack } = useAppNavigation();
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user && !hasDemoSession()) {
+    if (!user) {
       navigate('/login');
       return;
     }
@@ -46,7 +42,7 @@ const Cart: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
-      <AppBar title="Cart" onBack={() => navigate('/home')} />
+      <AppBar title="Cart" onBack={() => goBack('/marketplace')} />
 
       <div className="flex-1 p-6 pb-32">
         {loading ? (

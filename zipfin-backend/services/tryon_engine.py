@@ -250,7 +250,8 @@ def generate_tryon_image_from_bytes(*, person_bytes: bytes, garment_bytes: bytes
         shoulder_y = min(left_y, right_y)
         new_width = max(int(shoulder_width * OVERLAY_WIDTH_SCALE), 1)
         x_offset = int(center_x - (new_width / 2))
-        y_offset = int(shoulder_y)
+        # Better neck & shoulder collar positioning
+        y_offset = max(0, int(shoulder_y - (new_width * 0.12)))
 
     product_overlay = _resize_product_image(product_image, new_width)
     product_overlay = _soften_overlay_edges(product_overlay)

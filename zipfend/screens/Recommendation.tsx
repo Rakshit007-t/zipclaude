@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getUserPlan } from '../utils/subscription';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { predictSize } from '../services/ziprightApi';
@@ -97,6 +98,10 @@ interface RecommendationInput {
 interface RecommendationUiResult {
   recommendationId: string;
   recommendedSize: string;
+  idealSize: string;
+  availableSizes: string[];
+  expectedFit: string;
+  differenceFromIdeal: string;
   confidence: number;
   reasoning: string;
   alternativeSize: string;
@@ -105,6 +110,12 @@ interface RecommendationUiResult {
   returnRisk: number;
   sizeDirection: string;
   isOffline?: boolean;
+}
+
+function getExpectedFit(sizeDirection: string) {
+  if (sizeDirection === 'size-up') return 'Slightly roomier than ideal';
+  if (sizeDirection === 'size-down') return 'Slightly closer than ideal';
+  return 'Closest available fit to ideal';
 }
 
 const FEEDBACK_OPTIONS: Array<{ type: RecommendationFeedbackType; label: string }> = [
@@ -671,6 +682,12 @@ const Recommendation: React.FC = () => {
         const mappedResult: RecommendationUiResult = {
           recommendationId,
           recommendedSize: refined.size,
+          idealSize: refined.mappedFromEngine || refined.size,
+          availableSizes: refined.availableSizes,
+          expectedFit: getExpectedFit(refined.sizeDirection),
+          differenceFromIdeal: refined.mappedFromEngine && refined.mappedFromEngine !== refined.size
+            ? `Nearest available to ${refined.mappedFromEngine}`
+            : 'Exact match',
           confidence,
           reasoning: refined.reason,
           alternativeSize: refined.mappedFromEngine !== refined.size ? refined.mappedFromEngine : '',
@@ -690,6 +707,27 @@ const Recommendation: React.FC = () => {
           confidence,
           screenSource: 'recommendation',
         });
+
+        if (auth.currentUser) {
+          try {
+            const recRef = doc(db, 'users', auth.currentUser.uid, 'recommendations', recommendationId);
+            void setDoc(recRef, {
+              id: recommendationId,
+              userId: auth.currentUser.uid,
+              profileId: input.profileId,
+              productUrl: input.url,
+              productTitle: displayProduct.title || '',
+              brand: displayProduct.brand || '',
+              category: displayProduct.category || '',
+              recommendedSize: refined.size,
+              confidence,
+              reasoning: refined.reason || '',
+              createdAt: serverTimestamp(),
+            }, { merge: true });
+          } catch (recErr) {
+            console.warn('[Recommendation] History save notice:', recErr);
+          }
+        }
 
         if (!displayProduct.recommendationId) {
           writeActiveRecommendation({
@@ -929,12 +967,20 @@ const Recommendation: React.FC = () => {
 
   const handleBack = () => {
     if (source === 'marketplace') {
-      navigate('/marketplace');
-    } else if (window.history.state && window.history.state.idx > 0) {
-      navigate(-1);
-    } else {
-      navigate('/home');
+      navigate('/marketplace', { replace: true });
+      return;
     }
+    if (source === 'add-product') {
+      navigate('/add-product', { replace: true });
+      return;
+    }
+    if (source === 'reel') {
+      navigate('/reel', { replace: true });
+      return;
+    }
+    // Do not rely on browser history here: an old profile route would recreate
+    // the recommendation/profile back-button loop.
+    navigate('/home', { replace: true });
   };
 
   if (!displayProduct) return null;
@@ -1172,6 +1218,28 @@ const Recommendation: React.FC = () => {
 
                                 {/* Reasoning */}
                                 <div className="w-full rounded-2xl bg-surface-2 p-6 text-left">
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-4 mb-5 text-[12px]">
+                                        <div>
+                                            <p className="eyebrow !text-[9px] mb-1">Ideal size</p>
+                                            <p className="font-medium text-ink">{visibleAiResult.idealSize}</p>
+                                        </div>
+                                        <div>
+                                            <p className="eyebrow !text-[9px] mb-1">Recommended purchase size</p>
+                                            <p className="font-medium text-ink">{visibleAiResult.recommendedSize}</p>
+                                        </div>
+                                        <div>
+                                            <p className="eyebrow !text-[9px] mb-1">Available sizes</p>
+                                            <p className="text-ink-soft">{visibleAiResult.availableSizes.length ? visibleAiResult.availableSizes.join(', ') : 'Not provided by retailer'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="eyebrow !text-[9px] mb-1">Expected fit</p>
+                                            <p className="text-ink-soft">{visibleAiResult.expectedFit}</p>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <p className="eyebrow !text-[9px] mb-1">Difference from ideal</p>
+                                            <p className="text-ink-soft">{visibleAiResult.differenceFromIdeal}</p>
+                                        </div>
+                                    </div>
                                     <p className="text-[13.5px] text-ink-soft leading-relaxed mb-5">
                                         {visibleAiResult.reasoning}
                                     </p>

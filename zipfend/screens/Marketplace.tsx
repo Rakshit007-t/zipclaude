@@ -7,11 +7,6 @@ import { demoProducts } from '../services/demoProducts';
 import { closetCount, listCloset, onClosetChange, toggleCloset } from '../services/closet';
 import { Chip, Skeleton, EmptyState, Button, Eyebrow, IconButton, StaggerList, StaggerItem } from '../components/ui';
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
-
-function hasDemoSession() {
-  return Boolean(localStorage.getItem(DEMO_AUTH_KEY));
-}
 
 export interface Product {
   id: string;
@@ -78,7 +73,7 @@ const Marketplace: React.FC = () => {
   const toggleLike = async (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
     const user = auth.currentUser;
-    if (!user && !hasDemoSession()) {
+    if (!user) {
       navigate('/login');
       return;
     }
@@ -92,7 +87,7 @@ const Marketplace: React.FC = () => {
 
   const handleProductClick = async (product: Product) => {
     const user = auth.currentUser;
-    if (!user && !hasDemoSession()) {
+    if (!user) {
       navigate('/login');
       return;
     }

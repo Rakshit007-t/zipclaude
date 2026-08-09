@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from services.firebase_auth import AuthenticatedUser, get_optional_user
+from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.stylist_engine import generate_stylist_reply
 
 router = APIRouter(tags=["stylist"])
@@ -27,7 +27,7 @@ class StylistResponse(BaseModel):
 )
 async def stylist(
     payload: StylistRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> StylistResponse:
     try:
         if not payload.message.strip():

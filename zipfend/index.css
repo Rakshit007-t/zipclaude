@@ -98,6 +98,19 @@
     letter-spacing: -0.01em;
   }
 
+  /* Instagram-like edit rows: the label carries hierarchy, controls disappear. */
+  .profile-edit-input {
+    width: 100%;
+    min-height: 2.35rem;
+    background: transparent;
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.45;
+    outline: none;
+    border: 0;
+  }
+  .profile-edit-input::placeholder { color: var(--ink-faint); }
+
   /* Hairline rule with a centered fade — chapter divider */
   .rule-fade {
     height: 1px;

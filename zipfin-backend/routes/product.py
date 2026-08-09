@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from core.api import error_response, success_response
 from models.schema import ApiResponse, ExtractProductRequest, ExtractProductResponse
-from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user
+from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.product_providers import get_provider_for_url, validate_product_url
 from services.request_rate_limiter import enforce_rate_limit
 
@@ -21,6 +21,8 @@ RATE_LIMIT_IP_MAX_REQUESTS = 40
 INVALID_TITLE_VALUES = {"", "product"}
 INVALID_BRAND_VALUES = {""}
 INVALID_CATEGORY_VALUES = {""}
+EXTRACTION_ATTEMPTS = 3
+EXTRACTION_TIMEOUT_SECONDS = 35.0
 
 
 def _clean_text(value: str | None) -> str:
@@ -59,6 +61,31 @@ def _validated_product(
     )
 
 
+async def _fetch_product_with_retries(provider, normalized_url: str, requester_id: str) -> ExtractProductResponse:
+    """Retry transient retailer/browser failures before surfacing an extraction error."""
+    last_error: Exception | None = None
+    for attempt in range(EXTRACTION_ATTEMPTS):
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(provider.fetch, normalized_url, requester_id),
+                timeout=EXTRACTION_TIMEOUT_SECONDS,
+            )
+        except HTTPException as exc:
+            # Invalid requests cannot recover, while provider 5xx responses can.
+            if exc.status_code < 500 or attempt == EXTRACTION_ATTEMPTS - 1:
+                raise
+            last_error = exc
+        except (asyncio.TimeoutError, OSError, RuntimeError) as exc:
+            last_error = exc
+
+        await asyncio.sleep(0.5 * (attempt + 1))
+
+    raise HTTPException(
+        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+        detail="Product extraction is taking longer than expected. Please try again shortly.",
+    ) from last_error
+
+
 @router.post(
     "/extract-product",
     response_model=ApiResponse[ExtractProductResponse],
@@ -68,7 +95,7 @@ async def extract_product(
     payload: ExtractProductRequest,
     request: Request,
     response: Response,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[ExtractProductResponse]:
     client_ip = request.client.host if request.client else "unknown"
     request_id = request.headers.get("X-Request-Id", "").strip() or str(uuid4())
@@ -90,20 +117,7 @@ async def extract_product(
         )
 
         provider = get_provider_for_url(normalized_url)
-        try:
-            extracted = await asyncio.wait_for(
-                asyncio.to_thread(
-                    provider.fetch,
-                    normalized_url,
-                    current_user.uid,
-                ),
-                timeout=6.0,
-            )
-        except asyncio.TimeoutError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="Extraction took too long.",
-            ) from exc
+        extracted = await _fetch_product_with_retries(provider, normalized_url, current_user.uid)
 
         validated = _validated_product(extracted, normalized_url)
         if validated is None:

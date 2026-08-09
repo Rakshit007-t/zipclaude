@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getUserRole } from '../utils/subscription';
 import { AppBar, Eyebrow, Spinner, motion } from '../components/ui';
 
 type AnalyticsEventName =
@@ -459,15 +458,7 @@ const AdminAnalytics: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aggregationStatus, setAggregationStatus] = useState<string | null>(null);
-  const isLocalAdmin = getUserRole() === 'admin';
-
   useEffect(() => {
-    if (!isLocalAdmin) {
-      setIsLoading(false);
-      setError('Admin access is required to view analytics.');
-      return;
-    }
-
     let cancelled = false;
 
     const loadAnalytics = async () => {
@@ -515,7 +506,7 @@ const AdminAnalytics: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [isLocalAdmin]);
+  }, []);
 
   const stats = useMemo(() => buildDashboardStats(events), [events]);
   const brandBiasCandidates = useMemo(() => (

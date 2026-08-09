@@ -13,11 +13,6 @@ import { SEED_LOOKS } from '../services/salonSeed';
 import { addToCloset, closetCount, listCloset, onClosetChange, toggleCloset } from '../services/closet';
 import { Sheet, Button, EmptyState, Eyebrow, SectionHeader, Wordmark, springs, StaggerList, StaggerItem } from '../components/ui';
 
-const DEMO_AUTH_KEY = 'zipright_demo_user';
-
-function hasDemoSession() {
-  return Boolean(localStorage.getItem(DEMO_AUTH_KEY));
-}
 
 interface Product {
   id: string;
@@ -142,7 +137,7 @@ const Home: React.FC = () => {
 
   const handleProductClick = async (product: Product) => {
     const user = auth.currentUser;
-    if (!user && !hasDemoSession()) return;
+    if (!user) return;
 
     try {
       const stockData = await fetchProductAvailability(product.brand, product.title);
@@ -534,7 +529,7 @@ const Home: React.FC = () => {
                     key={friend.uid}
                     onClick={async () => {
                       const user = auth.currentUser;
-                      if (!user && !hasDemoSession()) return;
+                      if (!user) return;
                       const p = friendShareProduct;
                       try {
                         // Real users: write into the friend's inbox (same doc shape FriendsScreen reads)

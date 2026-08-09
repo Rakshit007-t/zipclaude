@@ -1,32 +1,28 @@
-"""Background try-on jobs.
+"""Firestore-backed background try-on jobs.
 
-Generation runs server-side keyed by a job id, so closing or minimizing the
-app/browser does not cancel it — the client just polls GET /tryon-job/{id}
-whenever it comes back. Progress is a real 0-100 percentage
-(per-diffusion-step for the local engine).
-
-Jobs execute on a bounded worker pool (TRYON_MAX_WORKERS, default 2: one
-render on the GPU while another talks to the cloud provider). Excess jobs
-wait in the pool queue with status "queued" — under load the server degrades
-to longer waits instead of spawning an unbounded thread per request.
+The rendering executor remains local to the worker that accepted the request,
+but every job state transition and result is persisted in Firestore. Polling
+from another worker therefore returns the same status and response shape.
 """
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import threading
-import time
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
 from uuid import uuid4
+
+from firebase_admin import firestore
+
+from firebase_config import get_firestore_client
 
 logger = logging.getLogger(__name__)
 
-_JOBS: dict[str, "TryOnJob"] = {}
-_JOBS_LOCK = threading.Lock()
 _JOB_TTL_SECONDS = 2 * 60 * 60
-
+_JOBS_COLLECTION = "tryon_jobs"
 _EXECUTOR: ThreadPoolExecutor | None = None
 _EXECUTOR_LOCK = threading.Lock()
 
@@ -50,36 +46,47 @@ def _executor() -> ThreadPoolExecutor:
 class TryOnJob:
     job_id: str
     user_id: str
-    status: str = "queued"  # queued | running | done | failed
+    status: str = "queued"
     progress: int = 0
     stage: str = "Queued"
     engine: str | None = None
     result_url: str | None = None
     error: str | None = None
-    created_at: float = field(default_factory=time.monotonic)
 
 
-def _cleanup_expired() -> None:
-    now = time.monotonic()
-    expired = [
-        job_id
-        for job_id, job in _JOBS.items()
-        if now - job.created_at > _JOB_TTL_SECONDS
-    ]
-    for job_id in expired:
-        _JOBS.pop(job_id, None)
+def _job_ref(job_id: str):
+    return get_firestore_client().collection(_JOBS_COLLECTION).document(job_id)
 
 
-def _update(job: TryOnJob, **changes) -> None:
-    with _JOBS_LOCK:
-        for key, value in changes.items():
-            setattr(job, key, value)
+def _update(job_id: str, **changes: object) -> None:
+    """Persist a state transition so all instances serve the current job."""
+    _job_ref(job_id).set(
+        {**changes, "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True
+    )
 
 
 def get_job(job_id: str) -> TryOnJob | None:
-    with _JOBS_LOCK:
-        _cleanup_expired()
-        return _JOBS.get(job_id)
+    snapshot = _job_ref(job_id).get()
+    if not snapshot.exists:
+        return None
+    data = snapshot.to_dict() or {}
+    expires_at = data.get("expiresAt")
+    if isinstance(expires_at, datetime) and expires_at <= datetime.now(timezone.utc):
+        return None
+    user_id = data.get("userId")
+    if not isinstance(user_id, str) or not user_id:
+        logger.warning("Try-on job %s has no valid owner.", job_id)
+        return None
+    return TryOnJob(
+        job_id=job_id,
+        user_id=user_id,
+        status=str(data.get("status") or "queued"),
+        progress=max(0, min(100, int(data.get("progress") or 0))),
+        stage=str(data.get("stage") or ""),
+        engine=data.get("engine") if isinstance(data.get("engine"), str) else None,
+        result_url=data.get("resultUrl") if isinstance(data.get("resultUrl"), str) else None,
+        error=data.get("error") if isinstance(data.get("error"), str) else None,
+    )
 
 
 def start_tryon_job(
@@ -91,11 +98,23 @@ def start_tryon_job(
     person_image: str | None,
     garment_image: str | None,
 ) -> str:
-    job = TryOnJob(job_id=uuid4().hex, user_id=user_id, stage="Waiting for a free renderer")
-    with _JOBS_LOCK:
-        _cleanup_expired()
-        _JOBS[job.job_id] = job
-
+    job_id = uuid4().hex
+    _job_ref(job_id).set(
+        {
+            "userId": user_id,
+            "status": "queued",
+            "progress": 0,
+            "stage": "Waiting for a free renderer",
+            "engine": None,
+            "resultUrl": None,
+            "error": None,
+            "createdAt": firestore.SERVER_TIMESTAMP,
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+            # Configure Firestore TTL on this field for automatic cleanup.
+            "expiresAt": datetime.now(timezone.utc) + timedelta(seconds=_JOB_TTL_SECONDS),
+        }
+    )
+    job = TryOnJob(job_id=job_id, user_id=user_id, stage="Waiting for a free renderer")
     _executor().submit(
         _run_job,
         job=job,
@@ -105,7 +124,7 @@ def start_tryon_job(
         person_image=person_image,
         garment_image=garment_image,
     )
-    return job.job_id
+    return job_id
 
 
 def _run_job(
@@ -127,11 +146,17 @@ def _run_job(
     )
     from services.vton_engine import VtonError, generate_vton_image
 
+    last_progress = 0
+
     def progress(fraction: float, stage: str) -> None:
-        _update(job, progress=max(job.progress, min(int(fraction * 100), 99)), stage=stage)
+        nonlocal last_progress
+        next_progress = max(last_progress, min(int(fraction * 100), 99))
+        if next_progress > last_progress or stage:
+            last_progress = next_progress
+            _update(job.job_id, progress=next_progress, stage=stage)
 
     try:
-        _update(job, status="running", progress=1, stage="Preparing images")
+        _update(job.job_id, status="running", progress=1, stage="Preparing images")
 
         if person_image:
             person_bytes = _decode_person_data_url(person_image)
@@ -143,7 +168,7 @@ def _run_job(
         else:
             garment_bytes = _download_product_image_bytes(product_image_url)
 
-        _update(job, progress=4, stage="Starting AI render")
+        _update(job.job_id, progress=4, stage="Starting AI render")
         try:
             image_bytes, engine = generate_vton_image(
                 person_image_bytes=person_bytes,
@@ -153,32 +178,30 @@ def _run_job(
                 progress_callback=progress,
             )
         except VtonError as exc:
-            # No overlay fallback here: a flat paste looks broken to users.
-            # Fail honestly and let them retry.
             logger.warning("Job %s: all AI engines failed: %s", job.job_id, exc)
             _update(
-                job,
+                job.job_id,
                 status="failed",
                 stage="Failed",
                 error="AI renderers are busy right now — tap Try Again in a minute.",
             )
             return
 
-        _update(job, progress=96, stage="Saving result")
+        _update(job.job_id, progress=96, stage="Saving result")
         result_url = _store_tryon_image(image_bytes=image_bytes, user_id=job.user_id)
         _update(
-            job,
+            job.job_id,
             status="done",
             progress=100,
             stage="Done",
             engine=engine,
-            result_url=result_url,
+            resultUrl=result_url,
         )
         logger.info("Job %s finished with engine '%s'.", job.job_id, engine)
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else "Try-on failed."
-        _update(job, status="failed", stage="Failed", error=detail)
+        _update(job.job_id, status="failed", stage="Failed", error=detail)
         logger.warning("Job %s failed: %s", job.job_id, detail)
     except Exception as exc:
-        _update(job, status="failed", stage="Failed", error="Try-on failed. Please try again.")
+        _update(job.job_id, status="failed", stage="Failed", error="Try-on failed. Please try again.")
         logger.exception("Job %s crashed: %s", job.job_id, exc)

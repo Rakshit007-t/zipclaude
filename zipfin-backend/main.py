@@ -34,7 +34,16 @@ from routes.size import router as size_router
 from routes.stylist import router as stylist_router
 from routes.tryon import router as tryon_router
 from routes.tryon_live import router as tryon_live_router
+from routes.wallet import router as wallet_router
 from routes.public import router as public_router
+from routes.developer import router as developer_router
+from routes.v1_public import router as v1_public_router
+from routes.feed import router as feed_router
+from routes.social import router as social_router
+from routes.search import router as search_router
+from routes.notification import router as notification_router
+from routes.brand import router as brand_router
+from routes.gifts import router as gifts_router
 from services.tryon_live_store import initialize_tryon_store
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -141,8 +150,17 @@ def create_app() -> FastAPI:
     app.include_router(_load_router("routes.avatar", "avatar"))
     _include_optional_router(app, "routes.profile", "profile")
     app.include_router(tryon_router)
+    app.include_router(wallet_router)
     app.include_router(tryon_live_router)
     app.include_router(public_router)
+    app.include_router(developer_router)
+    app.include_router(v1_public_router)
+    app.include_router(feed_router)
+    app.include_router(social_router)
+    app.include_router(search_router)
+    app.include_router(notification_router)
+    app.include_router(brand_router)
+    app.include_router(gifts_router)
 
     # ── Static file mounts ────────────────────────────────────────────────────
     app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
@@ -163,6 +181,10 @@ def create_app() -> FastAPI:
             response = await call_next(request)
             status_code = response.status_code
             response.headers["X-Request-Id"] = request_id
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
             return response
         except Exception:
             raise

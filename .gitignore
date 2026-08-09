@@ -19,3 +19,4 @@ logs/
 tmp/
 cache/
 coverage/
+zipright-loop/

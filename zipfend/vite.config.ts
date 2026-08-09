@@ -11,5 +11,15 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
+    watch: {
+      ignored: [
+        '**/.chrome-debug-profile/**',
+        '**/*.log',
+        '**/dist/**',
+        '**/.git/**',
+        '**/.vscode/**',
+      ],
+    },
   },
 });
+

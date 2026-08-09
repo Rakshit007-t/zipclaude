@@ -27,6 +27,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { authorizedFetch, getBackendBaseUrl } from './ziprightApi';
 
 export interface PublicProfile {
   uid: string;
@@ -95,14 +96,16 @@ export async function ensureUserDoc(): Promise<void> {
     const snap = await getDoc(ref);
     const data = snap.data() || {};
     const displayName = user.displayName || data.displayName || 'ZipRIGHT member';
-    await setDoc(ref, {
+    const publicProfile = {
+      uid: user.uid,
       displayName,
       displayNameLower: displayName.toLowerCase(),
       username: data.username || defaultUsername(user.displayName),
       photoURL: user.photoURL || data.photoURL || null,
-      email: (user.email || data.email || '').toLowerCase(),
       lastActiveAt: serverTimestamp(),
-    }, { merge: true });
+    };
+    await setDoc(ref, publicProfile, { merge: true });
+    await setDoc(doc(db, 'publicProfiles', user.uid), publicProfile, { merge: true });
   } catch {}
 }
 
@@ -120,7 +123,9 @@ export function startPresence(): () => void {
   const beat = () => {
     const user = socialUser();
     if (!user || document.visibilityState !== 'visible') return;
-    updateDoc(doc(db, 'users', user.uid), { lastActiveAt: serverTimestamp() }).catch(() => {});
+    const timestamp = serverTimestamp();
+    updateDoc(doc(db, 'users', user.uid), { lastActiveAt: timestamp }).catch(() => {});
+    updateDoc(doc(db, 'publicProfiles', user.uid), { lastActiveAt: timestamp }).catch(() => {});
   };
   beat();
   const id = setInterval(beat, 60_000);
@@ -135,7 +140,8 @@ export function startPresence(): () => void {
 
 export async function getProfile(uid: string): Promise<PublicProfile | null> {
   try {
-    const snap = await getDoc(doc(db, 'users', uid));
+    const source = uid === auth.currentUser?.uid ? 'users' : 'publicProfiles';
+    const snap = await getDoc(doc(db, source, uid));
     return snap.exists() ? toProfile(uid, snap.data()) : null;
   } catch {
     return null;
@@ -146,7 +152,7 @@ export async function getProfile(uid: string): Promise<PublicProfile | null> {
 export async function searchUsers(term: string): Promise<PublicProfile[]> {
   const clean = term.trim().replace(/^@/, '').toLowerCase();
   if (clean.length < 2) return [];
-  const users = collection(db, 'users');
+  const users = collection(db, 'publicProfiles');
   const queries = [
     query(users, where('username', '==', clean), limit(5)),
     query(users, where('displayNameLower', '>=', clean), where('displayNameLower', '<=', clean + ''), limit(8)),
@@ -166,37 +172,22 @@ export async function searchUsers(term: string): Promise<PublicProfile[]> {
 
 export async function follow(target: PublicProfile): Promise<void> {
   const user = socialUser();
-  if (!user || target.uid === user.uid) return;
-  const mine = await myProfile();
-  await setDoc(doc(db, 'users', user.uid, 'following', target.uid), {
-    uid: target.uid,
-    displayName: target.displayName,
-    username: target.username,
-    photoURL: target.photoURL,
-    followedAt: serverTimestamp(),
-  });
-  // Reverse edge + counters are best-effort (their doc, permissive rules assumed)
-  setDoc(doc(db, 'users', target.uid, 'followers', user.uid), {
-    uid: user.uid,
-    displayName: mine?.displayName || user.displayName || 'ZipRIGHT member',
-    username: mine?.username || defaultUsername(user.displayName),
-    photoURL: mine?.photoURL || user.photoURL || null,
-    followedAt: serverTimestamp(),
-  }).catch(() => {});
-  updateDoc(doc(db, 'users', target.uid), { followersCount: increment(1) }).catch(() => {});
-  updateDoc(doc(db, 'users', user.uid), { followingCount: increment(1) }).catch(() => {});
+  if (!user) throw new Error('Sign in to follow members.');
+  if (target.uid === user.uid) throw new Error("You can't follow yourself.");
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/social/follow/${encodeURIComponent(target.uid)}`, { method: 'POST' });
+  if (!response.ok) throw new Error('Could not update follow status.');
 }
 
 export async function unfollow(targetUid: string): Promise<void> {
   const user = socialUser();
-  if (!user) return;
-  await deleteDoc(doc(db, 'users', user.uid, 'following', targetUid));
-  deleteDoc(doc(db, 'users', targetUid, 'followers', user.uid)).catch(() => {});
-  updateDoc(doc(db, 'users', targetUid), { followersCount: increment(-1) }).catch(() => {});
-  updateDoc(doc(db, 'users', user.uid), { followingCount: increment(-1) }).catch(() => {});
+  if (!user) throw new Error('Sign in to update follows.');
+  if (targetUid === user.uid) return;
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/social/follow/${encodeURIComponent(targetUid)}`, { method: 'POST' });
+  if (!response.ok) throw new Error('Could not update follow status.');
 }
 
-/** Live set of uids I follow (badge/button state). Returns unsubscribe. */
+/** Live set of the signed-in user's following edges. Firestore rules only
+ * expose this collection to its owner; other profile lists go through the API. */
 export function onFollowing(cb: (uids: Set<string>) => void): () => void {
   const user = socialUser();
   if (!user) { cb(new Set()); return () => {}; }
@@ -206,40 +197,48 @@ export function onFollowing(cb: (uids: Set<string>) => void): () => void {
 }
 
 export async function listFollowers(uid: string): Promise<PublicProfile[]> {
-  try {
-    const snap = await getDocs(collection(db, 'users', uid, 'followers'));
-    return snap.docs.map(d => toProfile(d.id, d.data()));
-  } catch { return []; }
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/social/users/${encodeURIComponent(uid)}/followers`);
+  if (!response.ok) throw new Error('Could not load followers.');
+  const payload = await response.json();
+  return (payload.data || []).map((entry: any) => toProfile(entry.uid, {
+    displayName: entry.display_name,
+    username: entry.username,
+    photoURL: entry.photo_url,
+  }));
 }
 
 export async function listFollowing(uid: string): Promise<PublicProfile[]> {
-  try {
-    const snap = await getDocs(collection(db, 'users', uid, 'following'));
-    return snap.docs.map(d => toProfile(d.id, d.data()));
-  } catch { return []; }
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/social/users/${encodeURIComponent(uid)}/following`);
+  if (!response.ok) throw new Error('Could not load following.');
+  const payload = await response.json();
+  return (payload.data || []).map((entry: any) => toProfile(entry.uid, {
+    displayName: entry.display_name,
+    username: entry.username,
+    photoURL: entry.photo_url,
+  }));
 }
 
 // ---- Block & report --------------------------------------------------------
 
 export async function blockUser(target: PublicProfile): Promise<void> {
   const user = socialUser();
-  if (!user) return;
-  await setDoc(doc(db, 'users', user.uid, 'blocked', target.uid), {
-    uid: target.uid,
-    displayName: target.displayName,
-    username: target.username,
-    blockedAt: serverTimestamp(),
-  });
-  // Blocking severs the graph both ways, best-effort
-  unfollow(target.uid).catch(() => {});
-  deleteDoc(doc(db, 'users', user.uid, 'followers', target.uid)).catch(() => {});
-  deleteDoc(doc(db, 'users', target.uid, 'following', user.uid)).catch(() => {});
+  if (!user) throw new Error('Sign in to block members.');
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/social/users/${encodeURIComponent(target.uid)}/blocked`, { method: 'PUT' });
+  if (!response.ok) throw new Error('Could not block member.');
 }
 
 export async function unblockUser(targetUid: string): Promise<void> {
   const user = socialUser();
-  if (!user) return;
-  await deleteDoc(doc(db, 'users', user.uid, 'blocked', targetUid));
+  if (!user) throw new Error('Sign in to update blocks.');
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/social/users/${encodeURIComponent(targetUid)}/blocked?enabled=false`, { method: 'PUT' });
+  if (!response.ok) throw new Error('Could not unblock member.');
+}
+
+export async function muteUser(targetUid: string, enabled = true): Promise<void> {
+  const user = socialUser();
+  if (!user) throw new Error('Sign in to mute members.');
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/social/users/${encodeURIComponent(targetUid)}/muted?enabled=${enabled}`, { method: 'PUT' });
+  if (!response.ok) throw new Error('Could not update mute.');
 }
 
 export function onBlocked(cb: (uids: Set<string>) => void): () => void {
@@ -250,14 +249,17 @@ export function onBlocked(cb: (uids: Set<string>) => void): () => void {
   }, () => cb(new Set()));
 }
 
-export async function report(subjectType: 'user' | 'look' | 'message', subjectId: string, reason: string): Promise<void> {
+export async function report(subjectType: 'user' | 'post' | 'comment', subjectId: string, reason: string, description?: string): Promise<void> {
   const user = socialUser();
-  if (!user) return;
-  await addDoc(collection(db, 'reports'), {
-    reporterUid: user.uid,
-    subjectType,
-    subjectId,
-    reason,
-    createdAt: serverTimestamp(),
+  if (!user) throw new Error('Sign in to submit a report.');
+  const reasonMap: Record<string, string> = {
+    'Spam': 'spam', 'Harassment': 'harassment', 'Nudity / Sexual Content': 'nudity',
+    'Hate': 'hate', 'Violence': 'violence', 'Scam / Fraud': 'scam',
+    'Impersonation': 'impersonation', 'Other': 'other',
+  };
+  const response = await authorizedFetch(`${getBackendBaseUrl()}/social/reports`, {
+    method: 'POST',
+    body: JSON.stringify({ target_type: subjectType, target_id: subjectId, reason: reasonMap[reason] || 'other', description }),
   });
+  if (!response.ok) throw new Error('Could not submit report.');
 }

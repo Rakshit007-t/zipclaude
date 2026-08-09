@@ -53,6 +53,11 @@ class AuthResult(BaseModel):
     needs_email_verification: bool = False
 
 
+class AccessStatusResponse(BaseModel):
+    is_admin: bool
+    is_seller: bool
+
+
 class NormalizedProduct(BaseModel):
     id: str = Field(default="", min_length=1, max_length=128)
     title: str = Field(..., min_length=1, max_length=500)
@@ -277,18 +282,162 @@ class TryOnJobStatusResponse(BaseModel):
     error: str | None = None
 
 
+class WalletTopUpRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    amount_rupees: int = Field(
+        ...,
+        ge=1,
+        le=100_000,
+        serialization_alias="amountRupees",
+        validation_alias=AliasChoices("amountRupees", "amount_rupees"),
+    )
+
+
+class WalletTopUpResponse(BaseModel):
+    wallet_balance_rupees: int = Field(serialization_alias="walletBalanceRupees")
+
+
+class ProfileMeasurements(BaseModel):
+    """Measurements accepted from the Fit Profile client, in centimetres."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    chest: float | None = Field(default=None, gt=0, le=300)
+    waist: float | None = Field(default=None, gt=0, le=300)
+    shoulders: float | None = Field(default=None, gt=0, le=300)
+    arms: float | None = Field(default=None, gt=0, le=300)
+    legs: float | None = Field(default=None, gt=0, le=300)
+    torso: float | None = Field(default=None, gt=0, le=300)
+    hips: float | None = Field(default=None, gt=0, le=300)
+    bust: float | None = Field(default=None, gt=0, le=300)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+
 class ProfileUpsertRequest(BaseModel):
+    """Validated profile payload used by the web Fit Profile and legacy clients."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Legacy API fields remain supported for existing integrations.
     brand: str | None = Field(default=None, max_length=100)
     size: str | None = Field(default=None, max_length=50)
     fit: str | None = Field(default=None, max_length=50)
 
+    username: str | None = Field(default=None, max_length=50)
+    displayName: str | None = Field(default=None, max_length=100)
+    photoURL: str | None = Field(default=None, max_length=2048)
+    onboardingCompleted: bool | None = None
+    fitProfileCompleted: bool | None = None
 
-class ProfileResponse(ProfileUpsertRequest):
+    profileId: str | None = Field(default=None, min_length=1, max_length=180)
+    profileName: str | None = Field(default=None, min_length=1, max_length=100)
+    gender: str | None = Field(default=None, min_length=1, max_length=40)
+    preferredBrand: str | None = Field(default=None, min_length=1, max_length=100)
+    usualSize: Literal["XS", "S", "M", "L", "XL", "XXL"] | None = None
+    baseSize: Literal["XS", "S", "M", "L", "XL", "XXL"] | None = None
+    height: float | None = Field(default=None, gt=50, le=300)
+    weight: float | None = Field(default=None, gt=10, le=500)
+    bodyShape: str | None = Field(default=None, min_length=1, max_length=80)
+    shoulderType: str | None = Field(default=None, min_length=1, max_length=80)
+    fitPreference: Literal["slim", "regular", "relaxed", "loose"] | None = None
+    selectedProfileId: str | None = Field(default=None, min_length=1, max_length=180)
+    selectedProfile: str | None = Field(default=None, min_length=1, max_length=180)
+    recommendationPreferences: dict[str, Any] | None = None
+    measurements: ProfileMeasurements | None = None
+    smartFit: ProfileMeasurements | None = None
+    fitProfiles: list[dict[str, Any]] | None = Field(default=None, max_length=20)
+
+
+class ProfileResponse(BaseModel):
     id: str
     email: str
+    username: str | None = None
+    displayName: str | None = None
+    photoURL: str | None = None
+    onboardingCompleted: bool = False
+    fitProfileCompleted: bool = False
+    brand: str | None = None
+    size: str | None = None
+    fit: str | None = None
+    fitProfiles: list[dict[str, Any]] | None = None
 
 
 class GarmentAnchorProfile(BaseModel):
+    width_scale: float = Field(default=1.15, gt=0.1, le=4.0)
+    height_scale: float = Field(default=1.35, gt=0.1, le=5.0)
+    y_offset: float = Field(default=0.18, ge=-1.0, le=1.0)
+    z_offset: float = Field(default=0.0, ge=-2.0, le=2.0)
+    smoothing: float = Field(default=0.35, ge=0.0, le=0.95)
+
+
+class GarmentCreateRequest(BaseModel):
+    sku: str = Field(
+        ...,
+        min_length=2,
+        max_length=100,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
+    name: str = Field(..., min_length=2, max_length=120)
+    category: str = Field(..., min_length=2, max_length=50)
+    preview_image_url: str | None = None
+    asset_url: str | None = None
+    texture_image_url: str | None = None
+    scale_multiplier: float = Field(default=1.0, gt=0.1, le=10.0)
+    anchor_profile: GarmentAnchorProfile = Field(default_factory=GarmentAnchorProfile)
+
+
+class GarmentResponse(GarmentCreateRequest):
+    garment_id: str
+    created_at: str
+
+
+class LiveTryOnSessionCreateRequest(BaseModel):
+    user_id: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
+    garment_id: str = Field(..., min_length=3, max_length=100)
+    platform: Literal["android", "ios", "react-native", "flutter", "unity", "web"] = (
+        "android"
+    )
+    frame_width: int = Field(default=1080, gt=0, le=10000)
+    frame_height: int = Field(default=1920, gt=0, le=10000)
+    camera_fov_degrees: float = Field(default=60.0, ge=20.0, le=160.0)
+
+
+class LiveTryOnSessionResponse(BaseModel):
+    session_id: str
+    user_id: str
+    garment: GarmentResponse
+    render_mode: Literal["client_ar_overlay"]
+    tracking_target: Literal["upper_body"]
+    recommended_landmarks: list[str]
+    websocket_path: str
+    created_at: str
+
+
+class PoseLandmark(BaseModel):
+    x: float = Field(..., ge=0.0, le=1.0)
+    y: float = Field(..., ge=0.0, le=1.0)
+    z: float = Field(default=0.0, ge=-5.0, le=5.0)
+    visibility: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class LiveTryOnFrameRequest(BaseModel):
+    session_id: str = Field(..., min_length=3, max_length=100)
+    frame_width: int = Field(..., gt=0, le=10000)
+    frame_height: int = Field(..., gt=0, le=10000)
+    landmarks: dict[str, PoseLandmark] = Field(..., min_length=2)
+
+
+class GarmentTransform(BaseModel):
+    anchor_x: float
+    anchor_y: float
+    anchor_z: float
+    width_px: float
     width_scale: float = Field(default=1.15, gt=0.1, le=4.0)
     height_scale: float = Field(default=1.35, gt=0.1, le=5.0)
     y_offset: float = Field(default=0.18, ge=-1.0, le=1.0)
@@ -374,3 +523,107 @@ class LiveTryOnFrameResponse(BaseModel):
     tracking_status: Literal["tracked", "partial", "lost"]
     missing_landmarks: list[str]
     transform: GarmentTransform | None
+
+
+# --- Future-Proof Database Models ---
+
+class UserRecord(BaseModel):
+    uid: str
+    email: str
+    emailVerified: bool = False
+    username: str
+    displayName: str = ""
+    photoURL: str | None = None
+    onboardingCompleted: bool = False
+    fitProfileCompleted: bool = False
+    primaryProfileId: str | None = None
+    createdAt: str | None = None
+    updatedAt: str | None = None
+
+
+class FitProfileRecord(BaseModel):
+    profileId: str
+    userId: str
+    profileName: str
+    gender: str = ""
+    preferredBrand: str = ""
+    usualSize: str = "M"
+    baseSize: str = "M"
+    height: float = 0.0
+    weight: float = 0.0
+    bodyShape: str | None = None
+    shoulderType: str | None = None
+    fitPreference: str = "regular"
+    measurements: dict[str, float] = Field(default_factory=dict)
+    smartFit: dict[str, float] = Field(default_factory=dict)
+    isPrimary: bool = True
+    createdAt: str | None = None
+    updatedAt: str | None = None
+
+
+class RecommendationHistoryRecord(BaseModel):
+    id: str
+    userId: str
+    profileId: str | None = None
+    productUrl: str
+    productTitle: str = ""
+    brand: str = ""
+    category: str = ""
+    recommendedSize: str
+    confidence: float = 0.0
+    reasoning: str | None = None
+    createdAt: str | None = None
+
+
+class PostRecord(BaseModel):
+    id: str
+    userId: str
+    type: Literal["reel", "look", "image", "vto"] = "look"
+    mediaUrl: str
+    thumbnailUrl: str | None = None
+    caption: str = ""
+    tags: list[str] = Field(default_factory=list)
+    taggedProducts: list[str] = Field(default_factory=list)
+    likeCount: int = 0
+    commentCount: int = 0
+    createdAt: str | None = None
+
+
+class FollowerRecord(BaseModel):
+    id: str
+    followerUid: str
+    followingUid: str
+    createdAt: str | None = None
+
+
+class MessageRecord(BaseModel):
+    id: str
+    chatId: str
+    senderUid: str
+    recipientUid: str
+    text: str
+    mediaUrl: str | None = None
+    read: bool = False
+    createdAt: str | None = None
+
+
+class NotificationRecord(BaseModel):
+    id: str
+    userId: str
+    type: str
+    title: str
+    body: str
+    data: dict[str, Any] = Field(default_factory=dict)
+    read: bool = False
+    createdAt: str | None = None
+
+
+class AvatarRecord(BaseModel):
+    id: str
+    userId: str
+    status: Literal["processing", "ready", "failed"] = "ready"
+    frontImageUrl: str | None = None
+    sideImageUrl: str | None = None
+    avatarModelUrl: str | None = None
+    embedding: list[float] = Field(default_factory=list)
+    createdAt: str | None = None

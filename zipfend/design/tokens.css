@@ -23,9 +23,9 @@
   --ink-soft: rgba(25, 22, 19, 0.64);
   --ink-faint: rgba(25, 22, 19, 0.42);
   --ink-invert: #f6f4ed; /* bone type on ink surfaces */
-  --brand: #b95b23; /* burnt copper — warm, zero blue */
-  --brand-strong: #9e4a17;
-  --brand-soft: rgba(185, 91, 35, 0.1);
+  --brand: #a9895b; /* restrained champagne, reserved for intent */
+  --brand-strong: #876b42;
+  --brand-soft: rgba(169, 137, 91, 0.12);
   --on-brand: #ffffff;
   --brass: #9c7c33; /* reward moments only: streaks, scores, gold states */
   --brass-soft: rgba(156, 124, 51, 0.14);
@@ -55,9 +55,9 @@
   --ink-soft: rgba(241, 237, 227, 0.66);
   --ink-faint: rgba(241, 237, 227, 0.42);
   --ink-invert: #14120f;
-  --brand: #e89b6b; /* candlelit copper for dark ground */
-  --brand-strong: #f2b08a;
-  --brand-soft: rgba(232, 155, 107, 0.14);
+  --brand: #d7bd8d; /* candlelit champagne for dark ground */
+  --brand-strong: #e5cda2;
+  --brand-soft: rgba(215, 189, 141, 0.15);
   --on-brand: #2a1608; /* espresso ink on the pale copper */
   --brass: #d6ae5f;
   --brass-soft: rgba(214, 174, 95, 0.14);

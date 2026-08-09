@@ -40,6 +40,15 @@ async function startServer() {
       server: {
         middlewareMode: true,
         hmr: { port: hmrPort },
+        watch: {
+          ignored: [
+            "**/.chrome-debug-profile/**",
+            "**/*.log",
+            "**/dist/**",
+            "**/.git/**",
+            "**/.vscode/**",
+          ],
+        },
       },
       appType: "spa",
     });

@@ -18,7 +18,7 @@ from models.schema import (
     SizeEngineRequest,
     SizeEngineResponse,
 )
-from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user
+from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.measurement_service import (
     MeasurementProcessingError,
     estimate_measurements_from_scan,
@@ -83,7 +83,7 @@ def _get_previous_smartfit(uid: str) -> dict[str, float] | None:
 )
 async def size_engine(
     payload: SizeEngineRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[SizeEngineResponse]:
     try:
         logger.info(
@@ -127,7 +127,7 @@ async def size_engine(
 )
 async def predict_size(
     payload: PredictSizeRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[PredictSizeResponse]:
     try:
         if payload.product is None:
@@ -186,7 +186,7 @@ async def predict_size(
 )
 async def smart_fit_measurements(
     request: Request,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[SmartFitScanResponse]:
     try:
         raw_body = await request.body()
@@ -261,7 +261,7 @@ class SizeFeedbackResponse(PydanticBaseModel):
 )
 async def size_feedback(
     payload: SizeFeedbackRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[SizeFeedbackResponse]:
     """Record whether a size recommendation worked out.
 

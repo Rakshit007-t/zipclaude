@@ -6,7 +6,10 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+  // Newer Firebase projects use firebasestorage.app. The prior appspot.com
+  // guess pointed uploads at a non-existent bucket, causing profile uploads
+  // to fail after a successful file selection/compression step.
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebasestorage.app`,
 };
 
 const app = initializeApp(firebaseConfig);

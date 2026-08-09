@@ -242,6 +242,7 @@ export function refineProductRecommendation({
     hasChart: Boolean(chart),
     oneSizeProduct,
     ruleReason: ruleDecision.reason,
+    fabric: detectFabric(product),
   });
 
   return {
@@ -429,6 +430,12 @@ function getProductSearchText(product: ProductLike) {
     metadataToText(product.metadata),
     metadataToText(product.product_metadata),
   ].map(value => String(value || '').toLowerCase()).join(' ');
+}
+
+function detectFabric(product: ProductLike) {
+  const text = getProductSearchText(product);
+  const material = text.match(/\b(cotton|linen|denim|wool|silk|polyester|viscose|rayon|nylon|spandex|elastane|leather|cashmere)\b/);
+  return material ? material[1] : '';
 }
 
 function metadataToText(value: unknown): string {
@@ -1041,6 +1048,7 @@ function buildRecommendationReason({
   hasChart,
   oneSizeProduct,
   ruleReason,
+  fabric,
 }: {
   finalSize: string;
   engineSize: string;
@@ -1054,54 +1062,43 @@ function buildRecommendationReason({
   hasChart: boolean;
   oneSizeProduct: boolean;
   ruleReason?: string;
+  fabric: string;
 }) {
   const availabilityText = availableSizes.length
-    ? ` among the available sizes (${availableSizes.slice(0, 6).join(', ')}${availableSizes.length > 6 ? ', ...' : ''})`
-    : '';
+    ? `Available now: ${availableSizes.slice(0, 6).join(', ')}${availableSizes.length > 6 ? ', …' : ''}.`
+    : 'The retailer did not expose selectable size availability.';
+  const bodyReference = measurementAnchor
+    ? `Your ${measurementAnchor.name} measurement (${measurementAnchor.inches.toFixed(1)} in)`
+    : 'Your saved body profile';
+  const cutDescription: Record<string, string> = {
+    oversized: 'oversized cut already has deliberate ease',
+    boxy: 'boxy cut is roomy through the body',
+    baggy: 'baggy cut is intentionally loose',
+    relaxed: 'relaxed cut adds room over a regular fit',
+    regular: 'regular cut is intended to sit close to standard measurements',
+    slim: 'slim cut is closer through the body and shoulders',
+    compression: 'compression cut is intentionally close to the body',
+  };
+  const cutText = cutDescription[productFit] || 'product cut is considered alongside your fit preference';
+  const fabricText = fabric ? ` Its ${fabric} fabric is included in the fit assessment.` : '';
+  const idealText = engineSize && engineSize !== finalSize
+    ? `Your ideal fit is ${engineSize}, but this product does not offer ${engineSize}. Based on the available sizes, we recommend ${finalSize}.`
+    : `${finalSize} matches the ideal size prediction.`;
 
   if (oneSizeProduct) {
-    return `${finalSize} is recommended because this product is listed as one size.`;
+    return `${bodyReference} was used for the fit assessment. This product is offered in one size, so ${finalSize} is the only purchase option.`;
   }
   if (mappingQuality === 'single-available') {
-    return `${finalSize} is the only available size for this product.`;
+    return `${bodyReference} points to ${engineSize || finalSize}, but ${finalSize} is the only available size. Expected fit depends on this product's ${cutText}.`;
   }
-  if (ruleReason) {
-    return `Recommended ${finalSize} because ${ruleReason}${availabilityText}.`;
-  }
-  if (category === 'bottom' && measurementAnchor && ['numeric', 'regional'].includes(normalizeSizeOption(finalSize)?.kind || '')) {
-    const comfort = fitPreference === 'slim' ? 'closer waist fit' : fitPreference === 'regular' ? 'balanced waist comfort' : 'extra waist comfort';
-    return `${finalSize} recommended for ${comfort}${availabilityText}.`;
-  }
-  if (hasChart && ['chart', 'nearest'].includes(mappingQuality)) {
-    return `${finalSize} is based on the product size chart and your saved fit profile.`;
-  }
+  const fitPreferenceText = fitPreference === 'slim'
+    ? 'your preference for a closer fit'
+    : fitPreference === 'regular'
+      ? 'your preference for a balanced fit'
+      : 'your preference for more room';
+  const chartText = hasChart ? ' The product size chart was used to anchor the comparison.' : '';
+  const ruleText = ruleReason ? ` ${ruleReason.charAt(0).toUpperCase()}${ruleReason.slice(1)}.` : '';
+  const bottomText = category === 'bottom' ? ' The waist measurement is weighted most heavily for this item.' : '';
 
-  if (productFit === 'oversized') {
-    return `Recommended because this oversized fit already includes extra chest room${availabilityText}.`;
-  }
-  if (productFit === 'boxy') {
-    return `Recommended because the boxy silhouette already adds room through the body${availabilityText}.`;
-  }
-  if (productFit === 'baggy') {
-    return `Recommended because the baggy silhouette is designed with extra ease${availabilityText}.`;
-  }
-  if (productFit === 'relaxed') {
-    return `Recommended because the relaxed fit gives more room than a regular cut${availabilityText}.`;
-  }
-  if (productFit === 'slim') {
-    return `This slim-fit silhouette is tighter through the chest and shoulders, so ${finalSize} is the best available match.`;
-  }
-  if (productFit === 'compression') {
-    return `This compression fit is intentionally close to the body, so ${finalSize} is mapped carefully from your measurements.`;
-  }
-  if (mappingQuality === 'nearest' && engineSize && finalSize !== engineSize) {
-    return `${engineSize} was the profile match, and ${finalSize} is the nearest available product size.`;
-  }
-  if (hasChart) {
-    return `${finalSize} is based on the product size chart and your saved fit profile.`;
-  }
-  if (!availableSizes.length) {
-    return `${finalSize} is based on your saved fit profile; this page did not expose selectable size availability.`;
-  }
-  return `${finalSize} is the best match for this ${garmentFamily.toLowerCase().replace(/_/g, ' ')} from the product's available sizes and your saved fit profile.`;
+  return `${bodyReference} and ${fitPreferenceText} indicate this ${garmentFamily.toLowerCase().replace(/_/g, ' ')} should account for its ${cutText}.${fabricText}${chartText}${bottomText}${ruleText} ${idealText} ${availabilityText}`;
 }

@@ -1,20 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  increment,
-  query,
-  updateDoc,
-  where,
-} from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { AppBar, Button, Eyebrow, Badge } from '../components/ui';
+import { searchUsers } from '../services/social';
+import { authorizedFetch, getBackendBaseUrl } from '../services/ziprightApi';
 
 interface Product {
   id: string; title: string; brand: string;
@@ -72,25 +63,22 @@ const GiftLook: React.FC = () => {
     searchTimeout.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const clean = val.startsWith('@') ? val.slice(1) : val;
-        const q = query(collection(db, 'users'), where('username', '==', clean.toLowerCase()));
-        const snap = await getDocs(q);
-        if (snap.empty) {
+        const users = await searchUsers(val);
+        if (!users.length) {
           setSearchError('No user found with that username');
           setFoundUser(null);
         } else {
-          const d = snap.docs[0];
-          const data = d.data();
+          const found = users[0];
           // Prevent gifting to yourself
-          if (d.id === auth.currentUser?.uid) {
+          if (found.uid === auth.currentUser?.uid) {
             setSearchError("You can't gift to yourself 😄");
             setFoundUser(null);
           } else {
             setFoundUser({
-              uid: d.id,
-              username: data.username,
-              displayName: data.displayName || data.username,
-              photoURL: data.photoURL || data.photoUrl || null,
+              uid: found.uid,
+              username: found.username,
+              displayName: found.displayName || found.username,
+              photoURL: found.photoURL,
             });
           }
         }
@@ -102,51 +90,48 @@ const GiftLook: React.FC = () => {
     }, 600);
   };
 
+  const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
+
   const handleSend = async () => {
     if (!foundUser || !auth.currentUser) return;
     setSending(true);
+    setPaymentNotice(null);
     try {
-      const user = auth.currentUser;
-
-      // Ensure sender has a username — if not, set a default
-      const senderDoc = await getDoc(doc(db, 'users', user.uid));
-      const senderData = senderDoc.data() || {};
-      let senderUsername = senderData.username;
-      if (!senderUsername) {
-        senderUsername = (user.displayName || 'user').toLowerCase().replace(/\s+/g, '_') + '_zr';
-        await updateDoc(doc(db, 'users', user.uid), { username: senderUsername });
-      }
-
-      // Write gift
-      await addDoc(collection(db, 'gifts'), {
-        senderId: user.uid,
-        senderName: user.displayName || senderUsername,
-        senderUsername,
-        recipientUsername: foundUser.username,
-        recipientUid: foundUser.uid,
-        product: {
-          id: product.id,
-          title: product.title,
-          brand: product.brand,
-          price: product.price,
-          image: product.image,
-          url: product.url,
-          affiliateLink: product.affiliateLink || product.url,
-        },
-        note: note.trim(),
-        sentAt: new Date(),
-        seen: false,
-        action: null,
-        actionAt: null,
-        senderZipCoinsAwarded: true,
+      const response = await authorizedFetch(`${getBackendBaseUrl()}/gifts/intents`, {
+        method: 'POST',
+        body: JSON.stringify({
+          recipient_uid: foundUser.uid,
+          product: {
+            id: product.id,
+            title: product.title,
+            brand: product.brand,
+            price: product.price,
+            image: product.image,
+            url: product.url,
+            affiliateLink: product.affiliateLink || product.url,
+          },
+          note: note.trim(),
+        }),
       });
 
-      // The gift is delivered — show success now. Coins are a bonus, never
-      // block or fail the send (a retry here would duplicate the gift).
-      setSent(true);
-      updateDoc(doc(db, 'users', user.uid), { zipPoints: increment(15) }).catch(() => {});
-    } catch (err) {
-      showToast('Failed to send gift. Try again.', 'error');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const message = errorData.detail?.message || 'Gifting is coming soon. Secure payments are being prepared.';
+        setPaymentNotice(message);
+        showToast(message, 'info');
+        return;
+      }
+
+      const payload = await response.json();
+      if (payload.data?.sent) {
+        setSent(true);
+      } else {
+        setPaymentNotice('Gifting is coming soon. Secure payments are being prepared.');
+      }
+    } catch {
+      const fallbackMsg = 'Gifting is coming soon. Secure payments are being prepared.';
+      setPaymentNotice(fallbackMsg);
+      showToast(fallbackMsg, 'info');
     } finally {
       setSending(false);
     }
@@ -327,13 +312,20 @@ const GiftLook: React.FC = () => {
             Send gift
           </Button>
 
-          {/* ZipCoins hint */}
-          <div className="flex items-center justify-center gap-2 mt-3">
-            <span className="material-symbols-outlined text-brass text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">stars</span>
-            <p className="text-ink-faint text-[11px] font-semibold uppercase tracking-[0.1em]">
-              You'll earn +15 ZipCoins for this gift
-            </p>
-          </div>
+          {paymentNotice ? (
+            <div className="mt-4 p-4 rounded-xl bg-surface-2 border border-line text-center">
+              <span className="material-symbols-outlined text-brand text-[22px] mb-1" aria-hidden="true">lock</span>
+              <p className="text-ink font-medium text-[13px]">{paymentNotice}</p>
+            </div>
+          ) : (
+            /* ZipCoins hint */
+            <div className="flex items-center justify-center gap-2 mt-3">
+              <span className="material-symbols-outlined text-brass text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">stars</span>
+              <p className="text-ink-faint text-[11px] font-semibold uppercase tracking-[0.1em]">
+                Earn ZipCoins upon verified gift payment
+              </p>
+            </div>
+          )}
         </div>
 
       </div>

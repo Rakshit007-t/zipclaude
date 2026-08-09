@@ -17,7 +17,7 @@ from services.live_tryon_engine import (
     list_garments,
     register_garment,
 )
-from services.firebase_auth import AuthenticatedUser, get_current_user, get_optional_user, verify_firebase_token
+from services.firebase_auth import AuthenticatedUser, get_current_user, verify_firebase_token
 
 router = APIRouter(tags=["tryon-live"])
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 )
 async def create_garment(
     payload: GarmentCreateRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> GarmentResponse:
     try:
         logger.info("create_garment requested by user_id=%s", current_user.uid)
@@ -51,7 +51,7 @@ async def create_garment(
     status_code=status.HTTP_200_OK,
 )
 async def get_garments(
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> list[GarmentResponse]:
     try:
         logger.info("get_garments requested by user_id=%s", current_user.uid)
@@ -73,7 +73,7 @@ async def get_garments(
 )
 async def create_session(
     payload: LiveTryOnSessionCreateRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> LiveTryOnSessionResponse:
     try:
         if payload.user_id != current_user.uid:
@@ -102,7 +102,7 @@ async def create_session(
 )
 async def estimate_frame(
     payload: LiveTryOnFrameRequest,
-    current_user: AuthenticatedUser = Depends(get_optional_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> LiveTryOnFrameResponse:
     try:
         return estimate_live_tryon_frame(payload)
