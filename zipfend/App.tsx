@@ -472,7 +472,7 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
-        <BottomNav zipPoints={zipPoints} unreadFriends={unreadFriends} profileImage={userProfile.photoURL || profileImage || user?.photoURL || null} />
+        <BottomNav zipPoints={zipPoints} unreadFriends={unreadFriends} profileImage={typeof userProfile.photoURL !== 'undefined' ? (userProfile.photoURL || null) : (profileImage || user?.photoURL || null)} />
     </div>
   );
 };

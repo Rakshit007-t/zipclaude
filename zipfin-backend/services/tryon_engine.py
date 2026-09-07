@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 from firebase_upload import FirebaseUploadError, upload_to_firebase
 from models.schema import TryOnImageResponse
 from services.vton_engine import VtonError, generate_vton_image
+from services.url_guard import assert_public_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -69,16 +70,11 @@ async def process_tryon_request(
                 quality=quality,
             )
         except VtonError as exc:
-            logger.warning(
-                "CatVTON try-on unavailable for user '%s'; using overlay fallback. Reason: %s",
-                user_id,
-                exc,
-            )
-            image_bytes = generate_tryon_image_from_bytes(
-                person_bytes=person_bytes,
-                garment_bytes=garment_bytes,
-            )
-            engine = "overlay"
+            logger.warning("AI try-on unavailable for user '%s': %s", user_id, exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Virtual Try-On is unavailable because no AI renderer is ready.",
+            ) from exc
     except TryOnDownloadError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -123,10 +119,12 @@ async def process_tryon_request(
 
 def _decode_person_data_url(person_image: str) -> bytes:
     value = person_image.strip()
+    if value.startswith(("http://", "https://")):
+        return _download_product_image_bytes(value)
     if not value.startswith("data:image/"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="person_image must be a base64 image data URL.",
+            detail="person_image must be an image URL or base64 image data URL.",
         )
     _, _, encoded = value.partition(",")
     try:
@@ -286,9 +284,14 @@ def generate_tryon_image_from_bytes(*, person_bytes: bytes, garment_bytes: bytes
 
 def _download_product_image_bytes(product_image_url: str) -> bytes:
     try:
+        assert_public_http_url(product_image_url)
+    except ValueError as exc:
+        raise TryOnDownloadError("Image URL must resolve to a public HTTP(S) host.") from exc
+    try:
         response = requests.get(
             product_image_url,
             timeout=PRODUCT_DOWNLOAD_TIMEOUT_SECONDS,
+            allow_redirects=False,
         )
         response.raise_for_status()
     except requests.RequestException as exc:
@@ -297,6 +300,11 @@ def _download_product_image_bytes(product_image_url: str) -> bytes:
         logger.exception("Unexpected product image download failure for '%s'.", product_image_url)
         raise TryOnDownloadError("Failed to download product image.") from exc
 
+    content_type = response.headers.get("Content-Type", "").lower()
+    if not content_type.startswith("image/"):
+        raise TryOnGenerationError("Downloaded URL did not return an image.")
+    if len(response.content) > 10 * 1024 * 1024:
+        raise TryOnGenerationError("Downloaded image is too large (max 10 MB).")
     if not response.content:
         raise TryOnGenerationError("Downloaded product image is empty.")
     return response.content

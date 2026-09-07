@@ -155,12 +155,12 @@ const UserProfile: React.FC = () => {
       if (isMe) {
         setProfile({
           uid: (authUser || auth.currentUser)?.uid || targetUid,
-          displayName: p?.displayName || userProfile.displayName || userProfile.profileName || (authUser || auth.currentUser)?.displayName || 'ZipRIGHT Member',
-          username: p?.username || userProfile.username || 'member',
-          photoURL: (userProfile.photoURL !== undefined ? userProfile.photoURL : (p?.photoURL || (authUser || auth.currentUser)?.photoURL)) || null,
-          bio: p?.bio || userProfile.bio || '',
-          location: p?.location || userProfile.location || '',
-          website: p?.website || userProfile.website || '',
+          displayName: userProfile.displayName || userProfile.profileName || p?.displayName || (authUser || auth.currentUser)?.displayName || 'ZipRIGHT Member',
+          username: userProfile.username || p?.username || 'member',
+          photoURL: userProfile.photoURL !== undefined ? (userProfile.photoURL || null) : (p?.photoURL || (authUser || auth.currentUser)?.photoURL || null),
+          bio: typeof userProfile.bio !== 'undefined' ? userProfile.bio : (p?.bio || ''),
+          location: typeof userProfile.location !== 'undefined' ? userProfile.location : (p?.location || ''),
+          website: typeof userProfile.website !== 'undefined' ? userProfile.website : (p?.website || ''),
           followersCount: p?.followersCount || 0,
           followingCount: p?.followingCount || 0,
           postsCount: looksSnap?.docs.length || p?.postsCount || 0,
@@ -181,7 +181,7 @@ const UserProfile: React.FC = () => {
 
     const unsubs = [onFollowing(setFollowingSet), onBlocked(setBlockedSet)];
     return () => { cancelled = true; unsubs.forEach(u => u()); };
-  }, [targetUid, isMe, authUser, userProfile.displayName, userProfile.profileName, userProfile.photoURL, userProfile.username]);
+  }, [targetUid, isMe, authUser, userProfile.displayName, userProfile.profileName, userProfile.photoURL, userProfile.username, userProfile.location, userProfile.bio, userProfile.website]);
 
   const handleFollowToggle = async () => {
     if (!profile || busy) return;
@@ -347,10 +347,12 @@ const UserProfile: React.FC = () => {
             <p className="text-[13px] text-ink-soft leading-relaxed mt-1.5">{profile.bio}</p>
           ) : null}
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-ink-faint mt-2">
-            <span className="flex items-center gap-1">
-              <span className="material-symbols-outlined text-[13px]">location_on</span>
-              {profile.location ? profile.location : 'No location set'}
-            </span>
+            {profile.location ? (
+              <span className="flex items-center gap-1">
+                <span className="material-symbols-outlined text-[13px]">location_on</span>
+                {profile.location}
+              </span>
+            ) : null}
             {profile.website ? (
               <a
                 href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`}

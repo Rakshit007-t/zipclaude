@@ -178,13 +178,14 @@ def _run_job(
                 progress_callback=progress,
             )
         except VtonError as exc:
-            logger.warning("Job %s: AI engines unavailable (%s); using overlay engine.", job.job_id, exc)
-            from services.tryon_engine import generate_tryon_image_from_bytes
-            image_bytes = generate_tryon_image_from_bytes(
-                person_bytes=person_bytes,
-                garment_bytes=garment_bytes,
+            logger.warning("Job %s: AI engines unavailable: %s", job.job_id, exc)
+            _update(
+                job.job_id,
+                status="failed",
+                stage="AI renderer unavailable",
+                error="Virtual Try-On is unavailable because no AI renderer is ready.",
             )
-            engine = "overlay"
+            return
 
         _update(job.job_id, progress=96, stage="Saving result")
         result_url = _store_tryon_image(image_bytes=image_bytes, user_id=job.user_id)

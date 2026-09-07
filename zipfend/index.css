@@ -215,3 +215,14 @@ html {
   right: auto !important;
   transform: translateX(-50%);
 }
+
+/* Eliminate lingering browser focus rectangle on bottom nav and interactive buttons */
+nav button:focus,
+nav button:focus-visible,
+nav a:focus,
+nav a:focus-visible,
+button:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-focus-ring-color: transparent !important;
+}

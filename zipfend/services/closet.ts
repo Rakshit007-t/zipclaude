@@ -39,7 +39,12 @@ export interface ClosetItem {
 }
 
 const CHANGE_EVENT = 'zr-closet-changed';
-const keyFor = (kind: ClosetKind) => `zr_closet_${kind}`;
+// Saved commerce data is private. A browser can be used by multiple accounts,
+// so never share one account's cart or wishlist through an unscoped key.
+const keyFor = (kind: ClosetKind) => {
+  const owner = auth.currentUser?.uid || 'guest';
+  return `zr_closet_${owner}_${kind}`;
+};
 
 function read(kind: ClosetKind): ClosetItem[] {
   try {

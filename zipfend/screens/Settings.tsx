@@ -164,7 +164,7 @@ const Settings: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { userProfile, setUserProfile, isHydrated, refreshProfile, clearProfile } = useUserProfile();
+  const { userProfile, setUserProfile, isHydrated, refreshProfile, clearProfile, deleteFitProfile } = useUserProfile();
 
   const [settingsSearch, setSettingsSearch] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -238,7 +238,9 @@ const Settings: React.FC = () => {
       zipPoints: 0
   });
 
-  const effectivePhoto = userProfile.photoURL || profileImage || auth.currentUser?.photoURL || '';
+  const effectivePhoto = typeof userProfile.photoURL !== 'undefined'
+    ? (userProfile.photoURL || '')
+    : (profileImage || auth.currentUser?.photoURL || '');
   const effectiveDisplayName = userProfile.displayName || userProfile.profileName || (userData.firstName ? `${userData.firstName} ${userData.lastName}`.trim() : '') || auth.currentUser?.displayName || 'ZipRIGHT Member';
   const initialLetter = (effectiveDisplayName || 'Z').charAt(0).toUpperCase();
 
@@ -457,11 +459,11 @@ const Settings: React.FC = () => {
       houseNo: '',
       area: '',
       landmark: '',
-      city: 'Bengaluru',
-      state: 'Karnataka',
+      city: '',
+      state: '',
       zip: '',
       isDefault: false,
-      coords: { lat: 12.9716, lng: 77.5946 }
+      coords: undefined
   };
   const [editAddressData, setEditAddressData] = useState<Address>(defaultAddressData);
 
@@ -545,6 +547,12 @@ const Settings: React.FC = () => {
               gender: editUserData.gender,
           }, { merge: true });
           setUserData(editUserData);
+          setUserProfile(prev => ({
+              ...prev,
+              profileName,
+              displayName,
+              gender: editUserData.gender,
+          }));
 
           showToast('Profile Updated', 'success');
           setView('main');
@@ -615,17 +623,12 @@ const Settings: React.FC = () => {
   const deleteMember = async (id: string) => {
       try {
           if (auth.currentUser) {
-              await setDoc(doc(db, 'users', auth.currentUser.uid), {
-                  profileName: '',
-                  gender: '',
-                  preferredBrand: '',
-                  usualSize: '',
-                  height: 0,
-                  weight: 0,
-                  bodyShape: '',
-                  fitPreference: '',
-                  smartFit: {}
-              }, { merge: true });
+              await deleteFitProfile(id).catch(async () => {
+                  await setDoc(doc(db, 'users', auth.currentUser!.uid), {
+                      profileName: '',
+                      updatedAt: serverTimestamp(),
+                  }, { merge: true });
+              });
           }
           setMembers([]);
           setShowDeleteMemberConfirm(null);

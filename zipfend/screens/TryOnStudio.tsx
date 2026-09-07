@@ -142,9 +142,6 @@ const TryOnStudio: React.FC = () => {
       setResultUrl(result.imageUrl);
       setEngine(result.engine);
       recordJourneyEvent('tryon_generated');
-      if (result.engine === 'overlay') {
-        showToast('Quick preview shown — AI engine busy, try again', 'success');
-      }
     } catch (error: any) {
       if (error instanceof TryOnPollingCancelledError || controller.signal.aborted) {
         return;
@@ -164,6 +161,17 @@ const TryOnStudio: React.FC = () => {
           if (mountedRef.current) setGenerating(false);
         }
       }
+    }
+  };
+
+  const cancelGeneration = () => {
+    activePollRef.current?.abort();
+    activePollRef.current = null;
+    localStorage.removeItem(ACTIVE_JOB_KEY);
+    if (mountedRef.current) {
+      setGenerating(false);
+      setProgress(0);
+      showToast('Try-on cancelled', 'info');
     }
   };
 
@@ -216,7 +224,7 @@ const TryOnStudio: React.FC = () => {
         productImageUrl: garmentIsUpload ? undefined : garmentPreview,
         clothType,
         quality,
-      });
+      }, activePollRef.current?.signal);
       localStorage.setItem(ACTIVE_JOB_KEY, jobId);
       if (!mountedRef.current) return;
       await trackJob(jobId);
@@ -419,6 +427,13 @@ const TryOnStudio: React.FC = () => {
                         {WAIT_HINTS[hintIndex]}
                       </motion.span>
                     </AnimatePresence>
+                    <button
+                      type="button"
+                      onClick={cancelGeneration}
+                      className="mt-4 px-4 py-1.5 rounded-full border border-line bg-surface-1 text-ink text-[12px] font-semibold hover:bg-surface-2 transition-colors shadow-sm"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               )}

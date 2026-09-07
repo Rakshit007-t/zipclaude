@@ -92,7 +92,8 @@ export async function deleteAccountPermanently(user: User): Promise<AccountDelet
   const uid = user.uid;
 
   try {
-    // 1. Delete Storage Files (best-effort with 8s timeout)
+    // 1. Delete known Storage files. Do not delete the Auth account while
+    // private data may still be retained; an operator can then retry safely.
     const storage = getStorage(app);
     const storagePaths = [
       `profiles/${uid}.jpg`,
@@ -107,13 +108,12 @@ export async function deleteAccountPermanently(user: User): Promise<AccountDelet
           `Storage cleanup timeout for ${path}`,
         );
       } catch (err: any) {
-        if (err?.code !== 'storage/object-not-found') {
-          console.warn(`[AccountDeletion] Storage file cleanup notice (${path}):`, err);
-        }
+        if (err?.code !== 'storage/object-not-found') throw err;
       }
     }
 
-    // 2. Delete User Firestore Subcollections (fitProfiles, recommendations, smartFitScans, blocked)
+    // 2. Delete client-visible subcollections before deleting the account.
+    // Firestore clients cannot enumerate arbitrary nested subcollections.
     const subcollections = ['fitProfiles', 'recommendations', 'smartFitScans', 'blocked'];
     for (const subcol of subcollections) {
       try {
@@ -126,30 +126,22 @@ export async function deleteAccountPermanently(user: User): Promise<AccountDelet
           await deleteDoc(subDoc.ref).catch(() => {});
         }
       } catch (err) {
-        console.warn(`[AccountDeletion] Firestore subcollection cleanup notice (${subcol}):`, err);
+        throw new Error(`Could not remove private ${subcol} data. Please try again.`);
       }
     }
 
     // 3. Delete Private User Document & Public Profile Projection
-    try {
-      await withTimeout(
-        deleteDoc(doc(db, 'users', uid)),
-        8000,
-        'User document deletion timeout',
-      );
-    } catch (err) {
-      console.warn('[AccountDeletion] User document deletion notice:', err);
-    }
+    await withTimeout(
+      deleteDoc(doc(db, 'users', uid)),
+      8000,
+      'User document deletion timeout',
+    );
 
-    try {
-      await withTimeout(
-        deleteDoc(doc(db, 'publicProfiles', uid)),
-        8000,
-        'Public profile deletion timeout',
-      );
-    } catch (err) {
-      console.warn('[AccountDeletion] Public profile deletion notice:', err);
-    }
+    await withTimeout(
+      deleteDoc(doc(db, 'publicProfiles', uid)),
+      8000,
+      'Public profile deletion timeout',
+    );
 
     // 4. Delete Firebase Auth User Account (Must be done LAST with 12s timeout)
     await withTimeout(

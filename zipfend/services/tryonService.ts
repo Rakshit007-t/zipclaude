@@ -2,7 +2,7 @@ import { authorizedFetch, getBackendBaseUrl, getCurrentUserId } from './zipright
 
 export type ClothType = 'upper_body' | 'lower_body' | 'dress' | 'auto';
 export type TryOnQuality = 'fast' | 'hd' | '2k';
-export type TryOnEngine = 'catvton' | 'catvton_cloud' | 'overlay';
+export type TryOnEngine = 'catvton' | 'catvton_cloud';
 
 export interface TryOnResult {
   imageUrl: string;
@@ -100,9 +100,10 @@ export async function startTryOn({
   quality = 'hd',
   personImage,
   garmentImage,
-}: TryOnParams): Promise<string> {
+}: TryOnParams, signal?: AbortSignal): Promise<string> {
   const response = await authorizedFetch(`${getBackendBaseUrl()}/tryon-job`, {
     method: 'POST',
+    signal,
     body: JSON.stringify({
       user_id: getCurrentUserId(),
       product_image_url: productImageUrl || '',
@@ -137,7 +138,7 @@ export async function getTryOnJob(jobId: string, signal?: AbortSignal): Promise<
     progress: typeof data.progress === 'number' ? data.progress : 0,
     stage: data.stage || '',
     engine:
-      data.engine === 'catvton' || data.engine === 'catvton_cloud' || data.engine === 'overlay'
+      data.engine === 'catvton' || data.engine === 'catvton_cloud'
         ? data.engine
         : null,
     imageUrl: resolveImageUrl(data.tryon_image),
@@ -167,7 +168,10 @@ export async function waitForTryOn(
     throwIfPollingCancelled(signal);
     onProgress?.(job.progress, job.stage);
     if (job.status === 'done' && job.imageUrl) {
-      return { imageUrl: job.imageUrl, engine: job.engine || 'overlay' };
+      if (!job.engine) {
+        throw new Error('Try-on completed without a verified AI renderer. Please try again.');
+      }
+      return { imageUrl: job.imageUrl, engine: job.engine };
     }
     if (job.status === 'failed') {
       if (/avatar/i.test(job.error || '')) throw new TryOnAvatarMissingError();
@@ -185,7 +189,7 @@ export async function generateTryOnImage(
   onProgress?: (progress: number, stage: string) => void,
   signal?: AbortSignal,
 ): Promise<TryOnResult> {
-  const jobId = await startTryOn(params);
+  const jobId = await startTryOn(params, signal);
   return waitForTryOn(jobId, onProgress, signal);
 }
 

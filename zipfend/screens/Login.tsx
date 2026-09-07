@@ -266,7 +266,6 @@ const Login: React.FC = () => {
           await setDoc(userDocRef, {
             uid: user.uid,
             email: user.email,
-            emailVerified: false,
             username: defaultUsername,
             displayName: '',
             onboardingCompleted: true,
@@ -349,13 +348,10 @@ const Login: React.FC = () => {
         const defaultUsername = `user_${user.uid.replace(/[-_]/g, '').slice(0, 8).toLowerCase()}`;
         await setDoc(userDocRef, {
           uid: user.uid,
-          phoneNumber: user.phoneNumber,
           username: defaultUsername,
           displayName: '',
           onboardingCompleted: true,
           fitProfileCompleted: false,
-          usage: { tryOns: 0 },
-          walletBalanceRupees: 0,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         }, { merge: true });
@@ -873,7 +869,7 @@ const Login: React.FC = () => {
                       if (currentUser?.emailVerified) {
                         const userDocRef = doc(db, 'users', currentUser.uid);
                         const userDoc = await getDoc(userDocRef);
-                        await setDoc(userDocRef, { emailVerified: true }, { merge: true });
+                        await setDoc(userDocRef, { updatedAt: serverTimestamp() }, { merge: true });
                         createSessionAndNavigate(!userDoc.exists() || !userDoc.data()?.fitProfileCompleted);
                       } else {
                         setError('Email is not verified yet. Please check your inbox and click the verification link.');

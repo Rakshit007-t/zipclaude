@@ -63,11 +63,11 @@ const EditProfile: React.FC = () => {
       let initialData = {
         displayName: user?.displayName || userProfile.displayName || userProfile.profileName || '',
         username: userProfile.username || (userProfile.profileName ? userProfile.profileName.toLowerCase().replace(/\s+/g, '_') : ''),
-        bio: '',
-        website: '',
+        bio: userProfile.bio || '',
+        website: userProfile.website || '',
         pronouns: '',
         gender: userProfile.gender || 'Male',
-        location: '',
+        location: userProfile.location || '',
         birthday: '',
         bannerImage: '',
       };

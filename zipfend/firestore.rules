@@ -19,9 +19,13 @@ service cloud.firestore {
     }
     function ownProfileFieldsOnly() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'displayName', 'displayNameLower', 'username', 'photoURL', 'bio',
-        'website', 'location', 'birthday', 'gender', 'pronouns', 'bannerImage',
-        'lastActiveAt', 'updatedAt'
+        'uid', 'email', 'profileName', 'displayName', 'displayNameLower', 'username',
+        'photoURL', 'bio', 'website', 'location', 'birthday', 'gender', 'pronouns',
+        'bannerImage', 'onboardingCompleted', 'fitProfileCompleted', 'createdAt',
+        'lastActiveAt', 'updatedAt', 'profileId', 'preferredBrand', 'usualSize',
+        'baseSize', 'height', 'weight', 'bodyShape', 'shoulderType',
+        'fitPreference', 'selectedProfileId', 'selectedProfile',
+        'recommendationPreferences', 'measurements', 'smartFit', 'fitProfiles'
       ]);
     }
 
@@ -30,11 +34,17 @@ service cloud.firestore {
       allow read: if isSelf(uid) || isAdmin();
       allow create: if isSelf(uid)
         && request.resource.data.keys().hasOnly([
-          'displayName', 'displayNameLower', 'username', 'photoURL', 'bio',
-          'website', 'location', 'birthday', 'gender', 'pronouns', 'bannerImage',
-          'lastActiveAt', 'updatedAt'
-        ]);
-      allow update: if isSelf(uid) && ownProfileFieldsOnly();
+          'uid', 'email', 'profileName', 'displayName', 'displayNameLower', 'username',
+          'photoURL', 'bio', 'website', 'location', 'birthday', 'gender', 'pronouns',
+          'bannerImage', 'onboardingCompleted', 'fitProfileCompleted', 'createdAt',
+          'lastActiveAt', 'updatedAt', 'profileId', 'preferredBrand', 'usualSize',
+          'baseSize', 'height', 'weight', 'bodyShape', 'shoulderType',
+          'fitPreference', 'selectedProfileId', 'selectedProfile',
+          'recommendationPreferences', 'measurements', 'smartFit', 'fitProfiles'
+        ])
+        && (!('uid' in request.resource.data) || request.resource.data.uid == uid);
+      allow update: if isSelf(uid) && ownProfileFieldsOnly()
+        && (!('uid' in request.resource.data) || request.resource.data.uid == uid);
       allow delete: if isSelf(uid) || isAdmin();
 
       // Fit data, measurements and recommendations are owner/admin only.
@@ -46,6 +56,11 @@ service cloud.firestore {
       match /following/{targetUid} { allow read: if isSelf(uid) || isAdmin(); allow write: if false; }
       match /followers/{followerUid} { allow read: if isSelf(uid) || isAdmin(); allow write: if false; }
       match /blocked/{targetUid} { allow read, write: if isSelf(uid) || isAdmin(); }
+      // Personal saved products. These are user-owned references only; they
+      // must never be treated as orders, inventory, or payment records.
+      match /likes/{itemId} { allow read, write: if isSelf(uid) || isAdmin(); }
+      match /cart/{itemId} { allow read, write: if isSelf(uid) || isAdmin(); }
+      match /wardrobe/{itemId} { allow read, write: if isSelf(uid) || isAdmin(); }
     }
 
     function ownPublicProfileFieldsOnly() {

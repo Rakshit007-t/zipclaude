@@ -229,10 +229,12 @@ function normalizeUserProfileDoc(profile: unknown): UserProfile {
     profileName: normalizeString(sourcePayload.profileName ?? sourcePayload.name),
     displayName: normalizeString(payload.displayName) || undefined,
     username: normalizeString(payload.username) || undefined,
-    photoURL: normalizeString(payload.photoURL ?? payload.photoUrl) || undefined,
-    location: normalizeString(payload.location ?? sourcePayload.location) || undefined,
-    bio: normalizeString(payload.bio ?? sourcePayload.bio) || undefined,
-    website: normalizeString(payload.website ?? sourcePayload.website) || undefined,
+    photoURL: payload.photoURL === null || payload.photoURL === ''
+      ? ''
+      : (normalizeString(payload.photoURL ?? payload.photoUrl) || undefined),
+    location: normalizeString(payload.location ?? sourcePayload.location),
+    bio: normalizeString(payload.bio ?? sourcePayload.bio),
+    website: normalizeString(payload.website ?? sourcePayload.website),
     gender: normalizeString(sourcePayload.gender),
     preferredBrand: normalizeString(sourcePayload.preferredBrand ?? sourcePayload.brand),
     usualSize,
@@ -292,10 +294,18 @@ function mergeProfile(
     profileName: normalizeString(nextProfile.profileName ?? previousProfile.profileName),
     displayName: normalizeString(nextProfile.displayName ?? previousProfile.displayName) || undefined,
     username: normalizeString(nextProfile.username ?? previousProfile.username) || undefined,
-    photoURL: typeof nextProfile.photoURL !== 'undefined' ? (nextProfile.photoURL || undefined) : (previousProfile.photoURL || undefined),
-    location: typeof nextProfile.location !== 'undefined' ? (normalizeString(nextProfile.location) || undefined) : (previousProfile.location || undefined),
-    bio: typeof nextProfile.bio !== 'undefined' ? (normalizeString(nextProfile.bio) || undefined) : (previousProfile.bio || undefined),
-    website: typeof nextProfile.website !== 'undefined' ? (normalizeString(nextProfile.website) || undefined) : (previousProfile.website || undefined),
+    photoURL: typeof nextProfile.photoURL !== 'undefined'
+      ? (nextProfile.photoURL ? nextProfile.photoURL.trim() : '')
+      : (previousProfile.photoURL ? previousProfile.photoURL.trim() : ''),
+    location: typeof nextProfile.location !== 'undefined'
+      ? normalizeString(nextProfile.location)
+      : normalizeString(previousProfile.location),
+    bio: typeof nextProfile.bio !== 'undefined'
+      ? normalizeString(nextProfile.bio)
+      : normalizeString(previousProfile.bio),
+    website: typeof nextProfile.website !== 'undefined'
+      ? normalizeString(nextProfile.website)
+      : normalizeString(previousProfile.website),
     gender: normalizeString(nextProfile.gender ?? previousProfile.gender),
     preferredBrand: normalizeString(nextProfile.preferredBrand ?? previousProfile.preferredBrand),
     usualSize,
