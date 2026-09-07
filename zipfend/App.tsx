@@ -7,8 +7,9 @@ import { ensureUserDoc, startPresence } from './services/social';
 import { onConversations, unreadConversations } from './services/messages';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from './firebase';
+import { requiresEmailVerification } from './services/authClient';
 import { ToastProvider } from './contexts/ToastContext';
-import { UserProfileProvider } from './contexts/UserProfileContext';
+import { UserProfileProvider, useUserProfile } from './contexts/UserProfileContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ScreenFallback, OfflineBanner, Wordmark } from './components/ui';
 import { ProtectedAdminRoute, ProtectedSellerRoute } from './components/routing/ProtectedRoutes';
@@ -79,7 +80,19 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
   const navigate = useNavigate();
   const [isZMenuOpen, setIsZMenuOpen] = useState(false);
   const [journey, setJourney] = useState(() => getJourneySnapshot());
-  const isActive = (path: string) => location.pathname === path;
+
+  const getActiveTab = (): string => {
+    const path = location.pathname;
+    if (path === '/home' || path === '/') return '/home';
+    if (path === '/marketplace' || path === '/cart' || path === '/wishlist' || path.startsWith('/product') || path.startsWith('/brand')) return '/marketplace';
+    if (isZMenuOpen || ['/fashion-studio', '/live-tryon', '/tryon-studio', '/ai-studio', '/stylist', '/avatar-intro', '/avatar-view', '/add-product'].includes(path)) return 'z-menu';
+    if (['/friends', '/community', '/feed', '/create-look', '/gift-look', '/gift-inbox'].includes(path) || path.startsWith('/chat')) return '/friends';
+    if (['/profile', '/settings', '/manage-profiles', '/rewards'].includes(path) || path.startsWith('/profile')) return '/profile';
+    return '';
+  };
+
+  const activeTab = getActiveTab();
+  const isActive = (path: string) => activeTab === path;
 
   // Close the Z-menu on any route change (it otherwise lingers over the new screen)
   useEffect(() => {
@@ -92,7 +105,8 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
   }, [isZMenuOpen]);
 
   // Show on specific routes
-  const showNav = ['/home', '/marketplace', '/stylist', '/avatar-intro', '/settings', '/friends', '/profile', '/manage-profiles'].includes(location.pathname);
+  const hiddenRoutes = ['/login', '/welcome', '/splash', '/seller/add-product', '/seller/edit-product', '/developer'];
+  const showNav = !hiddenRoutes.some(r => location.pathname.startsWith(r));
 
   if (!showNav) return null;
 
@@ -217,7 +231,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
             <button
               key={tab.route}
               aria-label={tab.label}
-              aria-current={tab.route !== 'z-menu' && isActive(tab.route) ? 'page' : undefined}
+              aria-current={isActive(tab.route) ? 'page' : undefined}
               onClick={() => {
                 if (tab.route === 'z-menu') {
                   setIsZMenuOpen(!isZMenuOpen);
@@ -226,25 +240,27 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
                   navigate(tab.route);
                 }
               }}
-              className="flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 transition-transform relative h-full"
+              className="flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 transition-transform relative h-full outline-none focus:outline-none focus-visible:outline-none select-none border-none bg-transparent"
             >
               {tab.icon === 'Z' ? (
                 <>
                   <motion.div
                     animate={isZMenuOpen ? { rotate: 45, scale: 1.06 } : { rotate: 0, scale: 1 }}
                     transition={springs.snappy}
-                    className={`h-9 w-9 rounded-full flex items-center justify-center transition-colors ${isZMenuOpen ? 'bg-ink-invert' : 'bg-brand shadow-glow'}`}
+                    className={`h-9 w-9 rounded-full flex items-center justify-center transition-colors ${isZMenuOpen || isActive('z-menu') ? 'bg-ink-invert text-ink' : 'bg-brand shadow-glow text-on-brand'}`}
                   >
                     <motion.span
                       animate={isZMenuOpen ? { rotate: -45 } : { rotate: 0 }}
                       transition={springs.snappy}
-                      className={`font-display italic font-semibold text-[18px] leading-none ${isZMenuOpen ? 'text-ink' : 'text-on-brand'}`}
+                      className={`font-display italic font-semibold text-[18px] leading-none ${isZMenuOpen || isActive('z-menu') ? 'text-ink' : 'text-on-brand'}`}
                     >
                       Z
                     </motion.span>
                   </motion.div>
                   {/* Named like every other tab — the jewel alone tells a new user nothing */}
-                  <span className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-80">{tab.label}</span>
+                  <span className={`text-[9px] font-semibold uppercase tracking-[0.12em] transition-opacity ${
+                    isActive('z-menu') ? 'opacity-100 font-bold text-brand' : 'opacity-80'
+                  }`}>{tab.label}</span>
                 </>
               ) : (
                 <>
@@ -261,7 +277,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
                     <img
                       src={profileImage}
                       alt=""
-                      className={`w-6 h-6 rounded-full object-cover transition-opacity ${isActive(tab.route) ? 'ring-2 ring-brand' : 'opacity-60'}`}
+                      className={`w-6 h-6 rounded-full object-cover transition-opacity ${isActive(tab.route) ? 'ring-2 ring-brand opacity-100' : 'opacity-50'}`}
                       referrerPolicy="no-referrer"
                     />
                   ) : (
@@ -305,6 +321,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
 const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, loading }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { userProfile } = useUserProfile();
   const [zipPoints, setZipPoints] = useState(0);
   const [unreadFriends, setUnreadFriends] = useState(0);
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -366,8 +383,8 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
     );
   }
 
-  const isEmailUser = Boolean(user?.email && !user?.phoneNumber);
-  const isAuthenticated = Boolean(user && (!isEmailUser || user.emailVerified));
+  const userNeedsEmailVerification = requiresEmailVerification(user);
+  const isAuthenticated = Boolean(user && !user.isAnonymous && !userNeedsEmailVerification);
 
   // Full-bleed mobile shell: single container, overflow-x clipped so no
   // decorative element (shadows, stamps, transforms) can ever create
@@ -455,7 +472,7 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
-        <BottomNav zipPoints={zipPoints} unreadFriends={unreadFriends} profileImage={profileImage} />
+        <BottomNav zipPoints={zipPoints} unreadFriends={unreadFriends} profileImage={userProfile.photoURL || profileImage || user?.photoURL || null} />
     </div>
   );
 };

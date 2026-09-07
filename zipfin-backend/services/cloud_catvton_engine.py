@@ -123,15 +123,20 @@ def generate_cloud_tryon(
                 logger.warning("Space submit failed once (%s); retrying.", submit_error)
                 _time.sleep(3)
                 job = _submit()
-            # The Space gives no true percentage; estimate against a typical
-            # ~75s render so the bar keeps moving honestly (capped at 90%).
             started = _time.monotonic()
+            timeout_seconds = int(os.getenv("CLOUD_VTON_TIMEOUT", "25"))
             while not job.done():
+                elapsed = _time.monotonic() - started
+                if elapsed > timeout_seconds:
+                    try:
+                        job.cancel()
+                    except Exception:
+                        pass
+                    raise CloudVtonError(f"Hugging Face Space queue timed out after {timeout_seconds}s.")
                 if progress_callback:
-                    elapsed = _time.monotonic() - started
-                    fraction = 0.15 + min(elapsed / 75.0, 1.0) * 0.75
+                    fraction = 0.15 + min(elapsed / max(timeout_seconds, 1.0), 1.0) * 0.75
                     progress_callback(min(fraction, 0.9), "Rendering on free cloud GPU")
-                _time.sleep(2)
+                _time.sleep(1.5)
             result = job.result()
         except Exception as exc:
             raise CloudVtonError(f"Hugging Face Space call failed: {exc}") from exc

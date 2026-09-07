@@ -15,6 +15,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { Button, Wordmark } from '../components/ui';
 import { formatFirebaseAuthError } from '../utils/firebaseErrors';
+import { requiresEmailVerification } from '../services/authClient';
 
 declare global {
   interface Window {
@@ -133,6 +134,15 @@ const Login: React.FC = () => {
     return () => {
       clearRecaptchaVerifier();
     };
+  }, []);
+
+  // Auto-detect if current user session requires email verification
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (currentUser && requiresEmailVerification(currentUser)) {
+      setEmail(currentUser.email || '');
+      setStep('email-verify');
+    }
   }, []);
 
   useEffect(() => {

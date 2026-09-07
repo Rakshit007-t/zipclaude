@@ -578,6 +578,13 @@ const FitProfile: React.FC = () => {
   const fitPreferenceLabel = fitData.fitPreference === 1 ? 'Slim' : fitData.fitPreference === 3 ? 'Relaxed' : 'Regular';
 
   const buildLabel = useMemo(() => {
+    if (fitData.bodyShape) {
+      const bs = fitData.bodyShape.toLowerCase();
+      if (bs.includes('slim') || bs.includes('rectangle') || bs.includes('hourglass')) return 'Slim';
+      if (bs.includes('athletic') || bs.includes('inverted-triangle')) return 'Athletic';
+      if (bs.includes('broad') || bs.includes('apple') || bs.includes('oval')) return 'Broad';
+      if (bs.includes('average') || bs.includes('pear')) return 'Average';
+    }
     const heightCm = fitData.heightUnit === 'ft'
       ? (parseInt(fitData.heightFt || '0') * 30.48) + (parseInt(fitData.heightIn || '0') * 2.54)
       : parseFloat(fitData.heightCm || '0');
@@ -588,7 +595,7 @@ const FitProfile: React.FC = () => {
     if (bmi < 25) return 'Average';
     if (bmi < 30) return 'Athletic';
     return 'Broad';
-  }, [fitData.heightFt, fitData.heightIn, fitData.heightCm, fitData.heightUnit, fitData.weight]);
+  }, [fitData.bodyShape, fitData.heightFt, fitData.heightIn, fitData.heightCm, fitData.heightUnit, fitData.weight]);
 
   const heightDisplay = fitData.heightUnit === 'ft'
     ? (fitData.heightFt ? `${fitData.heightFt}'${fitData.heightIn || '0'}"` : `-'- "`)
@@ -956,7 +963,7 @@ const FitProfile: React.FC = () => {
             </div>
           ) : (
             <div className="mt-3 relative">
-              <input type="number" aria-label="Height in centimetres" value={userProfile.height > 0 ? String(userProfile.height) : fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178" className={`${fieldCls} pr-12`} />
+              <input type="number" aria-label="Height in centimetres" value={fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178" className={`${fieldCls} pr-12`} />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">cm</span>
             </div>
           )}

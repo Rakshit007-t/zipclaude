@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
-import { listCloset, onClosetChange, removeFromCloset } from '../services/closet';
+import { listCloset, onClosetChange, removeFromCloset, updateQuantity, type ClosetItem } from '../services/closet';
 import { useAppNavigation } from '../utils/useAppNavigation';
 import { AppBar, Button, EmptyState, Spinner } from '../components/ui';
 
@@ -17,6 +17,7 @@ interface CartItem {
   url?: string;
   productUrl?: string;
   affiliateLink?: string;
+  quantity?: number;
 }
 
 const Cart: React.FC = () => {
@@ -88,22 +89,32 @@ const Cart: React.FC = () => {
                       <p className="font-display text-[16px] font-medium text-ink leading-tight">{item.brand || ''}</p>
                       <h3 className="text-[12.5px] text-ink-soft leading-snug line-clamp-2 mt-1">{item.title || item.productRefId || ''}</h3>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mt-2">
                       <p className="text-[14px] font-semibold text-ink">{item.price || ''}</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => window.open(item.affiliateLink || item.productUrl || item.url || '#', '_blank')}
-                          aria-label={`Shop ${item.title || 'item'}`}
-                          className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform"
-                        >
-                          <span className="material-symbols-outlined text-[17px]" aria-hidden="true">shopping_bag</span>
-                        </button>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 bg-surface-2 border border-line rounded-full px-2 py-0.5">
+                          <button
+                            onClick={() => updateQuantity('cart', item.id, -1)}
+                            aria-label="Decrease quantity"
+                            className="h-6 w-6 flex items-center justify-center text-ink-soft hover:text-ink"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">remove</span>
+                          </button>
+                          <span className="text-[12px] font-semibold text-ink px-1 min-w-[16px] text-center">{item.quantity || 1}</span>
+                          <button
+                            onClick={() => updateQuantity('cart', item.id, 1)}
+                            aria-label="Increase quantity"
+                            className="h-6 w-6 flex items-center justify-center text-ink-soft hover:text-ink"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">add</span>
+                          </button>
+                        </div>
                         <button
                           onClick={() => removeItem(item.id)}
                           aria-label={`Remove ${item.title || 'item'} from cart`}
-                          className="h-9 w-9 rounded-full border border-danger/25 bg-danger-soft flex items-center justify-center active:scale-90 transition-transform"
+                          className="h-8 w-8 rounded-full border border-danger/25 bg-danger-soft flex items-center justify-center active:scale-90 transition-transform"
                         >
-                          <span className="material-symbols-outlined text-[17px] text-danger" aria-hidden="true">delete</span>
+                          <span className="material-symbols-outlined text-[15px] text-danger" aria-hidden="true">delete</span>
                         </button>
                       </div>
                     </div>

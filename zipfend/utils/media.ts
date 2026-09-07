@@ -105,3 +105,21 @@ export function dataUrlToBlob(dataUrl: string): Blob {
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new Blob([bytes], { type: mime });
 }
+
+/**
+ * Compresses and encodes a profile photo directly to an optimized, lightweight
+ * Data URL that is persisted into Firestore users/{uid} and local state instantly
+ * without being blocked by cross-origin Storage bucket preflight errors.
+ */
+export async function uploadOrEncodeProfilePhoto(file: File | Blob): Promise<string> {
+  const blob = await compressImage(file, 512, 0.85);
+  return blobToDataUrl(blob);
+}
+
+/**
+ * Compresses and encodes a banner photo directly to an optimized Data URL.
+ */
+export async function uploadOrEncodeBannerPhoto(file: File | Blob): Promise<string> {
+  const blob = await compressImage(file, 1024, 0.80);
+  return blobToDataUrl(blob);
+}

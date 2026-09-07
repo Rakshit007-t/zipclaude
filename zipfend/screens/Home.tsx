@@ -84,7 +84,7 @@ const Home: React.FC = () => {
       setWishlistCount(closetCount('likes'));
       setCartCount(closetCount('cart'));
       const map: Record<string, boolean> = {};
-      listCloset('liked').forEach(i => { map[i.id] = true; });
+      listCloset('likes').forEach(i => { map[i.id] = true; });
       setLikedMap(map);
     };
     sync();
@@ -98,10 +98,14 @@ const Home: React.FC = () => {
 
   const firstName = (profile?.profileName || userProfile?.profileName || '').split(' ')[0];
 
-  // Home hearts are LIKES (taste signal) — wishlist saving lives in the
-  // Marketplace. The heart filling IS the feedback; no toast.
   const toggleLike = (product: Product) => {
-    toggleCloset('liked', toClosetItem(product));
+    const user = auth.currentUser;
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    const saved = toggleCloset('likes', toClosetItem(product));
+    showToast(saved ? `${product.brand} saved to wishlist ♥` : 'Removed from wishlist', 'success');
   };
 
   const addProductToCart = async (product: Product) => {
@@ -293,6 +297,9 @@ const Home: React.FC = () => {
                   <button onClick={() => toggleLike(hero)} aria-label="Like" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center press-icon">
                     <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: likedMap[hero.id] ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
                   </button>
+                  <button onClick={() => addProductToCart(hero)} aria-label="Add to cart" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center press-icon">
+                    <span className="material-symbols-outlined text-white text-[18px]" aria-hidden="true">add_shopping_cart</span>
+                  </button>
                   <button onClick={() => navigate('/tryon-studio', { state: { product: hero } })} aria-label="Try on" className="h-10 w-10 rounded-full bg-black/35 backdrop-blur-md border border-white/15 flex items-center justify-center press-icon">
                     <span className="material-symbols-outlined text-white text-[18px]" aria-hidden="true">view_in_ar</span>
                   </button>
@@ -483,7 +490,10 @@ const Home: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-2.5 pb-2">
-              <Button size="lg" fullWidth trailingIcon="arrow_forward" onClick={() => { const p = detailProduct; setDetailProduct(null); void handleProductClick(p); }}>
+              <Button size="lg" fullWidth icon="add_shopping_cart" onClick={() => { addProductToCart(detailProduct); setDetailProduct(null); }}>
+                Add to cart
+              </Button>
+              <Button variant="secondary" size="lg" fullWidth trailingIcon="arrow_forward" onClick={() => { const p = detailProduct; setDetailProduct(null); void handleProductClick(p); }}>
                 Full recommendation
               </Button>
               <Button variant="ghost" fullWidth onClick={() => window.open(detailProduct.url, '_blank')}>

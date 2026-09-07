@@ -35,7 +35,7 @@ service cloud.firestore {
           'lastActiveAt', 'updatedAt'
         ]);
       allow update: if isSelf(uid) && ownProfileFieldsOnly();
-      allow delete: if false;
+      allow delete: if isSelf(uid) || isAdmin();
 
       // Fit data, measurements and recommendations are owner/admin only.
       match /fitProfiles/{document=**} { allow read, write: if isSelf(uid) || isAdmin(); }
@@ -48,12 +48,22 @@ service cloud.firestore {
       match /blocked/{targetUid} { allow read, write: if isSelf(uid) || isAdmin(); }
     }
 
+    function ownPublicProfileFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'uid', 'displayName', 'displayNameLower', 'username', 'photoURL',
+        'bio', 'website', 'location', 'followersCount', 'followingCount',
+        'postsCount', 'lastActiveAt', 'updatedAt'
+      ]);
+    }
+
     // Deliberately separate, minimised public profile projection.
     match /publicProfiles/{uid} {
       allow read: if signedIn();
-      allow create, update: if isSelf(uid) && publicProfileFieldsOnly()
+      allow create: if isSelf(uid) && publicProfileFieldsOnly()
         && request.resource.data.uid == uid;
-      allow delete: if false;
+      allow update: if isSelf(uid) && (publicProfileFieldsOnly() || ownPublicProfileFieldsOnly())
+        && request.resource.data.uid == uid;
+      allow delete: if isSelf(uid) || isAdmin();
     }
 
     // All social mutations, rewards, gifts, transactions and moderation

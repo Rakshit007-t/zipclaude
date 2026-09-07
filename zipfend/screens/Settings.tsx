@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import { PLANS, getUserRole, setUserRole, getSellerStatus, setSellerStatus, getUserPlan } from '../utils/subscription';
-import { compressImage } from '../utils/media';
+import { compressImage, uploadOrEncodeProfilePhoto } from '../utils/media';
 import app, { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
+import { deleteAccountPermanently, reauthenticateEmail, reauthenticateGoogle } from '../services/accountService';
 import {
   getSellerMe,
   onboardSeller,
@@ -19,6 +20,7 @@ import {
   adminSetSellerStatus,
   SellerProfile
 } from '../services/ziprightApi';
+import { defaultUsername } from '../services/social';
 import {
   cn,
   motion,
@@ -162,11 +164,18 @@ const Settings: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { userProfile, isHydrated, refreshProfile, clearProfile } = useUserProfile();
+  const { userProfile, setUserProfile, isHydrated, refreshProfile, clearProfile } = useUserProfile();
 
   const [settingsSearch, setSettingsSearch] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [showReauthModal, setShowReauthModal] = useState(false);
+  const [showFinalDeleteConfirm, setShowFinalDeleteConfirm] = useState(false);
+  const [reauthPassword, setReauthPassword] = useState('');
+  const [reauthError, setReauthError] = useState('');
+  const [reauthenticating, setReauthenticating] = useState(false);
+  const [reauthenticated, setReauthenticated] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Deep link: other screens can open a specific view via navigate('/settings', { state: { view } })
   const [view, setView] = useState<ViewState>((location.state as { view?: ViewState } | null)?.view || 'main');
@@ -206,11 +215,17 @@ const Settings: React.FC = () => {
   const { showToast } = useToast();
 
   const [profileImage, setProfileImage] = useState(
+    userProfile.photoURL ||
     auth.currentUser?.photoURL ||
     ((auth.currentUser as typeof auth.currentUser & { photoUrl?: string })?.photoUrl ?? '') ||
-    localStorage.getItem('zipright_profile_photo') ||
     ''
   );
+
+  useEffect(() => {
+    if (typeof userProfile.photoURL !== 'undefined') {
+      setProfileImage(userProfile.photoURL || '');
+    }
+  }, [userProfile.photoURL]);
 
   const [userData, setUserData] = useState({
       firstName: '',
@@ -222,6 +237,10 @@ const Settings: React.FC = () => {
       planId: 'free',
       zipPoints: 0
   });
+
+  const effectivePhoto = userProfile.photoURL || profileImage || auth.currentUser?.photoURL || '';
+  const effectiveDisplayName = userProfile.displayName || userProfile.profileName || (userData.firstName ? `${userData.firstName} ${userData.lastName}`.trim() : '') || auth.currentUser?.displayName || 'ZipRIGHT Member';
+  const initialLetter = (effectiveDisplayName || 'Z').charAt(0).toUpperCase();
 
   // Edit Profile Temp State
   const [editUserData, setEditUserData] = useState(userData);
@@ -325,13 +344,13 @@ const Settings: React.FC = () => {
             try {
                 // Sync Admin role
                 try {
-                    const adminDoc = await getDoc(doc(db, 'admins', user.uid));
-                    if (adminDoc.exists() && adminDoc.data()?.status === 'active') {
+                    const adminDoc = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
+                    if (adminDoc?.exists() && adminDoc.data()?.status === 'active') {
                         setUserRole('admin');
                         setUserRoleState('admin');
                     }
-                } catch (err) {
-                    console.warn('[Settings] Failed to fetch admin doc:', err);
+                } catch {
+                    // Admin documents are server-managed
                 }
 
                 // Sync Seller state
@@ -361,10 +380,12 @@ const Settings: React.FC = () => {
                 const userDoc = await getDoc(doc(db, 'users', user.uid));
                 const data = userDoc.exists() ? userDoc.data() : null;
                 if (userDoc.exists()) {
-                    const profileName = typeof data?.profileName === 'string' ? data.profileName : '';
-                    const [firstName = '', ...lastNameParts] = profileName.split(' ').filter(Boolean);
+                    const resolvedDisplayName = data?.displayName || data?.profileName || savedProfile.displayName || savedProfile.profileName || user.displayName || '';
+                    const [firstName = '', ...lastNameParts] = resolvedDisplayName.split(' ').filter(Boolean);
+                    const photo = data?.photoURL || savedProfile.photoURL || user.photoURL || '';
+                    if (photo) setProfileImage(photo);
                     const u = {
-                        firstName,
+                        firstName: firstName || 'ZipRIGHT',
                         lastName: lastNameParts.join(' '),
                         email: user.email || '',
                         phone: '',
@@ -377,7 +398,6 @@ const Settings: React.FC = () => {
                     setEditUserData(u);
                     const plan = Object.values(PLANS).find(p => p.id === 'free') || PLANS.FREE;
                     setUserPlan(plan);
-                    if (user.photoURL) setProfileImage(user.photoURL);
                 }
 
                 const membersList = data?.profileName ? [{
@@ -478,29 +498,34 @@ const Settings: React.FC = () => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Choose an image file (JPG, PNG, or WebP).', 'error');
+      return;
+    }
+
     try {
-      const blob = await compressImage(file, 512, 0.85);
+      showToast('Updating profile photo...', 'info');
+      const url = await uploadOrEncodeProfilePhoto(file);
       const user = auth.currentUser;
       if (user && !user.isAnonymous) {
-        // Real account: upload to Storage, persist on auth + users doc so the
-        // photo shows everywhere (nav, chat, profile, feed).
-        const storageRef = ref(getStorage(app), `profiles/${user.uid}.jpg`);
-        await uploadBytes(storageRef, blob);
-        const url = await getDownloadURL(storageRef);
-        updateAuthProfile(user, { photoURL: url }).catch(() => {});
-        await setDoc(doc(db, 'users', user.uid), { photoURL: url }, { merge: true });
-        setProfileImage(url);
-        showToast('Profile photo updated', 'success');
-      } else {
-        // Demo session: keep locally so it survives reloads
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const base64 = e.target?.result as string;
-          setProfileImage(base64);
-          try { localStorage.setItem('zipright_profile_photo', base64); } catch {}
-        };
-        reader.readAsDataURL(blob);
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          await updateAuthProfile(user, { photoURL: url }).catch(() => {});
+        }
+        await setDoc(doc(db, 'users', user.uid), {
+          photoURL: url,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+        await setDoc(doc(db, 'publicProfiles', user.uid), {
+          uid: user.uid,
+          photoURL: url,
+          updatedAt: serverTimestamp(),
+        }, { merge: true }).catch(() => {});
       }
+      try { localStorage.setItem('zipright_profile_photo', url); } catch {}
+      setProfileImage(url);
+      setUserProfile(prev => ({ ...prev, photoURL: url }));
+      showToast('Profile photo updated', 'success');
     } catch {
       showToast('Could not update photo. Try again.', 'error');
     }
@@ -860,10 +885,10 @@ const Settings: React.FC = () => {
                         onClick={() => fileInputRef.current?.click()}
                     >
                         <div className="h-24 w-24 rounded-full overflow-hidden border border-line bg-surface-1 flex items-center justify-center">
-                            {profileImage ? (
-                              <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
+                            {effectivePhoto ? (
+                              <img src={effectivePhoto} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
                             ) : (
-                              <span className="font-display text-[32px] font-medium text-ink">{(editUserData.firstName || 'Z').charAt(0).toUpperCase()}</span>
+                              <span className="font-display text-[32px] font-medium text-ink">{initialLetter}</span>
                             )}
                         </div>
                         <div className="absolute bottom-0 right-0 bg-ink text-ink-invert h-8 w-8 rounded-full flex items-center justify-center border-2 border-surface-0">
@@ -1495,10 +1520,10 @@ const Settings: React.FC = () => {
               onClick={() => fileInputRef.current?.click()}
             >
               <div className="h-20 w-20 rounded-full overflow-hidden border border-line bg-surface-1 flex items-center justify-center">
-                {profileImage ? (
-                  <img src={profileImage} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
+                {effectivePhoto ? (
+                  <img src={effectivePhoto} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>
                 ) : (
-                  <span className="font-display text-[28px] font-medium text-ink">{(userData.firstName || 'Z').charAt(0).toUpperCase()}</span>
+                  <span className="font-display text-[28px] font-medium text-ink">{initialLetter}</span>
                 )}
               </div>
               <div className="absolute bottom-0 right-0 bg-ink text-ink-invert h-7 w-7 rounded-full flex items-center justify-center border-2 border-surface-0">
@@ -1509,7 +1534,7 @@ const Settings: React.FC = () => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="font-display text-[26px] leading-[1.1] font-light text-ink truncate">
-                  {userData.firstName} <em className="font-medium">{userData.lastName}</em>
+                  {userData.firstName || effectiveDisplayName.split(' ')[0] || 'ZipRIGHT'} <em className="font-medium">{userData.lastName || effectiveDisplayName.split(' ').slice(1).join(' ')}</em>
                 </h1>
                 <button
                   onClick={() => {
@@ -1865,10 +1890,14 @@ const Settings: React.FC = () => {
         </div>
       </Sheet>
 
-      {/* Delete Account Confirmation Modal */}
+      {/* 1. Initial Warning Modal */}
       <Modal
         open={showDeleteAccountConfirm}
-        onClose={() => setShowDeleteAccountConfirm(false)}
+        onClose={() => {
+          if (!deletingAccount && !reauthenticating) {
+            setShowDeleteAccountConfirm(false);
+          }
+        }}
         title="Delete your account?"
         description="This will permanently delete your account, fit profiles, wishlist, and saved try-ons. This action CANNOT be undone."
         actions={
@@ -1877,15 +1906,171 @@ const Settings: React.FC = () => {
             <Button
               variant="danger"
               fullWidth
-              onClick={async () => {
+              onClick={() => {
                 setShowDeleteAccountConfirm(false);
-                try { await auth.signOut(); } catch {}
+                setReauthError('');
+                setReauthPassword('');
+                setShowReauthModal(true);
+              }}
+            >
+              Continue to verification
+            </Button>
+          </>
+        }
+      />
+
+      {/* 2. Secure Reauthentication Modal */}
+      <Modal
+        open={showReauthModal}
+        onClose={() => {
+          if (!reauthenticating) {
+            setShowReauthModal(false);
+            setReauthPassword('');
+            setReauthError('');
+          }
+        }}
+        title="Verify your identity"
+        description="For your security, please verify your identity before deleting your account."
+        actions={
+          <div className="w-full flex flex-col gap-3">
+            {auth.currentUser?.providerData.some(p => p.providerId === 'google.com') ? (
+              <Button
+                variant="primary"
+                fullWidth
+                loading={reauthenticating}
+                onClick={async () => {
+                  const currentUser = auth.currentUser;
+                  if (!currentUser) return;
+                  setReauthenticating(true);
+                  setReauthError('');
+                  const res = await reauthenticateGoogle(currentUser);
+                  setReauthenticating(false);
+                  if (res.success) {
+                    setShowReauthModal(false);
+                    setReauthenticated(true);
+                    setShowFinalDeleteConfirm(true);
+                  } else {
+                    setReauthError(res.error || 'Google verification failed.');
+                  }
+                }}
+              >
+                Verify with Google
+              </Button>
+            ) : (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const currentUser = auth.currentUser;
+                  if (!currentUser) return;
+                  if (!reauthPassword) {
+                    setReauthError('Please enter your current password.');
+                    return;
+                  }
+                  setReauthenticating(true);
+                  setReauthError('');
+                  const passToVerify = reauthPassword;
+                  setReauthPassword('');
+                  const res = await reauthenticateEmail(currentUser, passToVerify);
+                  setReauthenticating(false);
+                  if (res.success) {
+                    setShowReauthModal(false);
+                    setReauthenticated(true);
+                    setShowFinalDeleteConfirm(true);
+                  } else {
+                    setReauthError(res.error || 'Verification failed.');
+                  }
+                }}
+                className="w-full flex flex-col gap-3"
+              >
+                <div className="w-full text-left">
+                  <label className="eyebrow !text-[9px] mb-1.5 block">Current Password</label>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    aria-label="Current Password"
+                    value={reauthPassword}
+                    onChange={(e) => setReauthPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full h-12 bg-surface-1 border border-line rounded-ctl px-4 text-ink font-medium text-[15px] outline-none focus:border-ink"
+                    autoFocus
+                  />
+                </div>
+                {reauthError && <p role="alert" className="text-[12.5px] font-medium text-danger text-center">{reauthError}</p>}
+                <div className="flex gap-2.5 pt-2">
+                  <Button variant="secondary" fullWidth disabled={reauthenticating} onClick={() => { setShowReauthModal(false); setReauthPassword(''); setReauthError(''); }}>Cancel</Button>
+                  <Button type="submit" variant="danger" fullWidth loading={reauthenticating}>Verify & Proceed</Button>
+                </div>
+              </form>
+            )}
+            {auth.currentUser?.providerData.some(p => p.providerId === 'google.com') && reauthError && (
+              <p role="alert" className="text-[12.5px] font-medium text-danger text-center">{reauthError}</p>
+            )}
+            {auth.currentUser?.providerData.some(p => p.providerId === 'google.com') && (
+              <Button variant="secondary" fullWidth disabled={reauthenticating} onClick={() => { setShowReauthModal(false); setReauthError(''); }}>Cancel</Button>
+            )}
+          </div>
+        }
+      />
+
+      {/* 3. Final Permanent Deletion Confirmation Modal */}
+      <Modal
+        open={showFinalDeleteConfirm}
+        onClose={() => {
+          if (!deletingAccount) {
+            setShowFinalDeleteConfirm(false);
+            setReauthenticated(false);
+          }
+        }}
+        title="Final confirmation"
+        description="Identity verified. Are you absolutely sure you want to permanently delete your ZipRIGHT account and all associated fit data?"
+        actions={
+          <>
+            <Button variant="secondary" fullWidth disabled={deletingAccount} onClick={() => { setShowFinalDeleteConfirm(false); setReauthenticated(false); }}>Cancel</Button>
+            <Button
+              variant="danger"
+              fullWidth
+              loading={deletingAccount}
+              onClick={async () => {
+                const currentUser = auth.currentUser;
+                if (!currentUser || !reauthenticated) {
+                  showToast('Re-authentication required.', 'error');
+                  setShowFinalDeleteConfirm(false);
+                  return;
+                }
+
+                setDeletingAccount(true);
+                let result;
+                try {
+                  result = await deleteAccountPermanently(currentUser);
+                } catch (err: any) {
+                  result = { success: false, error: err?.message || 'Unexpected deletion error.' };
+                } finally {
+                  setDeletingAccount(false);
+                  setShowFinalDeleteConfirm(false);
+                }
+
+                if (!result.success) {
+                  showToast(result.error || 'Failed to delete account.', 'error');
+                  return;
+                }
+
+                // Deletion actually succeeded
+                try {
+                  const uid = currentUser.uid;
+                  localStorage.removeItem(`zipright_fit_profile:${uid}`);
+                  localStorage.removeItem('zipright_profile_photo');
+                  localStorage.removeItem('zipright_role');
+                  localStorage.removeItem('zipright_seller_status');
+                  localStorage.removeItem('zipright_plan');
+                } catch {}
+
                 try { clearProfile(); } catch {}
-                showToast('Account deleted', 'info');
+                try { await auth.signOut(); } catch {}
+                showToast('Your account has been permanently deleted.', 'info');
                 navigate('/welcome', { replace: true });
               }}
             >
-              Delete permanently
+              Permanently delete
             </Button>
           </>
         }

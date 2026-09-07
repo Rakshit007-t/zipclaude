@@ -1,4 +1,5 @@
 .venv/
+venv/
 node_modules/
 __pycache__/
 .next/
@@ -9,6 +10,16 @@ logs/
 *.log
 .env
 .env.*
+!.env.example
+!.env.*.example
+service-account.json
+serviceAccountKey.json
+*serviceaccount*.json
+*service-account*.json
+firebase-adminsdk*.json
+firebase_key.json
+*.pem
+*.key
 *.sqlite
 *.db
 *.pt

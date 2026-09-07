@@ -42,8 +42,8 @@ export interface TryOnParams {
 
 // Generation runs server-side as a job: it keeps going even if the app is
 // minimized or the page closed — reconnecting with the job id resumes it.
-const POLL_INTERVAL_MS = 2500;
-const MAX_WAIT_MS = 15 * 60 * 1000;
+const POLL_INTERVAL_MS = 2000;
+const MAX_WAIT_MS = 45 * 1000;
 
 export class TryOnPollingCancelledError extends Error {
   constructor() {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, springs } from '../components/ui';
 import { useToast } from '../contexts/ToastContext';
+import { useUserProfile } from '../contexts/UserProfileContext';
 import { closetCount, inCloset, onClosetChange, toggleCloset } from '../services/closet';
 import {
   categoryToClothType,
@@ -18,6 +19,7 @@ const FashionStudio: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const { userProfile } = useUserProfile();
 
   const [size, setSize] = useState('M');
   const [isZoomed, setIsZoomed] = useState(false);
@@ -25,6 +27,7 @@ const FashionStudio: React.FC = () => {
   const [lighting, setLighting] = useState<'Studio' | 'Outdoor' | 'Night'>('Studio');
   const [isLiked, setIsLiked] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [tryOnError, setTryOnError] = useState<string | null>(null);
 
   // Product Data from Location
   const incomingProduct = location.state?.product;
@@ -61,9 +64,15 @@ const FashionStudio: React.FC = () => {
     const controller = new AbortController();
     tryOnAbortRef.current = controller;
     setGenerating(true);
+    setTryOnError(null);
     try {
       const result = await generateTryOnImage(
-        { productImageUrl: product.image, clothType, quality },
+        {
+          productImageUrl: product.image,
+          clothType,
+          quality,
+          personImage: userProfile.photoURL || undefined,
+        },
         undefined,
         controller.signal,
       );
@@ -71,7 +80,7 @@ const FashionStudio: React.FC = () => {
       setTryonUrl(result.imageUrl);
       setTryonEngine(result.engine);
       if (result.engine === 'overlay') {
-        showToast('Quick preview shown — AI render unavailable right now, tap Try again', 'success');
+        showToast('Quick preview shown — tap Max quality or Studio for full AI', 'info');
       }
     } catch (error: any) {
       if (error instanceof TryOnPollingCancelledError || controller.signal.aborted || !mountedRef.current) {
@@ -83,6 +92,7 @@ const FashionStudio: React.FC = () => {
         return;
       }
       console.error('Try-on generation failed:', error);
+      setTryOnError(error?.message || 'Try-on failed. Please try again.');
       showToast(error?.message || 'Try-on failed. Please try again.', 'error');
     } finally {
       if (tryOnAbortRef.current === controller) {
@@ -222,6 +232,34 @@ const FashionStudio: React.FC = () => {
               <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-brand-on-media">
                 {tryonEngine === 'overlay' ? 'Preview' : 'AI Render'}
               </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Error state overlay */}
+        <AnimatePresence>
+          {tryOnError && !generating && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="absolute inset-x-6 bottom-32 z-30 p-4 rounded-2xl bg-surface-1/95 border border-line backdrop-blur-md shadow-float text-center flex flex-col items-center gap-3"
+            >
+              <p className="text-[13px] text-ink-soft">{tryOnError}</p>
+              <div className="flex gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  className="flex-1 py-2 px-3 rounded-xl border border-line text-ink text-[12px] font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runTryOn('fast')}
+                  className="flex-1 py-2 px-3 rounded-xl bg-brand text-on-brand text-[12px] font-semibold shadow-sm"
+                >
+                  Try Again
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

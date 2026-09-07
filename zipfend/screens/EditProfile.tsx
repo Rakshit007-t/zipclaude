@@ -7,7 +7,7 @@ import app, { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
-import { compressImage } from '../utils/media';
+import { compressImage, uploadOrEncodeProfilePhoto, uploadOrEncodeBannerPhoto } from '../utils/media';
 import { AppBar, Button, Input, Modal, SegmentedControl, Spinner, Eyebrow } from '../components/ui';
 
 const ProfileField = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -25,7 +25,7 @@ const EditProfile: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
-  const currentUser = auth.currentUser;
+  const [authUser, setAuthUser] = useState(auth.currentUser);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -47,29 +47,40 @@ const EditProfile: React.FC = () => {
   const [initialFormState, setInitialFormState] = useState<string>('');
 
   useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setAuthUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     const init = async () => {
       setLoading(true);
-      const user = auth.currentUser;
-      const currentPhoto = user?.photoURL || localStorage.getItem('zipright_profile_photo') || '';
-      setProfileImage(currentPhoto);
+      const user = auth.currentUser || authUser;
+      let initialPhoto = user?.photoURL || userProfile.photoURL || '';
 
       let initialData = {
-        displayName: user?.displayName || userProfile.profileName || '',
+        displayName: user?.displayName || userProfile.displayName || userProfile.profileName || '',
         username: userProfile.username || (userProfile.profileName ? userProfile.profileName.toLowerCase().replace(/\s+/g, '_') : ''),
-        bio: 'Style enthusiast on ZipRIGHT',
+        bio: '',
         website: '',
         pronouns: '',
         gender: userProfile.gender || 'Male',
-        location: 'Bengaluru, India',
-        birthday: '1998-05-15',
+        location: '',
+        birthday: '',
         bannerImage: '',
       };
 
       if (user && !user.isAnonymous) {
         try {
           const docSnap = await getDoc(doc(db, 'users', user.uid));
-          if (docSnap.exists()) {
+          if (docSnap.exists() && active) {
             const data = docSnap.data();
+            const remotePhoto = data.photoURL || data.photoUrl || '';
+            if (remotePhoto) {
+              initialPhoto = remotePhoto;
+            }
             initialData = {
               displayName: data.displayName || data.profileName || initialData.displayName,
               username: data.username || initialData.username,
@@ -87,6 +98,8 @@ const EditProfile: React.FC = () => {
         }
       }
 
+      if (!active) return;
+      setProfileImage(initialPhoto);
       setDisplayName(initialData.displayName);
       setUsername(initialData.username);
       setBio(initialData.bio);
@@ -96,9 +109,7 @@ const EditProfile: React.FC = () => {
       setLocation(initialData.location);
       setBirthday(initialData.birthday);
       setBannerImage(initialData.bannerImage);
-      // Dirty-state comparison must mirror the fields that are actually
-      // editable on this screen. Including the retired banner/pronoun fields
-      // made every visit look unsaved and trapped users behind the discard UI.
+
       setInitialFormState(JSON.stringify({
         displayName: initialData.displayName,
         username: initialData.username,
@@ -112,7 +123,8 @@ const EditProfile: React.FC = () => {
     };
 
     void init();
-  }, [userProfile]);
+    return () => { active = false; };
+  }, [authUser, userProfile.displayName, userProfile.profileName, userProfile.photoURL, userProfile.username]);
 
   const currentFormState = JSON.stringify({
     displayName,
@@ -145,27 +157,27 @@ const EditProfile: React.FC = () => {
     }
 
     try {
-      const blob = await compressImage(file, 512, 0.85);
+      showToast('Updating profile photo...', 'info');
+      const url = await uploadOrEncodeProfilePhoto(file);
       const user = auth.currentUser;
       if (user && !user.isAnonymous) {
-        const storageRef = ref(getStorage(app), `profiles/${user.uid}.jpg`);
-        await uploadBytes(storageRef, blob);
-        const url = await getDownloadURL(storageRef);
-        await updateAuthProfile(user, { photoURL: url }).catch(() => {});
-        await setDoc(doc(db, 'users', user.uid), { photoURL: url }, { merge: true });
-        await setDoc(doc(db, 'publicProfiles', user.uid), { photoURL: url, updatedAt: serverTimestamp() }, { merge: true });
-        setProfileImage(url);
-        setUserProfile(prev => ({ ...prev, photoURL: url }));
-        showToast('Profile photo updated', 'success');
-      } else {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const base64 = e.target?.result as string;
-          setProfileImage(base64);
-          try { localStorage.setItem('zipright_profile_photo', base64); } catch {}
-        };
-        reader.readAsDataURL(blob);
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          await updateAuthProfile(user, { photoURL: url }).catch(() => {});
+        }
+        await setDoc(doc(db, 'users', user.uid), {
+          photoURL: url,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+        await setDoc(doc(db, 'publicProfiles', user.uid), {
+          uid: user.uid,
+          photoURL: url,
+          updatedAt: serverTimestamp(),
+        }, { merge: true }).catch(() => {});
       }
+      try { localStorage.setItem('zipright_profile_photo', url); } catch {}
+      setProfileImage(url);
+      setUserProfile(prev => ({ ...prev, photoURL: url }));
+      showToast('Profile photo updated', 'success');
     } catch {
       showToast('Could not update photo. Try again.', 'error');
     }
@@ -181,12 +193,15 @@ const EditProfile: React.FC = () => {
         await deleteObject(ref(getStorage(app), `profiles/${user.uid}.jpg`)).catch((error: { code?: string }) => {
           if (error?.code !== 'storage/object-not-found') throw error;
         });
-        await updateAuthProfile(user, { photoURL: null });
+        await updateAuthProfile(user, { photoURL: null }).catch(() => {});
         await setDoc(doc(db, 'users', user.uid), { photoURL: deleteField() }, { merge: true });
-        await setDoc(doc(db, 'publicProfiles', user.uid), { photoURL: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
-      } else {
-        localStorage.removeItem('zipright_profile_photo');
+        await setDoc(doc(db, 'publicProfiles', user.uid), {
+          uid: user.uid,
+          photoURL: deleteField(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true }).catch(() => {});
       }
+      localStorage.removeItem('zipright_profile_photo');
       setProfileImage('');
       setUserProfile(prev => ({ ...prev, photoURL: '' }));
       showToast('Profile photo removed', 'success');
@@ -201,28 +216,65 @@ const EditProfile: React.FC = () => {
     if (!file) return;
 
     try {
-      showToast('Compressing & uploading banner...', 'info');
-      const blob = await compressImage(file, 1024, 0.80);
+      showToast('Updating banner...', 'info');
+      const url = await uploadOrEncodeBannerPhoto(file);
       const user = auth.currentUser;
       if (user && !user.isAnonymous) {
-        const storageRef = ref(getStorage(app), `banners/${user.uid}.jpg`);
-        await uploadBytes(storageRef, blob);
-        const url = await getDownloadURL(storageRef);
         await setDoc(doc(db, 'users', user.uid), { bannerImage: url }, { merge: true });
-        setBannerImage(url);
-        showToast('Banner photo updated!', 'success');
-      } else {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const base64 = e.target?.result as string;
-          setBannerImage(base64);
-        };
-        reader.readAsDataURL(blob);
       }
+      setBannerImage(url);
+      showToast('Banner photo updated!', 'success');
     } catch {
       showToast('Could not update banner. Try again.', 'error');
     }
   };
+
+  // Location Autocomplete State
+  const [locationQuery, setLocationQuery] = useState('');
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const locationRef = useRef<HTMLDivElement>(null);
+
+  const POPULAR_LOCATIONS = [
+    'New York, USA',
+    'London, UK',
+    'Paris, France',
+    'Milan, Italy',
+    'Tokyo, Japan',
+    'Los Angeles, USA',
+    'Seoul, South Korea',
+    'Berlin, Germany',
+    'Mumbai, India',
+    'Delhi, India',
+    'Bengaluru, India',
+    'Punjab, India',
+    'Chandigarh, India',
+    'Hyderabad, India',
+    'Dubai, UAE',
+    'Singapore',
+    'Toronto, Canada',
+    'Sydney, Australia',
+    'Rome, Italy',
+    'Barcelona, Spain',
+    'San Francisco, USA',
+    'Amsterdam, Netherlands',
+    'Stockholm, Sweden',
+    'Miami, USA',
+    'Hong Kong',
+  ];
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (locationRef.current && !locationRef.current.contains(event.target as Node)) {
+        setShowLocationSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredLocations = location
+    ? POPULAR_LOCATIONS.filter(loc => loc.toLowerCase().includes(location.toLowerCase()))
+    : POPULAR_LOCATIONS.slice(0, 8);
 
   const handleSave = async () => {
     if (!displayName.trim()) {
@@ -246,22 +298,41 @@ const EditProfile: React.FC = () => {
           gender,
           location: location.trim(),
           birthday,
+          photoURL: profileImage || null,
           bannerImage,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
-        // Only the explicitly public projection is visible to other members.
-        // Fit and account fields above remain in the owner-only users document.
-        await setDoc(doc(db, 'publicProfiles', user.uid), {
+
+        const pubSnap = await getDoc(doc(db, 'publicProfiles', user.uid)).catch(() => null);
+        const existingPub = pubSnap?.exists() ? pubSnap.data() : {};
+
+        // Build a strict, clean projection containing ONLY valid public profile keys
+        const publicProfilePayload: Record<string, any> = {
           uid: user.uid,
           displayName: displayName.trim(),
           displayNameLower: displayName.trim().toLowerCase(),
           username: cleanUsername,
-          photoURL: user.photoURL || profileImage || null,
+          photoURL: profileImage || null,
           bio: bio.trim(),
           website: website.trim(),
           location: location.trim(),
           updatedAt: serverTimestamp(),
-        }, { merge: true });
+        };
+
+        if (typeof existingPub?.followersCount === 'number') {
+          publicProfilePayload.followersCount = existingPub.followersCount;
+        }
+        if (typeof existingPub?.followingCount === 'number') {
+          publicProfilePayload.followingCount = existingPub.followingCount;
+        }
+        if (typeof existingPub?.postsCount === 'number') {
+          publicProfilePayload.postsCount = existingPub.postsCount;
+        }
+        if (existingPub?.lastActiveAt) {
+          publicProfilePayload.lastActiveAt = existingPub.lastActiveAt;
+        }
+
+        await setDoc(doc(db, 'publicProfiles', user.uid), publicProfilePayload).catch(() => {});
 
         if (user.displayName !== displayName.trim()) {
           await updateAuthProfile(user, { displayName: displayName.trim() }).catch(() => {});
@@ -274,12 +345,17 @@ const EditProfile: React.FC = () => {
         profileName: displayName.trim(),
         username: cleanUsername,
         gender,
+        bio: bio.trim(),
+        location: location.trim(),
+        website: website.trim(),
+        photoURL: profileImage || undefined,
       }));
 
       showToast('Profile Saved', 'success');
       goBack('/profile');
-    } catch (e) {
-      console.error('[EditProfile] Save failed:', e);
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string };
+      console.error('[EditProfile] Save failed — code:', err?.code, '| message:', err?.message);
       showToast('Failed to save profile. Please try again.', 'error');
     } finally {
       setSaving(false);
@@ -311,9 +387,46 @@ const EditProfile: React.FC = () => {
         <div className="divide-y divide-line">
           <ProfileField label="Name"><input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Name" className="profile-edit-input" /></ProfileField>
           <ProfileField label="Username"><input value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" className="profile-edit-input" /></ProfileField>
-          <ProfileField label="Bio"><textarea value={bio} onChange={e => setBio(e.target.value.slice(0, 150))} rows={3} placeholder="Bio" className="profile-edit-input resize-none" /></ProfileField>
+          <ProfileField label="Bio">
+            <div className="w-full flex flex-col gap-1">
+              <textarea value={bio} onChange={e => setBio(e.target.value.slice(0, 150))} rows={3} placeholder="Bio" className="profile-edit-input resize-none" maxLength={150} />
+              <span className="text-[10px] text-ink-faint text-right">{bio.length} / 150</span>
+            </div>
+          </ProfileField>
           <ProfileField label="Website"><input value={website} onChange={e => setWebsite(e.target.value)} placeholder="Website" className="profile-edit-input" /></ProfileField>
-          <ProfileField label="Location"><input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location" className="profile-edit-input" /></ProfileField>
+          <ProfileField label="Location">
+            <div ref={locationRef} className="relative w-full">
+              <input
+                value={location}
+                onChange={e => {
+                  setLocation(e.target.value);
+                  setShowLocationSuggestions(true);
+                }}
+                onFocus={() => setShowLocationSuggestions(true)}
+                placeholder="City, Country"
+                className="profile-edit-input"
+              />
+              {showLocationSuggestions && filteredLocations.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-48 overflow-y-auto rounded-xl border border-line bg-surface-1 py-1 shadow-2xl backdrop-blur-xl">
+                  {filteredLocations.map(loc => (
+                    <button
+                      key={loc}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setLocation(loc);
+                        setShowLocationSuggestions(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-[13px] text-ink hover:bg-surface-2 transition-colors flex items-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-[16px] text-ink-soft">location_on</span>
+                      <span>{loc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ProfileField>
           <ProfileField label="Birthday"><input type="date" value={birthday} onChange={e => setBirthday(e.target.value)} className="profile-edit-input" /></ProfileField>
           <ProfileField label="Gender"><select value={gender} onChange={e => setGender(e.target.value)} className="profile-edit-input"><option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option></select></ProfileField>
         </div>

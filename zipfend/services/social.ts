@@ -35,6 +35,8 @@ export interface PublicProfile {
   username: string;
   photoURL: string | null;
   bio?: string;
+  location?: string;
+  website?: string;
   followersCount?: number;
   followingCount?: number;
   postsCount?: number;
@@ -59,6 +61,8 @@ function toProfile(uid: string, data: Record<string, any>): PublicProfile {
     username: data.username || defaultUsername(data.displayName),
     photoURL: data.photoURL || data.photoUrl || null,
     bio: data.bio || '',
+    location: data.location || '',
+    website: data.website || '',
     followersCount: data.followersCount || 0,
     followingCount: data.followingCount || 0,
     postsCount: data.postsCount || 0,
@@ -95,18 +99,44 @@ export async function ensureUserDoc(): Promise<void> {
     const ref = doc(db, 'users', user.uid);
     const snap = await getDoc(ref);
     const data = snap.data() || {};
-    const displayName = user.displayName || data.displayName || 'ZipRIGHT member';
-    const publicProfile = {
+    const displayName = data.displayName || user.displayName || 'ZipRIGHT member';
+    const photoURL = data.photoURL || user.photoURL || null;
+    const location = data.location || '';
+    const bio = data.bio || '';
+    const website = data.website || '';
+    const username = data.username || defaultUsername(displayName);
+
+    const userDocFields: Record<string, any> = {
+      displayName,
+      displayNameLower: displayName.toLowerCase(),
+      username,
+      photoURL,
+      lastActiveAt: serverTimestamp(),
+    };
+    if (location) userDocFields.location = location;
+    if (bio) userDocFields.bio = bio;
+    if (website) userDocFields.website = website;
+
+    const publicProfileFields: Record<string, any> = {
       uid: user.uid,
       displayName,
       displayNameLower: displayName.toLowerCase(),
-      username: data.username || defaultUsername(user.displayName),
-      photoURL: user.photoURL || data.photoURL || null,
-      lastActiveAt: serverTimestamp(),
+      username,
+      photoURL,
+      location,
+      bio,
+      website,
+      updatedAt: serverTimestamp(),
     };
-    await setDoc(ref, publicProfile, { merge: true });
-    await setDoc(doc(db, 'publicProfiles', user.uid), publicProfile, { merge: true });
-  } catch {}
+    if (typeof data.followersCount === 'number') publicProfileFields.followersCount = data.followersCount;
+    if (typeof data.followingCount === 'number') publicProfileFields.followingCount = data.followingCount;
+    if (typeof data.postsCount === 'number') publicProfileFields.postsCount = data.postsCount;
+
+    await setDoc(ref, userDocFields, { merge: true });
+    await setDoc(doc(db, 'publicProfiles', user.uid), publicProfileFields, { merge: true });
+  } catch (e) {
+    console.warn('[social] ensureUserDoc notice:', e);
+  }
 }
 
 // ---- Presence ------------------------------------------------------------
@@ -140,8 +170,12 @@ export function startPresence(): () => void {
 
 export async function getProfile(uid: string): Promise<PublicProfile | null> {
   try {
-    const source = uid === auth.currentUser?.uid ? 'users' : 'publicProfiles';
-    const snap = await getDoc(doc(db, source, uid));
+    const isOwner = auth.currentUser?.uid === uid;
+    const primarySource = isOwner ? 'users' : 'publicProfiles';
+    let snap = await getDoc(doc(db, primarySource, uid));
+    if (!snap.exists() && !isOwner) {
+      snap = await getDoc(doc(db, 'users', uid)).catch(() => snap);
+    }
     return snap.exists() ? toProfile(uid, snap.data()) : null;
   } catch {
     return null;

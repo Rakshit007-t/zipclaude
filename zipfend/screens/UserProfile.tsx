@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
-import { compressImage } from '../utils/media';
+import { compressImage, uploadOrEncodeProfilePhoto } from '../utils/media';
 import { calculateRank } from '../services/rewards';
 import { listCloset } from '../services/closet';
 import {
   PublicProfile, getProfile, follow, unfollow, onFollowing, onBlocked,
-  blockUser, unblockUser, report, isOnline,
+  blockUser, unblockUser, report, isOnline, defaultUsername,
 } from '../services/social';
 import { AppBar, Badge, Button, EmptyState, Eyebrow, Sheet, Spinner } from '../components/ui';
 
@@ -48,9 +48,9 @@ const UserProfile: React.FC = () => {
   const { userProfile, setUserProfile } = useUserProfile();
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const currentUser = auth.currentUser;
-  const targetUid = paramUid || currentUser?.uid;
-  const isMe = !paramUid || paramUid === currentUser?.uid;
+  const [authUser, setAuthUser] = useState(auth.currentUser);
+  const targetUid = paramUid || authUser?.uid;
+  const isMe = !paramUid || (!!authUser && paramUid === authUser.uid);
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,36 +64,62 @@ const UserProfile: React.FC = () => {
   const [zipCoins, setZipCoins] = useState(0);
   const [giftsGiven, setGiftsGiven] = useState(0);
 
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setAuthUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      showToast('Choose an image file (JPG, PNG, or WebP).', 'error');
+      return;
+    }
+
     try {
-      showToast('Compressing & uploading photo...', 'info');
-      const blob = await compressImage(file, 512, 0.85);
-      const user = auth.currentUser;
+      showToast('Updating profile photo...', 'info');
+      const url = await uploadOrEncodeProfilePhoto(file);
+      const user = auth.currentUser || authUser;
 
       if (user && !user.isAnonymous) {
-        const storageRef = ref(getStorage(), `profiles/${user.uid}.jpg`);
-        await uploadBytes(storageRef, blob);
-        const url = await getDownloadURL(storageRef);
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          await updateAuthProfile(user, { photoURL: url }).catch(() => {});
+        }
+        await setDoc(doc(db, 'users', user.uid), {
+          photoURL: url,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
 
-        await updateAuthProfile(user, { photoURL: url }).catch(() => {});
-        setProfile(prev => prev ? { ...prev, photoURL: url } : prev);
-        setUserProfile(prev => ({ ...prev, photoURL: url }));
-        showToast('Profile photo updated!', 'success');
-      } else {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const base64 = ev.target?.result as string;
-          setProfile(prev => prev ? { ...prev, photoURL: base64 } : prev);
-          setUserProfile(prev => ({ ...prev, photoURL: base64 }));
-          try { localStorage.setItem('zipright_profile_photo', base64); } catch {}
-          showToast('Profile photo updated!', 'success');
-        };
-        reader.readAsDataURL(blob);
+        await setDoc(doc(db, 'publicProfiles', user.uid), {
+          uid: user.uid,
+          displayName: userProfile.displayName || userProfile.profileName || user.displayName || 'ZipRIGHT member',
+          displayNameLower: (userProfile.displayName || userProfile.profileName || user.displayName || 'ZipRIGHT member').toLowerCase(),
+          username: userProfile.username || defaultUsername(user.displayName),
+          photoURL: url,
+          bio: userProfile.bio || '',
+          location: userProfile.location || '',
+          website: userProfile.website || '',
+          updatedAt: serverTimestamp(),
+        }, { merge: true }).catch(() => {});
       }
+
+      try { localStorage.setItem('zipright_profile_photo', url); } catch {}
+      setProfile(prev => prev ? { ...prev, photoURL: url } : {
+        uid: user?.uid || '',
+        displayName: userProfile.displayName || userProfile.profileName || user?.displayName || 'ZipRIGHT member',
+        username: userProfile.username || 'member',
+        photoURL: url,
+        bio: userProfile.bio || '',
+        location: userProfile.location || '',
+        website: userProfile.website || '',
+      });
+      setUserProfile(prev => ({ ...prev, photoURL: url }));
+      showToast('Profile photo updated!', 'success');
     } catch (err) {
       console.error('[UserProfile] Avatar upload error:', err);
       showToast('Could not upload photo. Try again.', 'error');
@@ -126,19 +152,22 @@ const UserProfile: React.FC = () => {
       ]);
       if (cancelled) return;
 
-      if (p) {
-        setProfile(p);
-      } else if (isMe && currentUser) {
+      if (isMe) {
         setProfile({
-          uid: currentUser.uid,
-          displayName: currentUser.displayName || userProfile.profileName || 'ZipRIGHT Member',
-          username: userProfile.username || (userProfile.profileName ? userProfile.profileName.toLowerCase().replace(/\s+/g, '_') : 'member'),
-          photoURL: currentUser.photoURL || userProfile.photoURL || '',
-          bio: 'Curating precision fits and luxury edits.',
-          followersCount: 0,
-          followingCount: 0,
-          lastActiveAt: { toMillis: () => Date.now() },
+          uid: (authUser || auth.currentUser)?.uid || targetUid,
+          displayName: p?.displayName || userProfile.displayName || userProfile.profileName || (authUser || auth.currentUser)?.displayName || 'ZipRIGHT Member',
+          username: p?.username || userProfile.username || 'member',
+          photoURL: (userProfile.photoURL !== undefined ? userProfile.photoURL : (p?.photoURL || (authUser || auth.currentUser)?.photoURL)) || null,
+          bio: p?.bio || userProfile.bio || '',
+          location: p?.location || userProfile.location || '',
+          website: p?.website || userProfile.website || '',
+          followersCount: p?.followersCount || 0,
+          followingCount: p?.followingCount || 0,
+          postsCount: looksSnap?.docs.length || p?.postsCount || 0,
+          lastActiveAt: p?.lastActiveAt || { toMillis: () => Date.now() },
         });
+      } else if (p) {
+        setProfile(p);
       }
 
       if (looksSnap) {
@@ -152,7 +181,7 @@ const UserProfile: React.FC = () => {
 
     const unsubs = [onFollowing(setFollowingSet), onBlocked(setBlockedSet)];
     return () => { cancelled = true; unsubs.forEach(u => u()); };
-  }, [targetUid, isMe, currentUser, userProfile.profileName, userProfile.photoURL, userProfile.username]);
+  }, [targetUid, isMe, authUser, userProfile.displayName, userProfile.profileName, userProfile.photoURL, userProfile.username]);
 
   const handleFollowToggle = async () => {
     if (!profile || busy) return;
@@ -314,9 +343,25 @@ const UserProfile: React.FC = () => {
         {/* Display Name & Bio */}
         <div className="mt-4">
           <h1 className="font-display text-[19px] font-semibold text-ink leading-tight">{profile.displayName}</h1>
-          <p className="text-[13px] text-ink-soft leading-relaxed mt-1.5">{profile.bio || 'Curating precision fits and luxury edits.'}</p>
-          <div className="flex items-center gap-3 text-[11px] text-ink-faint mt-2">
-            <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">location_on</span> Bengaluru, IN</span>
+          {profile.bio ? (
+            <p className="text-[13px] text-ink-soft leading-relaxed mt-1.5">{profile.bio}</p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-ink-faint mt-2">
+            <span className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-[13px]">location_on</span>
+              {profile.location ? profile.location : 'No location set'}
+            </span>
+            {profile.website ? (
+              <a
+                href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 hover:text-brand transition-colors truncate max-w-[180px]"
+              >
+                <span className="material-symbols-outlined text-[13px]">link</span>
+                {profile.website.replace(/^https?:\/\//, '')}
+              </a>
+            ) : null}
           </div>
         </div>
 

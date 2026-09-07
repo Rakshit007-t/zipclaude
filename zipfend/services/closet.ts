@@ -35,6 +35,7 @@ export interface ClosetItem {
   affiliateLink?: string;
   category?: string;
   addedAt: number;
+  quantity?: number;
 }
 
 const CHANGE_EVENT = 'zr-closet-changed';
@@ -73,6 +74,7 @@ function mirrorAdd(kind: ClosetKind, item: ClosetItem) {
     brand: item.brand,
     price: item.price,
     image: item.image,
+    quantity: item.quantity || 1,
     source: 'closet',
     timestamp: new Date(),
   }).catch(() => {});
@@ -93,15 +95,41 @@ export function inCloset(kind: ClosetKind, id: string): boolean {
 }
 
 export function closetCount(kind: ClosetKind): number {
-  return read(kind).length;
+  return read(kind).reduce((sum, item) => sum + (item.quantity || 1), 0);
 }
 
 export function addToCloset(kind: ClosetKind, item: Omit<ClosetItem, 'addedAt'>): boolean {
   const items = read(kind);
-  if (items.some(i => i.id === item.id)) return false;
-  write(kind, [...items, { ...item, addedAt: Date.now() }]);
-  mirrorAdd(kind, { ...item, addedAt: Date.now() });
+  const existingIndex = items.findIndex(i => i.id === item.id);
+  if (existingIndex >= 0) {
+    if (kind === 'cart') {
+      const updated = [...items];
+      const currentQty = updated[existingIndex].quantity || 1;
+      updated[existingIndex] = { ...updated[existingIndex], quantity: currentQty + 1 };
+      write(kind, updated);
+      mirrorAdd(kind, updated[existingIndex]);
+      return true;
+    }
+    return false;
+  }
+  const newItem = { ...item, quantity: item.quantity || 1, addedAt: Date.now() };
+  write(kind, [...items, newItem]);
+  mirrorAdd(kind, newItem);
   return true;
+}
+
+export function updateQuantity(kind: ClosetKind, id: string, delta: number) {
+  const items = read(kind);
+  const existing = items.find(i => i.id === id);
+  if (!existing) return;
+  const newQty = (existing.quantity || 1) + delta;
+  if (newQty <= 0) {
+    removeFromCloset(kind, id);
+  } else {
+    const updated = items.map(i => i.id === id ? { ...i, quantity: newQty } : i);
+    write(kind, updated);
+    mirrorAdd(kind, { ...existing, quantity: newQty });
+  }
 }
 
 export function removeFromCloset(kind: ClosetKind, id: string) {

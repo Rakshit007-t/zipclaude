@@ -32,6 +32,9 @@ export interface UserProfile {
   username?: string;
   displayName?: string;
   photoURL?: string;
+  location?: string;
+  bio?: string;
+  website?: string;
   onboardingCompleted?: boolean;
   fitProfileCompleted?: boolean;
   profileId?: string;
@@ -155,6 +158,12 @@ function hasRawProfileData(payload: Record<string, unknown> | undefined) {
   }
 
   return Boolean(
+    normalizeString(payload.displayName) ||
+    normalizeString(payload.username) ||
+    normalizeString(payload.photoURL ?? payload.photoUrl) ||
+    normalizeString(payload.location) ||
+    normalizeString(payload.bio) ||
+    normalizeString(payload.website) ||
     normalizeString(payload.profileName ?? payload.name) ||
     normalizeString(payload.preferredBrand ?? payload.brand) ||
     normalizeBaseSize(payload.usualSize ?? payload.baseSize) ||
@@ -218,6 +227,12 @@ function normalizeUserProfileDoc(profile: unknown): UserProfile {
   return {
     profileId: normalizeString(sourcePayload.profileId ?? sourcePayload.id) || undefined,
     profileName: normalizeString(sourcePayload.profileName ?? sourcePayload.name),
+    displayName: normalizeString(payload.displayName) || undefined,
+    username: normalizeString(payload.username) || undefined,
+    photoURL: normalizeString(payload.photoURL ?? payload.photoUrl) || undefined,
+    location: normalizeString(payload.location ?? sourcePayload.location) || undefined,
+    bio: normalizeString(payload.bio ?? sourcePayload.bio) || undefined,
+    website: normalizeString(payload.website ?? sourcePayload.website) || undefined,
     gender: normalizeString(sourcePayload.gender),
     preferredBrand: normalizeString(sourcePayload.preferredBrand ?? sourcePayload.brand),
     usualSize,
@@ -275,6 +290,12 @@ function mergeProfile(
   return {
     profileId: normalizeString(nextProfile.profileId ?? previousProfile.profileId) || undefined,
     profileName: normalizeString(nextProfile.profileName ?? previousProfile.profileName),
+    displayName: normalizeString(nextProfile.displayName ?? previousProfile.displayName) || undefined,
+    username: normalizeString(nextProfile.username ?? previousProfile.username) || undefined,
+    photoURL: typeof nextProfile.photoURL !== 'undefined' ? (nextProfile.photoURL || undefined) : (previousProfile.photoURL || undefined),
+    location: typeof nextProfile.location !== 'undefined' ? (normalizeString(nextProfile.location) || undefined) : (previousProfile.location || undefined),
+    bio: typeof nextProfile.bio !== 'undefined' ? (normalizeString(nextProfile.bio) || undefined) : (previousProfile.bio || undefined),
+    website: typeof nextProfile.website !== 'undefined' ? (normalizeString(nextProfile.website) || undefined) : (previousProfile.website || undefined),
     gender: normalizeString(nextProfile.gender ?? previousProfile.gender),
     preferredBrand: normalizeString(nextProfile.preferredBrand ?? previousProfile.preferredBrand),
     usualSize,
@@ -346,7 +367,6 @@ function resolveCurrentOwnerId(ownerId?: string | null) {
 }
 
 function removeLocalProfile(ownerId?: string | null) {
-
   const key = getLocalProfileKey(ownerId);
   if (!key) {
     return;
@@ -394,7 +414,9 @@ async function fetchUserProfile(user?: User | null) {
 
   const snapshot = await getDoc(doc(db, 'users', user.uid));
   const remoteProfile = normalizeUserProfileDoc(snapshot.data());
-  return hasProfileData(remoteProfile) ? remoteProfile : localProfile ?? defaultUserProfile;
+  return hasProfileData(remoteProfile)
+    ? (localProfile ? mergeProfile(localProfile, remoteProfile) : remoteProfile)
+    : localProfile ?? defaultUserProfile;
 }
 
 export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -543,8 +565,9 @@ export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ childre
           const remoteProfile = normalizeUserProfileDoc(snapshot.data());
           const ownerId = storageOwnerIdRef.current || user.uid;
           const localProfile = readLocalProfile(ownerId);
-          const nextProfile = localProfile ??
-            (hasProfileData(remoteProfile) ? remoteProfile : defaultUserProfile);
+          const nextProfile = hasProfileData(remoteProfile)
+            ? (localProfile ? mergeProfile(localProfile, remoteProfile) : remoteProfile)
+            : (localProfile ?? defaultUserProfile);
           setUserProfileState(nextProfile);
           writeLocalProfile(ownerId, nextProfile);
           setIsHydrated(true);
