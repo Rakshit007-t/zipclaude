@@ -85,6 +85,13 @@ service cloud.firestore {
     // evidence are written by authenticated backend services, never browsers.
     match /admins/{document=**} { allow read, write: if false; }
     match /gifts/{document=**} { allow read, write: if false; }
+    match /orders/{document=**} { allow read, write: if false; }
+    match /payments/{document=**} { allow read, write: if false; }
+    match /security_logs/{document=**} { allow read, write: if false; }
+    match /audit_logs/{document=**} { allow read, write: if false; }
+    match /account_lockouts/{document=**} { allow read, write: if false; }
+    match /ai_usage/{document=**} { allow read, write: if false; }
+    match /user_sessions/{document=**} { allow read, write: if false; }
     match /rewardTransactions/{document=**} { allow read, write: if false; }
     match /reports/{document=**} { allow read, write: if false; }
     match /conversations/{document=**} { allow read, write: if false; }

@@ -18,4 +18,14 @@ out*.txt
 .ruff_cache/
 storage/mediapipe_models/
 storage/upscaler/
+storage/uploads/
+storage/*.db
+storage/*.sqlite
+storage/*.sqlite3
 uploads/
+*.db
+*.sqlite
+*.sqlite3
+storage/backups/
+storage/*.log
+*.log

@@ -18,14 +18,18 @@ from time import perf_counter
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from core.api import error_response, success_response
 from core.logging_config import configure_logging
+from core.rate_limit_middleware import RateLimitMiddleware
+from core.csrf_middleware import CSRFMiddleware
+from core.request_size_limiter import RequestSizeLimiterMiddleware
 from models.schema import ApiResponse
 from routes.auth import router as auth_router
 from routes.product import router as product_router
@@ -44,6 +48,8 @@ from routes.search import router as search_router
 from routes.notification import router as notification_router
 from routes.brand import router as brand_router
 from routes.gifts import router as gifts_router
+from routes.payments import router as payments_router
+from services.billing_alerts import router as billing_router
 from services.tryon_live_store import initialize_tryon_store
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -99,10 +105,14 @@ def _get_cors_origins() -> list[str]:
     return unique_origins
 
 
-def _get_cors_origin_regex() -> str:
+def _get_cors_origin_regex() -> str | None:
     configured_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX", "").strip()
     if configured_regex:
         return configured_regex
+
+    # In production, disable broad private IP regex matching
+    if os.getenv("ENV", "development") == "production":
+        return None
 
     return (
         r"https?://"
@@ -131,14 +141,28 @@ def create_app() -> FastAPI:
         openapi_url=None if env == "production" else "/openapi.json",
     )
 
+    # ── Security & defense middlewares ─────────────────────────────────────────
+    app.add_middleware(RequestSizeLimiterMiddleware)
+    app.add_middleware(CSRFMiddleware)
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=120, burst_limit=35)
+
     cors_origins = _get_cors_origins()
+    cors_regex = _get_cors_origin_regex()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
-        allow_origin_regex=_get_cors_origin_regex(),
+        allow_origin_regex=cors_regex,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-Id",
+            "X-CSRF-Token",
+            "X-Wallet-Topup-Secret",
+            "X-Razorpay-Signature",
+            "Accept",
+        ],
     )
 
     # ── Routers ───────────────────────────────────────────────────────────────
@@ -161,14 +185,22 @@ def create_app() -> FastAPI:
     app.include_router(notification_router)
     app.include_router(brand_router)
     app.include_router(gifts_router)
+    app.include_router(payments_router)
+    app.include_router(billing_router)
 
-    # ── Static file mounts ────────────────────────────────────────────────────
-    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-    app.mount("/ui", StaticFiles(directory=UI_DIR, html=True), name="ui")
+    # ── Static file mounts (directory listing disabled) ───────────────────────
+    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR, html=False), name="uploads")
+    app.mount("/ui", StaticFiles(directory=UI_DIR, html=False), name="ui")
 
     # ── Request logging + metrics middleware ──────────────────────────────────
     @app.middleware("http")
     async def observe_requests(request: Request, call_next):
+        # Force HTTPS redirect in production if request arrives via insecure HTTP
+        if env == "production" and request.headers.get("x-forwarded-proto") == "http":
+            from starlette.responses import RedirectResponse
+            secure_url = request.url.replace(scheme="https")
+            return RedirectResponse(url=str(secure_url), status_code=308)
+
         start_time = perf_counter()
         request_id = request.headers.get("X-Request-Id", "").strip() or str(uuid4())
         request.state.request_id = request_id
@@ -184,7 +216,10 @@ def create_app() -> FastAPI:
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["X-Frame-Options"] = "DENY"
             response.headers["X-XSS-Protection"] = "1; mode=block"
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
+            response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
             return response
         except Exception:
             raise
@@ -302,13 +337,15 @@ def create_app() -> FastAPI:
         return success_response(message="Health check passed.", data=data)
 
     @app.get("/metrics", tags=["health"])
-    async def metrics() -> dict:
-        """Lightweight in-process metrics for uptime monitors.
+    async def metrics(request: Request) -> dict:
+        """Protected in-process metrics for authorized uptime monitors."""
+        metrics_key = os.getenv("METRICS_API_KEY", "").strip()
+        if env == "production" and metrics_key:
+            provided_key = request.headers.get("X-Metrics-Key", "").strip()
+            import hmac
+            if not provided_key or not hmac.compare_digest(provided_key, metrics_key):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Metrics access forbidden.")
 
-        Returns a plain JSON object (not the ApiResponse envelope) so that
-        external tools like UptimeRobot or Prometheus scrapers can consume it
-        without configuration changes.
-        """
         return {
             "version": APP_VERSION,
             "env": env,
@@ -345,9 +382,11 @@ app = create_app()
 
 
 if __name__ == "__main__":
+    is_prod = os.getenv("ENV", "development") == "production"
+    reload_default = "false" if is_prod else "true"
     uvicorn.run(
         "main:app",
         host=os.getenv("HOST", "0.0.0.0"),
         port=int(os.getenv("PORT", "8000")),
-        reload=os.getenv("UVICORN_RELOAD", "true").strip().lower() in {"1", "true", "yes"},
+        reload=os.getenv("UVICORN_RELOAD", reload_default).strip().lower() in {"1", "true", "yes"},
     )

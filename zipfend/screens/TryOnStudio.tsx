@@ -277,7 +277,7 @@ const TryOnStudio: React.FC = () => {
       className="relative flex-1 aspect-[3/4] rounded-card border border-line bg-surface-2 overflow-hidden active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
     >
       {preview ? (
-        <img src={preview} decoding="async" className="absolute inset-0 h-full w-full object-cover" alt="" />
+        <img src={preview} decoding="async" className="absolute inset-0 h-full w-full object-cover" alt={`${label} photo preview`} />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
           <div className="h-12 w-12 rounded-full bg-brand/10 flex items-center justify-center">

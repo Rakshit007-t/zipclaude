@@ -41,3 +41,5 @@ export { default as SectionHeader } from './SectionHeader';
 export { default as Divider } from './Divider';
 export { default as ListRow } from './ListRow';
 export { default as SegmentedControl } from './SegmentedControl';
+export { default as CookieConsentBanner } from './CookieConsentBanner';
+export { default as Breadcrumbs, type BreadcrumbItem } from './Breadcrumbs';

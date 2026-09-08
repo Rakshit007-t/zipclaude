@@ -37,9 +37,13 @@ async def manual_wallet_topup(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
-                "message": "Wallet top-up is restricted to authorized operators.",
-                "details": {"code": "wallet_topup_not_authorized"},
             },
+        )
+
+    if payload.amount_rupees <= 0 or payload.amount_rupees > 10000:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Wallet credit amount must be between ₹1 and ₹10,000.",
         )
 
     balance = credit_wallet(current_user, payload.amount_rupees)

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { AppBar, Eyebrow, Button } from '../components/ui';
+import { AppBar, Eyebrow, Button, Breadcrumbs } from '../components/ui';
 
 const FAQ_ITEMS = [
   {
@@ -36,15 +36,23 @@ const FAQs: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen min-h-dvh bg-surface-0 text-ink">
-      <AppBar title="FAQs" onBack={() => navigate(-1)} />
+      <AppBar title="FAQs" headingTag="span" onBack={() => navigate(-1)} />
 
-      <div className="flex-1 px-6 py-8 pb-24 w-full">
+      <div className="flex-1 px-6 py-8 pb-24 w-full max-w-2xl mx-auto">
+        <Breadcrumbs
+          items={[
+            { label: 'Home', href: '/home' },
+            { label: 'Settings', href: '/settings' },
+            { label: 'FAQs' },
+          ]}
+          className="mb-4"
+        />
         <Eyebrow className="mb-3">Help</Eyebrow>
-        <h2 className="font-display text-[34px] leading-[1.06] font-light mb-2">
+        <h1 className="font-display text-[34px] leading-[1.06] font-light mb-2">
           Questions,
           <br />
           <em className="font-medium text-brand">answered.</em>
-        </h2>
+        </h1>
         <p className="text-ink-soft text-[14px] mb-8">Everything about sizing, try-on, and your data.</p>
 
         <div className="flex flex-col">

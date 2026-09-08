@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from services.ai_guardrails import enforce_ai_usage_cap, sanitize_ai_prompt
 from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.stylist_engine import generate_stylist_reply
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class StylistRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=1000)
+    message: str = Field(..., min_length=1, max_length=600)
 
 
 class StylistResponse(BaseModel):
@@ -26,14 +27,25 @@ class StylistResponse(BaseModel):
     status_code=status.HTTP_200_OK,
 )
 async def stylist(
+    request: Request,
     payload: StylistRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> StylistResponse:
-    try:
-        if not payload.message.strip():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty message")
+    client_ip = request.client.host if request.client else "unknown"
 
-        reply = await generate_stylist_reply(payload.message, user_id=current_user.uid)
+    # Enforce AI rate limiting & daily compute quota
+    enforce_ai_usage_cap(user_id=current_user.uid, ip_address=client_ip)
+
+    # Sanitize and neutralize prompt injection
+    safe_message = sanitize_ai_prompt(
+        prompt=payload.message,
+        user_id=current_user.uid,
+        ip_address=client_ip,
+        max_length=600,
+    )
+
+    try:
+        reply = await generate_stylist_reply(safe_message, user_id=current_user.uid)
         return StylistResponse(reply=reply)
     except HTTPException:
         raise

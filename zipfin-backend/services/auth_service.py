@@ -215,6 +215,38 @@ def sign_in_with_email(payload: EmailAuthRequest) -> AuthResult:
     )
 
 
+def revoke_user_sessions(uid: str) -> None:
+    """Revoke all active refresh tokens for a user, immediately invalidating sessions."""
+    try:
+        from firebase_admin import auth as admin_auth
+        admin_auth.revoke_refresh_tokens(uid)
+    except Exception as exc:
+        pass
+
+
+def change_user_password(uid: str, new_password: str) -> None:
+    """Update user password via Firebase Admin SDK and immediately revoke all prior sessions."""
+    from firebase_admin import auth as admin_auth
+    admin_auth.update_user(uid, password=new_password)
+    admin_auth.revoke_refresh_tokens(uid)
+
+
+def request_password_reset(email: str) -> None:
+    """Request password reset link without leaking whether the account exists."""
+    clean_email = email.strip().lower()
+    try:
+        _firebase_request(
+            "accounts:sendOobCode",
+            {
+                "requestType": "PASSWORD_RESET",
+                "email": clean_email,
+            },
+        )
+    except Exception:
+        # Absorb errors to prevent user enumeration
+        pass
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(auth_scheme),
 ) -> CurrentUser:

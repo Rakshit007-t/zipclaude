@@ -33,6 +33,8 @@ class ApiErrorResponse(BaseModel):
 class EmailAuthRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=320)
     password: str = Field(..., min_length=6, max_length=128)
+    honeypot: str | None = Field(default=None, description="Hidden bot trap field, must be empty")
+    cf_turnstile_token: str | None = Field(default=None, description="Optional Cloudflare Turnstile token")
 
 
 class AuthUser(BaseModel):

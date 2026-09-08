@@ -11,6 +11,7 @@ import { useUserProfile } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
 import { deleteAccountPermanently, reauthenticateEmail, reauthenticateGoogle } from '../services/accountService';
 import {
+  getAccessStatus,
   getSellerMe,
   onboardSeller,
   getSellerProfile,
@@ -36,6 +37,7 @@ import {
   EmptyState,
   SegmentedControl,
 } from '../components/ui';
+import { openCookiePreferences } from '../services/cookieConsent';
 
 // Addresses persist locally per account (no backend orders API yet)
 function addressStoreKey() {
@@ -344,15 +346,23 @@ const Settings: React.FC = () => {
 
         if (user && !user.isAnonymous) {
             try {
-                // Sync Admin role
+                // Server-authoritative role synchronization
                 try {
-                    const adminDoc = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
-                    if (adminDoc?.exists() && adminDoc.data()?.status === 'active') {
+                    const access = await getAccessStatus();
+                    if (access.is_admin) {
                         setUserRole('admin');
                         setUserRoleState('admin');
+                    } else if (access.is_seller) {
+                        setUserRole('seller');
+                        setUserRoleState('seller');
+                    } else {
+                        setUserRole('user');
+                        setUserRoleState('user');
                     }
                 } catch {
-                    // Admin documents are server-managed
+                    // Fail-closed to unprivileged user role on error
+                    setUserRole('user');
+                    setUserRoleState('user');
                 }
 
                 // Sync Seller state
@@ -1191,11 +1201,8 @@ const Settings: React.FC = () => {
   // --- VIEW: PERMISSIONS ---
   if (view === 'permissions') {
     const permissionsList = [
-        { id: 'camera', title: 'Camera', icon: 'camera', desc: 'Required for AI body scanning.' },
-        { id: 'location', title: 'Location', icon: 'location_on', desc: 'Used to find nearby delivery hubs.' },
-        { id: 'contacts', title: 'Contacts', icon: 'group', desc: 'Connect with style friends.' },
-        { id: 'microphone', title: 'Microphone', icon: 'mic', desc: 'Voice search and assistant.' },
-        { id: 'notifications', title: 'Notifications', icon: 'notifications', desc: 'Stay updated on orders and fits.' }
+        { id: 'camera', title: 'Camera', icon: 'camera', desc: 'Required for AI virtual try-on and SmartFit body scanning.' },
+        { id: 'notifications', title: 'Notifications', icon: 'notifications', desc: 'Stay updated on order status and sizing alerts.' }
     ];
 
     return (
@@ -1351,6 +1358,10 @@ const Settings: React.FC = () => {
 
   // --- VIEW: ADMIN PENDING APPROVALS ---
   if (view === 'admin-approvals') {
+    if (userRole !== 'admin') {
+      setView('main');
+      return null;
+    }
     return (
       <div className="flex flex-col h-screen min-h-dvh w-full bg-surface-0 text-ink overflow-hidden">
         <AppBar title="Seller Applications" onBack={() => setView('main')} />
@@ -1682,6 +1693,17 @@ const Settings: React.FC = () => {
           </div>
         )}
 
+        {/* Administrator Controls */}
+        {userRole === 'admin' && (
+          <div className="px-6 mb-8">
+            <Eyebrow className="mb-4 ml-1 text-brand">Admin Controls</Eyebrow>
+            <MenuGroup>
+              <ListRow icon="verified_user" title="Seller Applications" subtitle="Review partner onboarding" onClick={() => setView('admin-approvals')} />
+              <ListRow icon="analytics" title="Platform Analytics" subtitle="Sizing accuracy & telemetry" onClick={() => navigate('/admin')} />
+            </MenuGroup>
+          </div>
+        )}
+
         {/* Seller Hub Section */}
         {userRole === 'seller' && (
           <div className="px-6 mb-8">
@@ -1843,8 +1865,12 @@ const Settings: React.FC = () => {
           <MenuGroup>
             <ListRow icon="help" title="Help & FAQs" onClick={() => navigate('/faqs')} />
             <ListRow icon="info" title="About Us" onClick={() => navigate('/about-us')} />
+            <ListRow icon="shield" title="Privacy Center" onClick={() => navigate('/privacy-center')} />
             <ListRow icon="policy" title="Privacy Policy" onClick={() => navigate('/privacy-policy')} />
             <ListRow icon="gavel" title="Terms of Use" onClick={() => navigate('/terms-of-use')} />
+            <ListRow icon="cookie" title="Cookie Policy" onClick={() => navigate('/cookie-policy')} />
+            <ListRow icon="payments" title="Refund Policy" onClick={() => navigate('/refund-policy')} />
+            <ListRow icon="tune" title="Cookie Preferences" onClick={openCookiePreferences} />
           </MenuGroup>
         </div>
 

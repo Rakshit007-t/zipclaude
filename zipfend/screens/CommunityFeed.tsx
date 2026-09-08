@@ -23,6 +23,7 @@ import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { addToCloset, inCloset } from '../services/closet';
 import { follow, unfollow, onFollowing, onBlocked, searchUsers, myProfile, socialUser } from '../services/social';
+import { safeOpenUrl, sanitizeText } from '../utils/sanitize';
 import { SEED_LOOKS } from '../services/salonSeed';
 import { Spinner, Sheet, Button } from '../components/ui';
 
@@ -343,7 +344,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
   }, [commentsFor]);
 
   const postComment = async () => {
-    const text = commentDraft.trim();
+    const text = sanitizeText(commentDraft, 300);
     if (!text || !commentsFor) return;
     setCommentDraft('');
     const user = auth.currentUser;
@@ -553,7 +554,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
                   className="h-12 w-12 rounded-full border-2 border-white overflow-hidden block active:scale-90 transition-transform"
                 >
                   {look.creatorAvatar ? (
-                    <img src={look.creatorAvatar} alt="" className="h-full w-full object-cover" />
+                    <img src={look.creatorAvatar} alt={`${look.creatorUsername}'s avatar`} className="h-full w-full object-cover" />
                   ) : (
                     <div className="h-full w-full bg-black/50 flex items-center justify-center">
                       <span className="material-symbols-outlined text-white text-xl" aria-hidden="true">person</span>
@@ -669,7 +670,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
                 <div className="flex items-center gap-2 mb-2">
                   <div className="h-7 w-7 rounded-full overflow-hidden flex-shrink-0 border border-white/20">
                     {look.creatorAvatar ? (
-                      <img src={look.creatorAvatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={look.creatorAvatar} alt={`${look.creatorUsername}'s avatar`} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="h-full w-full bg-black/40 flex items-center justify-center">
                         <span className="material-symbols-outlined text-white text-xs" aria-hidden="true">person</span>
@@ -724,7 +725,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
                             <div key={product.id} className="flex items-center gap-4 bg-surface-2 rounded-2xl p-3">
                               <button
                                 className="h-16 w-14 rounded-xl overflow-hidden flex-shrink-0 bg-surface-3"
-                                onClick={() => window.open(product.affiliateLink || product.url, '_blank')}
+                                onClick={() => safeOpenUrl(product.affiliateLink || product.url)}
                                 aria-label={`Open ${product.title}`}
                               >
                                 <img src={product.image} alt={product.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
@@ -795,7 +796,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
                 <div key={c.id} className="flex gap-3 py-3 border-b border-line last:border-none">
                   <div className="h-8 w-8 rounded-full border border-line flex items-center justify-center shrink-0 overflow-hidden">
                     {c.avatar ? (
-                      <img src={c.avatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={c.avatar} alt={`${c.name || 'Member'}'s avatar`} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <span className="text-ink font-display font-medium text-[13px]">{(c.name || '?').charAt(0).toUpperCase()}</span>
                     )}

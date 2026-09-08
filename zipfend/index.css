@@ -216,13 +216,15 @@ html {
   transform: translateX(-50%);
 }
 
-/* Eliminate lingering browser focus rectangle on bottom nav and interactive buttons */
-nav button:focus,
-nav button:focus-visible,
-nav a:focus,
-nav a:focus-visible,
-button:focus:not(:focus-visible) {
-  outline: none !important;
-  box-shadow: none !important;
-  -webkit-focus-ring-color: transparent !important;
+/* Accessibility: High-contrast focus indicator for keyboard navigation (WCAG 2.1 AA) */
+:focus-visible {
+  outline: 2px solid var(--brand) !important;
+  outline-offset: 2px !important;
+}
+
+/* Eliminate lingering browser focus rectangle on pointer clicks only */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  outline: none;
 }

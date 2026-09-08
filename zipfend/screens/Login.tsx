@@ -16,6 +16,7 @@ import { auth, db } from '../firebase';
 import { Button, Wordmark } from '../components/ui';
 import { formatFirebaseAuthError } from '../utils/firebaseErrors';
 import { requiresEmailVerification } from '../services/authClient';
+import { sanitizeText } from '../utils/sanitize';
 
 declare global {
   interface Window {
@@ -197,7 +198,7 @@ const Login: React.FC = () => {
   };
 
   const handleForgotPassword = async () => {
-    const normalizedEmail = email.trim();
+    const normalizedEmail = sanitizeText(email).trim().toLowerCase();
     if (!normalizedEmail) {
       setError('Enter your email address to reset your password.');
       return;
@@ -245,15 +246,22 @@ const Login: React.FC = () => {
         clearRecaptchaVerifier();
       }
     } else if (authMethod === 'email') {
-      if (!email || !password) {
+      const sanitizedEmail = sanitizeText(email).trim().toLowerCase();
+      if (!sanitizedEmail || !password) {
         setError('Please enter both email and password');
         return;
+      }
+      if (isSignUp) {
+        if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+          setError('Password must be at least 8 characters long and contain both letters and numbers.');
+          return;
+        }
       }
       setIsLoading(true);
       try {
         let user;
         if (isSignUp) {
-          const result = await createUserWithEmailAndPassword(auth, email, password);
+          const result = await createUserWithEmailAndPassword(auth, sanitizedEmail, password);
           user = result.user;
           try {
             await sendEmailVerification(user);
@@ -278,7 +286,7 @@ const Login: React.FC = () => {
           setStep('email-verify');
           return;
         } else {
-          const result = await signInWithEmailAndPassword(auth, email, password);
+          const result = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
           user = result.user;
           await user.reload();
 
@@ -633,10 +641,12 @@ const Login: React.FC = () => {
                 </p>
               </div>
 
-              <p className="text-[11px] text-center text-ink-faint mt-8 leading-relaxed max-w-[280px] mx-auto">
+              <p className="text-[11px] text-center text-ink-faint mt-8 leading-relaxed max-w-[320px] mx-auto">
                 By continuing you agree to our{' '}
-                <span onClick={() => navigate('/terms-of-use')} className="text-ink-soft cursor-pointer underline underline-offset-2">Terms</span> &{' '}
-                <span onClick={() => navigate('/privacy-policy')} className="text-ink-soft cursor-pointer underline underline-offset-2">Privacy</span>
+                <span onClick={() => navigate('/terms-of-use')} className="text-ink-soft cursor-pointer underline underline-offset-2">Terms</span>,{' '}
+                <span onClick={() => navigate('/privacy-policy')} className="text-ink-soft cursor-pointer underline underline-offset-2">Privacy</span>,{' '}
+                <span onClick={() => navigate('/cookie-policy')} className="text-ink-soft cursor-pointer underline underline-offset-2">Cookies</span> &{' '}
+                <span onClick={() => navigate('/refund-policy')} className="text-ink-soft cursor-pointer underline underline-offset-2">Refunds</span>
               </p>
             </motion.div>
           )}

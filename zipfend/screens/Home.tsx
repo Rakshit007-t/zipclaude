@@ -12,6 +12,7 @@ import { demoProducts } from '../services/demoProducts';
 import { SEED_LOOKS } from '../services/salonSeed';
 import { addToCloset, closetCount, listCloset, onClosetChange, toggleCloset } from '../services/closet';
 import { Sheet, Button, EmptyState, Eyebrow, SectionHeader, Wordmark, springs, StaggerList, StaggerItem } from '../components/ui';
+import { safeOpenUrl } from '../utils/sanitize';
 
 
 interface Product {
@@ -168,7 +169,7 @@ const Home: React.FC = () => {
     } catch (error) {
       console.error("Error navigating to recommendation:", error);
       showToast("Something went wrong", "error");
-      window.open(product.affiliateLink || product.url, '_blank');
+      safeOpenUrl(product.affiliateLink || product.url);
     }
   };
 
@@ -360,7 +361,7 @@ const Home: React.FC = () => {
                   className="relative w-32 aspect-[3/4] rounded-xl overflow-hidden shrink-0 snap-start bg-surface-2 border border-line press-soft text-left"
                   aria-label={`Open The Salon — ${look.caption.slice(0, 40)}`}
                 >
-                  <img src={look.mediaUrl} alt="" loading="lazy" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={look.mediaUrl} alt={look.caption.replace(/#\w+/g, '').trim() || 'Curated editorial look'} loading="lazy" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                   <div className="absolute inset-x-0 bottom-0 p-2.5 pt-6 scrim-b">
                     <p className="text-white/90 text-[10px] leading-snug line-clamp-2">{look.caption.replace(/#\w+/g, '').trim()}</p>
                   </div>
@@ -496,7 +497,7 @@ const Home: React.FC = () => {
               <Button variant="secondary" size="lg" fullWidth trailingIcon="arrow_forward" onClick={() => { const p = detailProduct; setDetailProduct(null); void handleProductClick(p); }}>
                 Full recommendation
               </Button>
-              <Button variant="ghost" fullWidth onClick={() => window.open(detailProduct.url, '_blank')}>
+              <Button variant="ghost" fullWidth onClick={() => safeOpenUrl(detailProduct.url)}>
                 Shop now
               </Button>
             </div>
@@ -513,7 +514,7 @@ const Home: React.FC = () => {
         {friendShareProduct && (
           <>
             <div className="flex items-center gap-3 mb-6 bg-surface-2 rounded-2xl p-3">
-              <img src={friendShareProduct.image} alt="" className="h-14 w-12 rounded-xl object-cover" />
+              <img src={friendShareProduct.image} alt={friendShareProduct.title || 'Product preview'} className="h-14 w-12 rounded-xl object-cover" />
               <div className="min-w-0">
                 <p className="text-ink font-semibold text-[14px]">{friendShareProduct.brand}</p>
                 <p className="text-ink-soft text-[12px] truncate">{friendShareProduct.title} · {friendShareProduct.price}</p>

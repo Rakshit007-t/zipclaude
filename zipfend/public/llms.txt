@@ -1,0 +1,33 @@
+# ZipRIGHT — The AI Fit Atelier
+
+> ZipRIGHT is an AI fashion-tech platform providing biometric 3D body measurements, cross-brand size recommendations, and realistic virtual try-on previews.
+
+## About ZipRIGHT
+ZipRIGHT solves the apparel sizing challenge by learning individual measurement profiles and mapping them directly against merchant garment specifications. Rather than guessing letter sizes (S, M, L), ZipRIGHT calibrates true fit confidence scores across major fashion retailers.
+
+- **Entity**: ZipRIGHT Technologies Private Limited
+- **Headquarters**: Koramangala Industrial Layout, 5th Block, Bengaluru, Karnataka 560095, India
+- **Website**: https://zipright.ai
+- **Contact**: support@zipright.com / legal@zipright.com
+
+## Core Capabilities
+- **AI Virtual Try-On**: Realistic photo-based neural try-on visualizing garment drape, silhouette, and proportions on user-provided photos.
+- **Smart Fit Scan**: Fast, privacy-preserving 3D body landmarking and measurement estimation using client-side edge computing.
+- **Cross-Brand Size Engine**: Standardizes proprietary sizing discrepancies across leading fashion brands.
+- **Curated Fashion Drops**: Editorial collections curated around personal style and body proportion profiles.
+
+## Privacy & Biometrics Principles
+- **No Selling of Biometrics**: Biometric measurements and reference photos are strictly used to compute fit and are never sold or shared with ad networks.
+- **Data Minimization**: Raw scan images are purged on a 30-day lifecycle in compliance with Illinois BIPA and the India DPDP Act 2023.
+- **AES-256 Encryption**: All personal data and body measurements are encrypted at rest and in transit.
+
+## Canonical Web Resources
+- [Home Atelier](https://zipright.ai/#/home): Personalized daily style edit and size recommendations.
+- [Marketplace](https://zipright.ai/#/marketplace): Multi-brand apparel catalogue with instant fit predictions.
+- [Fashion Studio](https://zipright.ai/#/fashion-studio): Interactive AI virtual try-on studio.
+- [About Us](https://zipright.ai/#/about-us): Brand manifesto, company principles, and business details.
+- [Privacy Policy](https://zipright.ai/#/privacy-policy): DPDP Act 2023, GDPR, and BIPA compliant data practices.
+- [Terms of Use](https://zipright.ai/#/terms-of-use): Intermediary guidelines, safe harbor, and service terms.
+- [Cookie Policy](https://zipright.ai/#/cookie-policy): Informed consent management and storage transparency.
+- [Refund Policy](https://zipright.ai/#/refund-policy): Transparent cooling-off and cancellation terms.
+- [FAQs](https://zipright.ai/#/faqs): Frequently asked questions on fit, privacy, and shipping.

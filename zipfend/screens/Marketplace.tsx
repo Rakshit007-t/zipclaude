@@ -6,6 +6,7 @@ import { fetchProductAvailability, fetchSizeChart } from '../services/BrandAPI';
 import { demoProducts } from '../services/demoProducts';
 import { closetCount, listCloset, onClosetChange, toggleCloset } from '../services/closet';
 import { Chip, Skeleton, EmptyState, Button, Eyebrow, IconButton, StaggerList, StaggerItem } from '../components/ui';
+import { safeOpenUrl } from '../utils/sanitize';
 
 
 export interface Product {
@@ -112,7 +113,7 @@ const Marketplace: React.FC = () => {
     } catch (error) {
       console.error("Error navigating to recommendation:", error);
       showToast("Something went wrong", "error");
-      window.open(product.affiliateLink || product.url, '_blank');
+      safeOpenUrl(product.affiliateLink || product.url);
     }
   };
 
@@ -182,6 +183,16 @@ const Marketplace: React.FC = () => {
               {category}
             </Chip>
           ))}
+        </div>
+      </div>
+
+      {/* Affiliate & Nominative Fair Use Disclosure */}
+      <div className="px-6 pt-3 pb-1">
+        <div className="rounded-lg bg-surface-1/70 border border-line/60 px-3.5 py-2 text-[11px] text-ink-faint leading-relaxed flex items-start gap-2">
+          <span className="material-symbols-outlined text-[14px] text-ink-soft shrink-0 mt-0.5" aria-hidden="true">info</span>
+          <span>
+            <strong className="text-ink-soft font-medium">Affiliate Disclosure:</strong> ZipRIGHT participates in merchant affiliate programs. When you click through and purchase garments, we may earn an affiliate commission at no additional cost to you. Brand names are used solely for descriptive sizing analysis under nominative fair use.
+          </span>
         </div>
       </div>
 

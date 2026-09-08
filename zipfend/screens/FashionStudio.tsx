@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, springs } from '../components/ui';
+import { safeOpenUrl } from '../utils/sanitize';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { closetCount, inCloset, onClosetChange, toggleCloset } from '../services/closet';
@@ -511,7 +512,7 @@ const FashionStudio: React.FC = () => {
               <span className={`material-symbols-outlined text-[21px] ${isLiked ? 'text-brand-on-media' : 'text-white'}`} style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }} aria-hidden="true">favorite</span>
             </button>
             <button
-              onClick={() => window.open(product.url, '_blank')}
+              onClick={() => safeOpenUrl(product.url)}
               aria-label={`Buy for ${product.price}`}
               className="h-[52px] flex-1 rounded-full bg-brand-on-media text-[#2a1608] flex items-center justify-center gap-2 press shadow-[0_6px_28px_rgba(232,155,107,0.4)]"
             >

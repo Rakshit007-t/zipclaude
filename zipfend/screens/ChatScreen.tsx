@@ -11,6 +11,7 @@ import {
 } from '../services/messages';
 import { Spinner, EmptyState, Button } from '../components/ui';
 import { compressImage } from '../utils/media';
+import { safeOpenUrl, sanitizeText } from '../utils/sanitize';
 
 function pickAudioMime(): string | undefined {
   if (typeof MediaRecorder === 'undefined') return undefined;
@@ -144,7 +145,7 @@ const ChatScreen: React.FC = () => {
   }, []);
 
   const handleSendText = async () => {
-    const text = draft.trim();
+    const text = sanitizeText(draft, 1000);
     if (!text || !convId || sending) return;
     setDraft('');
     try {
@@ -260,7 +261,7 @@ const ChatScreen: React.FC = () => {
             <div className="relative shrink-0">
               <div className="h-10 w-10 rounded-full border border-line overflow-hidden flex items-center justify-center bg-surface-1">
                 {other.photoURL ? (
-                  <img src={other.photoURL} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={other.photoURL} alt={`${other.displayName}'s avatar`} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   <span className="font-display font-medium text-[16px]">{other.displayName.charAt(0).toUpperCase()}</span>
                 )}
@@ -311,11 +312,11 @@ const ChatScreen: React.FC = () => {
                 )}
                 {m.type === 'product' && m.product && (
                   <button
-                    onClick={() => window.open(m.product!.url, '_blank')}
+                    onClick={() => safeOpenUrl(m.product!.url)}
                     className="flex items-center gap-3 text-left"
                     aria-label={`Open ${m.product.title}`}
                   >
-                    <img src={m.product.image} alt="" className="h-14 w-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
+                    <img src={m.product.image} alt={m.product.title || 'Shared product preview'} className="h-14 w-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
                     <span>
                       <span className={`block font-display text-[14px] font-medium ${mine ? '' : 'text-ink'}`}>{m.product.brand}</span>
                       <span className="block text-[11px] opacity-70 truncate max-w-[140px]">{m.product.title}</span>

@@ -14,6 +14,8 @@ interface AppBarProps {
   trailing?: React.ReactNode;
   /** Transparent over hero imagery instead of blurred surface. */
   transparent?: boolean;
+  /** Tag to wrap string title with; defaults to 'h1'. Use 'span' when page body contains its own editorial h1. */
+  headingTag?: 'h1' | 'h2' | 'span' | 'none';
   className?: string;
 }
 
@@ -28,6 +30,7 @@ const AppBar: React.FC<AppBarProps> = ({
   onBack,
   trailing,
   transparent,
+  headingTag = 'h1',
   className,
 }) => {
   const navigate = useNavigate();
@@ -51,7 +54,13 @@ const AppBar: React.FC<AppBarProps> = ({
         )}
         <div className="flex-1 min-w-0">
           {typeof title === 'string' ? (
-            <h1 className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink truncate">{title}</h1>
+            headingTag === 'span' || headingTag === 'none' ? (
+              <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink truncate block">{title}</span>
+            ) : headingTag === 'h2' ? (
+              <h2 className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink truncate">{title}</h2>
+            ) : (
+              <h1 className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink truncate">{title}</h1>
+            )
           ) : (
             title
           )}

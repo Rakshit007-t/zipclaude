@@ -17,6 +17,7 @@ import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { addToCloset } from '../services/closet';
 import { AppBar, Button, EmptyState, Spinner, Badge } from '../components/ui';
+import { safeOpenUrl } from '../utils/sanitize';
 
 interface Gift {
   id: string;
@@ -165,7 +166,7 @@ const GiftInbox: React.FC = () => {
                     <div className="p-4 flex gap-4">
                       <button
                         className="h-24 w-20 rounded-xl overflow-hidden flex-shrink-0 bg-surface-2"
-                        onClick={() => window.open(gift.product.affiliateLink || gift.product.url, '_blank')}
+                        onClick={() => safeOpenUrl(gift.product.affiliateLink || gift.product.url)}
                         aria-label={`Open ${gift.product.title}`}
                       >
                         <img src={gift.product.image} alt={gift.product.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />

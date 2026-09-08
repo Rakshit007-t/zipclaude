@@ -238,7 +238,7 @@ const GiftLook: React.FC = () => {
               >
                 <div className="h-10 w-10 rounded-full border border-line flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {foundUser.photoURL ? (
-                    <img src={foundUser.photoURL} className="h-full w-full rounded-full object-cover" alt="" referrerPolicy="no-referrer" />
+                    <img src={foundUser.photoURL} className="h-full w-full rounded-full object-cover" alt={`${foundUser.displayName}'s avatar`} referrerPolicy="no-referrer" />
                   ) : (
                     <span className="text-ink font-display font-medium text-[16px]">{foundUser.displayName.charAt(0).toUpperCase()}</span>
                   )}

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { listCloset, onClosetChange, removeFromCloset } from '../services/closet';
 import { useAppNavigation } from '../utils/useAppNavigation';
 import { AppBar, EmptyState, Button, Spinner } from '../components/ui';
+import { safeOpenUrl } from '../utils/sanitize';
 
 
 interface WishlistItem {
@@ -73,7 +74,7 @@ const Wishlist: React.FC = () => {
                 >
                   <div
                     className="h-28 w-24 rounded-xl overflow-hidden flex-shrink-0 bg-surface-2 cursor-pointer"
-                    onClick={() => window.open(item.productUrl || item.url || '#', '_blank')}
+                    onClick={() => safeOpenUrl(item.productUrl || item.url)}
                   >
                     <img
                       src={item.image || ''}
@@ -91,7 +92,7 @@ const Wishlist: React.FC = () => {
                       <p className="text-[14px] font-semibold text-ink">{item.price || ''}</p>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => window.open(item.productUrl || item.url || '#', '_blank')}
+                          onClick={() => safeOpenUrl(item.productUrl || item.url)}
                           aria-label={`Shop ${item.title || 'item'}`}
                           className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-soft active:scale-90 transition-transform"
                         >

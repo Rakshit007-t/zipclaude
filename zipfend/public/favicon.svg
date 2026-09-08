@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="luxeZGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8B88A"/>
+      <stop offset="50%" stop-color="#C68B59"/>
+      <stop offset="100%" stop-color="#8F5426"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#24211E"/>
+      <stop offset="100%" stop-color="#0F0E0D"/>
+    </radialGradient>
+  </defs>
+  <!-- Rounded squircle badge -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bgGlow)" stroke="#3A332C" stroke-width="1.5"/>
+  <!-- Bespoke architectural Z glyph -->
+  <path d="M18 20 H46 V24.5 L27 40 H46 V45 H18 V40.5 L37 25 H18 Z" fill="url(#luxeZGrad)"/>
+</svg>

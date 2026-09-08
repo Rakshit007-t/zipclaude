@@ -7,10 +7,40 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#f4f1ea" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://zipright.ai/" />
+
+    <!-- Favicon & Touch Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-    <title>ZipRIGHT — The Fit Atelier</title>
+
+    <!-- SEO Meta Tags -->
+    <title>ZipRIGHT — AI Virtual Try-On &amp; Sizing Atelier</title>
+    <meta name="description" content="ZipRIGHT is an AI fashion-tech atelier providing neural virtual try-on on your own photo, 3D body measurements, and cross-brand size recommendations." />
+    <meta name="keywords" content="AI virtual try on, clothing size finder, 3D body measurement, fashion sizing engine, virtual fitting room, smart fit scan, ZipRIGHT" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ZipRIGHT" />
+    <meta property="og:url" content="https://zipright.ai/" />
+    <meta property="og:title" content="ZipRIGHT — AI Virtual Try-On &amp; Sizing Atelier" />
+    <meta property="og:description" content="AI virtual try-on on your own photo, 3D body measurements, and guaranteed size confidence across any brand." />
+    <meta property="og:image" content="https://zipright.ai/og-image.svg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@zipright" />
+    <meta name="twitter:title" content="ZipRIGHT — AI Virtual Try-On &amp; Sizing Atelier" />
+    <meta name="twitter:description" content="AI virtual try-on on your own photo, 3D body measurements, and guaranteed size confidence across any brand." />
+    <meta name="twitter:image" content="https://zipright.ai/og-image.svg" />
+
+    <!-- Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -21,7 +51,74 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
       rel="stylesheet"
     />
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <!-- Security & Headers -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; frame-src 'self' https://api.razorpay.com;" />
+
+    <!-- Structured Data: Organization, WebSite, SoftwareApplication, LocalBusiness -->
+    <script type="application/ld+json">
+      [
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "ZipRIGHT Technologies Private Limited",
+          "alternateName": "ZipRIGHT",
+          "url": "https://zipright.ai",
+          "logo": "https://zipright.ai/favicon.svg",
+          "sameAs": [
+            "https://twitter.com/zipright",
+            "https://instagram.com/zipright"
+          ],
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "email": "support@zipright.com",
+            "contactType": "Customer Support",
+            "areaServed": "IN"
+          }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "ZipRIGHT",
+          "url": "https://zipright.ai",
+          "description": "AI virtual try-on, 3D body scanning, and sizing intelligence across leading apparel brands.",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://zipright.ai/#/marketplace?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "ZipRIGHT Fit Atelier",
+          "operatingSystem": "Web, iOS, Android",
+          "applicationCategory": "LifestyleApplication",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR"
+          }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "LocalBusiness",
+          "name": "ZipRIGHT Technologies",
+          "image": "https://zipright.ai/og-image.svg",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Koramangala Industrial Layout, 5th Block",
+            "addressLocality": "Bengaluru",
+            "addressRegion": "Karnataka",
+            "postalCode": "560095",
+            "addressCountry": "IN"
+          },
+          "priceRange": "₹₹"
+        }
+      ]
+    </script>
+
     <style>
       body {
         margin: 0;
@@ -34,7 +131,6 @@
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
     <script>
-      window.__RAZORPAY_KEY__ = 'rzp_test_REPLACE_WITH_YOUR_KEY';
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
           navigator.serviceWorker.register('/sw.js').catch(function () {});

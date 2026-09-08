@@ -51,6 +51,7 @@ from services.seller_repository import (
     get_seller_repository,
 )
 from services.storage_provider import StorageProvider, get_storage_provider
+from services.upload_validator import validate_image_upload
 from firebase_config import get_firestore_client
 
 router = APIRouter(prefix="/seller", tags=["seller"])
@@ -194,20 +195,8 @@ async def upload_seller_logo(
     storage: StorageProvider = Depends(get_storage_provider),
 ) -> ApiResponse[SellerProfile]:
     _require_editable(context)
-    extension = _LOGO_EXTENSIONS.get((file.content_type or "").lower())
-    if extension is None:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Logo must be a PNG, JPEG, or WebP image.",
-        )
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Empty file.")
-    if len(data) > MAX_LOGO_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Logo must be 5 MB or smaller.",
-        )
+    data = await validate_image_upload(file, max_size_bytes=MAX_LOGO_BYTES)
+    extension = _LOGO_EXTENSIONS.get((file.content_type or "").lower(), "png")
 
     url = await asyncio.to_thread(
         storage.upload_bytes,

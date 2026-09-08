@@ -338,7 +338,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
                         >
                           <div className="h-10 w-10 rounded-full border border-line flex items-center justify-center shrink-0 overflow-hidden">
                             {result.photoURL ? (
-                              <img src={result.photoURL} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                              <img src={result.photoURL} alt={`${result.displayName}'s avatar`} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
                               <span className="text-ink font-display font-medium">{result.displayName.charAt(0).toUpperCase()}</span>
                             )}
@@ -429,7 +429,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
                     >
                       <div className="h-12 w-12 rounded-full border border-line flex items-center justify-center shrink-0 overflow-hidden">
                         {info?.photoURL ? (
-                          <img src={info.photoURL} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                          <img src={info.photoURL} alt={`${info?.displayName || 'Member'}'s avatar`} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
                           <span className="text-ink font-display font-medium text-[17px]">{(info?.displayName || '?').charAt(0).toUpperCase()}</span>
                         )}
@@ -472,7 +472,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
                   >
                     {/* Product image */}
                     <div className="relative h-52 w-full">
-                      <img src={item.image} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={item.image} alt={`${item.brand} - ${item.title}`} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                       {!item.seen && (
                         <div className="absolute top-3 left-3">
                           <Badge variant="brand" size="sm">New</Badge>

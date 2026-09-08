@@ -1,5 +1,6 @@
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { hasCategoryConsent } from './cookieConsent';
 
 export type RecommendationAnalyticsEventName =
   | 'recommendation_generated'
@@ -188,6 +189,8 @@ export async function trackRecommendationEvent(
   payload: RecommendationAnalyticsPayload,
 ): Promise<void> {
   try {
+    if (!hasCategoryConsent('analytics')) return;
+
     const userId = cleanString(payload.userId || auth.currentUser?.uid);
     if (!userId) return;
 

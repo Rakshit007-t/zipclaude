@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { safeOpenUrl } from '../utils/sanitize';
 import { getUserPlan } from '../utils/subscription';
 import { auth, db } from '../firebase';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -806,7 +807,7 @@ const Recommendation: React.FC = () => {
     }
 
     if (productUrl) {
-      window.open(productUrl, '_blank');
+      safeOpenUrl(productUrl);
     } else {
       showToast("No product link provided to redirect to.", "error");
     }
@@ -831,7 +832,7 @@ const Recommendation: React.FC = () => {
     }
 
     if (productUrl) {
-        window.open(productUrl, '_blank');
+        safeOpenUrl(productUrl);
     } else {
         showToast("Product link unavailable.", "error");
     }

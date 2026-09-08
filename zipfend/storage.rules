@@ -2,23 +2,24 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
-    function imageUnderFiveMb() {
+    function validImage() {
       return request.resource != null
         && request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
     }
     match /profiles/{uid}.jpg {
       allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == uid && imageUnderFiveMb();
+      allow write: if signedIn() && request.auth.uid == uid && validImage();
     }
     // Banner uploads use a deterministic owner-only path as well. Keeping this
     // separate prevents a client from writing arbitrary objects under /profiles.
     match /banners/{uid}.jpg {
       allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == uid && imageUnderFiveMb();
+      allow write: if signedIn() && request.auth.uid == uid && validImage();
     }
     match /private/{uid}/{allPaths=**} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid && validImage();
     }
     match /{allPaths=**} { allow read, write: if false; }
   }

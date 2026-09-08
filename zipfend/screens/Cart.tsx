@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { listCloset, onClosetChange, removeFromCloset, updateQuantity, type ClosetItem } from '../services/closet';
 import { useAppNavigation } from '../utils/useAppNavigation';
 import { AppBar, Button, EmptyState, Spinner } from '../components/ui';
+import { safeOpenUrl } from '../utils/sanitize';
 
 
 interface CartItem {
@@ -75,7 +76,7 @@ const Cart: React.FC = () => {
                 >
                   <div
                     className="h-28 w-24 rounded-xl overflow-hidden flex-shrink-0 bg-surface-2 cursor-pointer"
-                    onClick={() => window.open(item.affiliateLink || item.productUrl || item.url || '#', '_blank')}
+                    onClick={() => safeOpenUrl(item.affiliateLink || item.productUrl || item.url)}
                   >
                     <img
                       src={item.image || ''}
@@ -129,8 +130,25 @@ const Cart: React.FC = () => {
       {/* Checkout Bar */}
       {items.length > 0 && (
         <div className="fixed bottom-0 inset-x-0 w-full p-6 bg-surface-0/92 backdrop-blur-xl border-t border-line phone-fixed-bottom">
-          <Button fullWidth size="lg" variant="secondary" disabled icon="lock">
-            Checkout unavailable ({items.length} items)
+          <div className="flex items-center justify-between text-[11px] text-ink-soft mb-3">
+            <span>Platform service fee:</span>
+            <span className="font-semibold text-brand">₹0.00 (Free)</span>
+          </div>
+          <p className="text-[10.5px] text-ink-faint text-center mb-3">
+            ZipRIGHT is an advisory sizing atelier and charges no hidden markup. Orders, shipping, and taxes are settled directly on the partner merchant website.
+          </p>
+          <Button
+            fullWidth
+            size="lg"
+            variant="primary"
+            onClick={() => {
+              const first = items[0];
+              const target = first?.affiliateLink || first?.productUrl || first?.url;
+              if (target) safeOpenUrl(target);
+            }}
+            icon="open_in_new"
+          >
+            Visit Merchant Store ({items.length} {items.length === 1 ? 'item' : 'items'})
           </Button>
         </div>
       )}

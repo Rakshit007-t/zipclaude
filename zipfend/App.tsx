@@ -11,9 +11,10 @@ import { requiresEmailVerification } from './services/authClient';
 import { ToastProvider } from './contexts/ToastContext';
 import { UserProfileProvider, useUserProfile } from './contexts/UserProfileContext';
 import ErrorBoundary from './components/ErrorBoundary';
-import { ScreenFallback, OfflineBanner, Wordmark } from './components/ui';
+import { ScreenFallback, OfflineBanner, Wordmark, CookieConsentBanner } from './components/ui';
 import { ProtectedAdminRoute, ProtectedSellerRoute } from './components/routing/ProtectedRoutes';
 import Splash from './screens/Splash';
+import SEOManager from './components/SEOManager';
 
 // Screens are lazy-loaded: each becomes its own chunk so first paint only
 // pays for the route being visited, not the whole app.
@@ -67,6 +68,9 @@ const AboutUs = React.lazy(() => import('./screens/AboutUs'));
 const TermsOfUse = React.lazy(() => import('./screens/TermsOfUse'));
 const PrivacyPolicy = React.lazy(() => import('./screens/PrivacyPolicy'));
 const PrivacyCenter = React.lazy(() => import('./screens/PrivacyCenter'));
+const CookiePolicy = React.lazy(() => import('./screens/CookiePolicy'));
+const RefundPolicy = React.lazy(() => import('./screens/RefundPolicy'));
+const NotFound = React.lazy(() => import('./screens/NotFound'));
 
 
 
@@ -276,7 +280,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
                   {tab.icon === 'account_circle' && profileImage ? (
                     <img
                       src={profileImage}
-                      alt=""
+                      alt="Your profile avatar"
                       className={`w-6 h-6 rounded-full object-cover transition-opacity ${isActive(tab.route) ? 'ring-2 ring-brand opacity-100' : 'opacity-50'}`}
                       referrerPolicy="no-referrer"
                     />
@@ -336,6 +340,8 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
       '/terms-of-use',
       '/privacy-policy',
       '/privacy-center',
+      '/cookie-policy',
+      '/refund-policy',
     ]);
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -391,6 +397,7 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
   // horizontal scroll on any phone width.
   return (
     <div className="w-full max-w-[430px] mx-auto min-h-screen min-h-dvh bg-surface-0 relative overflow-x-hidden border-x border-line/50 transition-colors duration-300 shadow-2xl">
+        <SEOManager />
         <OfflineBanner />
         <Suspense fallback={<ScreenFallback />}>
         <Routes>
@@ -467,12 +474,16 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="/terms-of-use" element={<TermsOfUse />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/privacy-center" element={<PrivacyCenter />} />
+          <Route path="/cookie-policy" element={<CookiePolicy />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
 
-          {/* Redirect */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* 404 Custom Error Screen */}
+          <Route path="/404" element={<NotFound />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>
         <BottomNav zipPoints={zipPoints} unreadFriends={unreadFriends} profileImage={typeof userProfile.photoURL !== 'undefined' ? (userProfile.photoURL || null) : (profileImage || user?.photoURL || null)} />
+        <CookieConsentBanner />
     </div>
   );
 };

@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile, status
 
 from models.schema import AvatarCreateResponse
+from services.upload_validator import validate_image_upload
 
 logger = logging.getLogger(__name__)
 
@@ -134,32 +135,7 @@ def _detect_face_region(image) -> tuple[int, int, int, int] | None:
 
 
 async def process_avatar_upload(file: UploadFile) -> AvatarCreateResponse:
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A file name is required.",
-        )
-
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Only JPEG, PNG, and WEBP images are supported.",
-        )
-
-    try:
-        content = await file.read()
-    except Exception as exc:
-        logger.exception("Failed to read uploaded avatar file '%s'.", file.filename)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to read uploaded file.",
-        ) from exc
-
-    if len(content) > MAX_FILE_SIZE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Uploaded file exceeds the 10 MB limit.",
-        )
+    content = await validate_image_upload(file, max_size_bytes=MAX_FILE_SIZE_BYTES)
 
     try:
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

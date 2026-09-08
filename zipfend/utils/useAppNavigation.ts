@@ -40,6 +40,9 @@ const PARENT_ROUTE_MAP: Record<string, string> = {
   '/terms-of-use': '/settings',
   '/privacy-policy': '/settings',
   '/privacy-center': '/settings',
+  '/cookie-policy': '/settings',
+  '/refund-policy': '/settings',
+  '/404': '/home',
 };
 
 /**

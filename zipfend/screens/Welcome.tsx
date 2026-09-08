@@ -165,10 +165,18 @@ const Welcome: React.FC = () => {
           By continuing you agree to our{' '}
           <button onClick={() => navigate('/terms-of-use')} className="underline underline-offset-2 text-ink-soft">
             Terms
-          </button>{' '}
-          &{' '}
+          </button>
+          ,{' '}
           <button onClick={() => navigate('/privacy-policy')} className="underline underline-offset-2 text-ink-soft">
-            Privacy Policy
+            Privacy
+          </button>
+          ,{' '}
+          <button onClick={() => navigate('/cookie-policy')} className="underline underline-offset-2 text-ink-soft">
+            Cookies
+          </button>
+          {' '}&{' '}
+          <button onClick={() => navigate('/refund-policy')} className="underline underline-offset-2 text-ink-soft">
+            Refunds
           </button>
         </p>
       </motion.div>

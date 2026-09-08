@@ -1,0 +1,29 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Allow: /welcome
+Allow: /login
+Allow: /home
+Allow: /marketplace
+Allow: /fashion-studio
+Allow: /tryon-studio
+Allow: /live-tryon
+Allow: /about-us
+Allow: /terms-of-use
+Allow: /privacy-policy
+Allow: /cookie-policy
+Allow: /refund-policy
+Allow: /faqs
+Allow: /llms.txt
+
+# Disallow private user sessions, internal chat, and administrative panels
+Disallow: /admin/
+Disallow: /seller/
+Disallow: /chat/
+Disallow: /recent-scans/
+Disallow: /checkout/
+Disallow: /select-payment/
+
+# Crawl Delay & Sitemap
+Sitemap: https://zipright.ai/sitemap.xml
+Host: https://zipright.ai

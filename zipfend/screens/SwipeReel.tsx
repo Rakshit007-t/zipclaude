@@ -26,7 +26,7 @@ const IconAction = ({ icon, label, onClick, filled }: { icon: string; label: str
 );
 
 const avatar = (name: string, url?: string | null) => url
-  ? <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+  ? <img src={url} alt={`${name}'s avatar`} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
   : <span className="flex h-full w-full items-center justify-center bg-surface-2 text-sm font-semibold text-ink">{name.slice(0, 1).toUpperCase()}</span>;
 
 const SwipeReel: React.FC = () => {

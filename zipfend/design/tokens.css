@@ -20,8 +20,8 @@
   --line: rgba(28, 25, 16, 0.1);
   --line-strong: rgba(28, 25, 16, 0.24);
   --ink: #191613; /* espresso black */
-  --ink-soft: rgba(25, 22, 19, 0.64);
-  --ink-faint: rgba(25, 22, 19, 0.42);
+  --ink-soft: rgba(25, 22, 19, 0.68);
+  --ink-faint: rgba(25, 22, 19, 0.60);
   --ink-invert: #f6f4ed; /* bone type on ink surfaces */
   --brand: #a9895b; /* restrained champagne, reserved for intent */
   --brand-strong: #876b42;
@@ -52,8 +52,8 @@
   --line: rgba(246, 244, 237, 0.08);
   --line-strong: rgba(246, 244, 237, 0.2);
   --ink: #f1ede3;
-  --ink-soft: rgba(241, 237, 227, 0.66);
-  --ink-faint: rgba(241, 237, 227, 0.42);
+  --ink-soft: rgba(241, 237, 227, 0.70);
+  --ink-faint: rgba(241, 237, 227, 0.62);
   --ink-invert: #14120f;
   --brand: #d7bd8d; /* candlelit champagne for dark ground */
   --brand-strong: #e5cda2;

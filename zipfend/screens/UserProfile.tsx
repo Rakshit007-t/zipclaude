@@ -504,7 +504,7 @@ const UserProfile: React.FC = () => {
                     aria-label={l.caption || 'View look'}
                     className="relative aspect-square overflow-hidden bg-surface-2 active:opacity-80 transition-opacity"
                   >
-                    <img src={l.mediaUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                    <img src={l.mediaUrl} alt={l.caption || 'Community look'} className="h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                     {l.likesCount > 0 && (
                       <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-white text-[10px] font-semibold bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
                         <span className="material-symbols-outlined text-[11px] text-brand" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
