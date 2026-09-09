@@ -7,6 +7,7 @@ attacks before hitting database or compute-heavy operations.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections import defaultdict
 from threading import Lock
@@ -94,12 +95,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path in self.EXEMPT_PATHS or path.startswith("/uploads/") or path.startswith("/ui/"):
             return await call_next(request)
 
-        # Extract client IP (respecting X-Forwarded-For if behind a reverse proxy)
+        # Extract client IP (respecting X-Forwarded-For only if configured behind a trusted proxy)
+        peer_host = request.client.host if request.client else "127.0.0.1"
+        trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").strip().lower() in {"1", "true", "yes"}
         forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
-        if forwarded_for:
+
+        if trust_proxy and forwarded_for and peer_host in {"127.0.0.1", "::1", "localhost", "testclient"}:
             client_ip = forwarded_for.split(",")[0].strip()
         else:
-            client_ip = request.client.host if request.client else "127.0.0.1"
+            client_ip = peer_host
 
         allowed, retry_after, remaining = self.limiter.is_allowed(client_ip)
 

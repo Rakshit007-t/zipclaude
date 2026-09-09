@@ -12,11 +12,13 @@ from models.schema import (
     LiveTryOnSessionResponse,
 )
 from services.live_tryon_engine import (
+    _fetch_session_record,
     create_live_tryon_session,
     estimate_live_tryon_frame,
     list_garments,
     register_garment,
 )
+from services.admin_auth import require_admin
 from services.firebase_auth import AuthenticatedUser, get_current_user, verify_firebase_token
 
 router = APIRouter(tags=["tryon-live"])
@@ -30,10 +32,10 @@ logger = logging.getLogger(__name__)
 )
 async def create_garment(
     payload: GarmentCreateRequest,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    admin: AuthenticatedUser = Depends(require_admin),
 ) -> GarmentResponse:
     try:
-        logger.info("create_garment requested by user_id=%s", current_user.uid)
+        logger.info("create_garment requested by admin_id=%s", admin.uid)
         return register_garment(payload)
     except HTTPException:
         raise
@@ -105,6 +107,18 @@ async def estimate_frame(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> LiveTryOnFrameResponse:
     try:
+        session = _fetch_session_record(
+            payload.session_id,
+            not_found_detail=f"Session '{payload.session_id}' was not found.",
+        )
+        if session["user_id"] != current_user.uid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "message": "Not authorized to submit frames for this session.",
+                    "details": {"code": "session_mismatch"},
+                },
+            )
         return estimate_live_tryon_frame(payload)
     except HTTPException:
         raise
@@ -123,10 +137,23 @@ async def tryon_live_ws(websocket: WebSocket, session_id: str) -> None:
         await websocket.close(code=1008)
         return
     try:
-        verify_firebase_token(token)
+        auth_user = verify_firebase_token(token)
     except HTTPException:
         await websocket.close(code=1008)
         return
+
+    try:
+        session = _fetch_session_record(
+            session_id,
+            not_found_detail=f"Session '{session_id}' was not found.",
+        )
+        if session["user_id"] != auth_user.uid:
+            await websocket.close(code=1008)
+            return
+    except Exception:
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
     try:
         while True:

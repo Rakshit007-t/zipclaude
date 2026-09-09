@@ -294,6 +294,15 @@ async def public_v1_job_status(
             },
         )
 
+    if job.user_id != api_key.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "Not authorized to access this job.",
+                "details": {"code": "job_forbidden"},
+            },
+        )
+
     return success_response(
         message="Job status retrieved successfully.",
         data=TryOnJobStatusResponse(
