@@ -7,24 +7,53 @@ service firebase.storage {
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|webp)');
     }
+
+    // ── PUBLIC MEDIA ─────────────────────────────────────────────────────────
+    // Seller brand assets and marketplace catalog imagery are public
+    match /seller-logos/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Uploads restricted to backend server via Admin SDK
+    }
+    match /seller-products/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /products/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── PUBLIC PROFILE / COMMUNITY MEDIA ─────────────────────────────────────
+    // Profile pictures, banners, and published looks are visible to signed-in members
     match /profiles/{uid}.jpg {
       allow read: if signedIn();
       allow write: if signedIn() && request.auth.uid == uid && validImage();
     }
-    // Banner uploads use a deterministic owner-only path as well. Keeping this
-    // separate prevents a client from writing arbitrary objects under /profiles.
     match /banners/{uid}.jpg {
       allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == uid && validImage();
-    }
-    match /private/{uid}/{allPaths=**} {
-      allow read: if signedIn() && request.auth.uid == uid;
       allow write: if signedIn() && request.auth.uid == uid && validImage();
     }
     match /looks/{uid}/{allPaths=**} {
       allow read: if signedIn();
       allow write: if signedIn() && request.auth.uid == uid && validImage();
     }
+    match /dm/{convId}/{allPaths=**} {
+      allow read, write: if signedIn() && validImage();
+    }
+
+    // ── PRIVATE BIOMETRIC / FIT / TRY-ON MEDIA ──────────────────────────────
+    // Customer avatars, try-on outputs, SmartFit photos & body scans
+    // STRICT OWNER-ONLY ACCESS — No public access, no cross-user access
+    match /private/{uid}/{allPaths=**} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid && validImage();
+    }
+    match /users/{uid}/{allPaths=**} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid && validImage();
+    }
+
+    // ── DEFAULT DENY ─────────────────────────────────────────────────────────
     match /{allPaths=**} { allow read, write: if false; }
   }
 }

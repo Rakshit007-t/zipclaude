@@ -532,7 +532,10 @@ def test_repository_has_no_committed_secrets():
 
     forbidden_patterns = [
         re.compile(r"serviceAccountKey\.json$", re.IGNORECASE),
+        re.compile(r"service-account.*\.json$", re.IGNORECASE),
         re.compile(r"firebase-adminsdk.*\.json$", re.IGNORECASE),
+        re.compile(r"firebase_key\.json$", re.IGNORECASE),
+        re.compile(r"firebase-applet-config\.json$", re.IGNORECASE),
         re.compile(r"\.env$", re.IGNORECASE),
         re.compile(r"\.env\.(staging|production|local)$", re.IGNORECASE),
         re.compile(r"\.key$", re.IGNORECASE),

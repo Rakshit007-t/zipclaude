@@ -18,6 +18,12 @@ serviceAccountKey.json
 *service-account*.json
 firebase-adminsdk*.json
 firebase_key.json
+*-key.json
+*_key.json
+firebase-applet-config.json
+*applet-config*.json
+!firebase-applet-config.example.json
+*.local
 *.pem
 *.key
 *.sqlite

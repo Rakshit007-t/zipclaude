@@ -145,6 +145,9 @@ async def create_tryon_job(
         window_seconds=60,
         detail="Rate limit exceeded for Virtual Try-On requests.",
     )
+    # Check for client idempotency key
+    idempotency_key = request.headers.get("X-Idempotency-Key", "").strip() or None
+
     # Reserve the free use / deduct the wallet before the background worker can
     # reach generate_vton_image().
     consume_tryon_credit(current_user)
@@ -157,13 +160,15 @@ async def create_tryon_job(
         quality=payload.quality,
         person_image=payload.person_image,
         garment_image=payload.garment_image,
+        idempotency_key=idempotency_key,
     )
     logger.info(
-        "Started try-on job %s: user_id=%s cloth_type=%s quality=%s",
+        "Started try-on job %s: user_id=%s cloth_type=%s quality=%s idempotency_key=%s",
         job_id,
         payload.user_id,
         payload.cloth_type,
         payload.quality,
+        idempotency_key,
     )
     return success_response(
         message="Try-on job started.",
@@ -191,6 +196,13 @@ async def tryon_job_status(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This job belongs to another user.",
         )
+    # Sanitize any unexpected internal system details from error messages
+    safe_error = job.error
+    if safe_error:
+        # Strip system paths or trace strings if any slipped through
+        if "\\" in safe_error or "/" in safe_error or "Traceback" in safe_error:
+            safe_error = "Virtual Try-On rendering encountered an issue. Please try again."
+
     return success_response(
         message="Try-on job status.",
         data=TryOnJobStatusResponse(
@@ -200,6 +212,6 @@ async def tryon_job_status(
             stage=job.stage,
             engine=job.engine,
             tryon_image=job.result_url,
-            error=job.error,
+            error=safe_error,
         ),
     )

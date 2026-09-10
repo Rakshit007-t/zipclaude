@@ -134,22 +134,26 @@ def _detect_face_region(image) -> tuple[int, int, int, int] | None:
     return int(x), int(y), int(width), int(height)
 
 
-async def process_avatar_upload(file: UploadFile) -> AvatarCreateResponse:
+async def process_avatar_upload(
+    file: UploadFile,
+    user_id: str | None = None,
+) -> AvatarCreateResponse:
     content = await validate_image_upload(file, max_size_bytes=MAX_FILE_SIZE_BYTES)
+    target_user_id = (user_id or "").strip() or str(uuid4())
 
+    avatar_dir = UPLOAD_DIR / "private" / "avatars" / target_user_id
     try:
-        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        avatar_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        logger.exception("Failed to create upload directory '%s'.", UPLOAD_DIR)
+        logger.exception("Failed to create avatar directory '%s'.", avatar_dir)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to prepare avatar storage.",
         ) from exc
 
-    extension = Path(file.filename).suffix or ".bin"
-    user_id = str(uuid4())
-    filename = f"{user_id}{extension}"
-    file_path = UPLOAD_DIR / filename
+    extension = Path(file.filename).suffix or ".jpg"
+    filename = f"avatar{extension}"
+    file_path = avatar_dir / filename
     try:
         file_path.write_bytes(content)
     except OSError as exc:
@@ -159,7 +163,9 @@ async def process_avatar_upload(file: UploadFile) -> AvatarCreateResponse:
             detail="Failed to store uploaded file.",
         ) from exc
 
-    public_path = f"/uploads/{filename}"
+    from services.media_access import create_signed_media_url
+
+    public_path = create_signed_media_url("avatars", target_user_id, filename)
     try:
         embedding = extract_face_embedding(file_path)
     except (FaceDetectionError, FileNotFoundError, ValueError) as exc:
@@ -177,7 +183,7 @@ async def process_avatar_upload(file: UploadFile) -> AvatarCreateResponse:
         ) from exc
 
     return AvatarCreateResponse(
-        user_id=user_id,
+        user_id=target_user_id,
         public_path=public_path,
         embedding=embedding,
     )

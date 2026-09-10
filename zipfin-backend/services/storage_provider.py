@@ -45,7 +45,7 @@ class LocalStorageProvider(StorageProvider):
     cloud provider is misconfigured (e.g. the known Firebase Storage 403).
     """
 
-    def __init__(self, directory: Path = LOCAL_UPLOAD_DIR, url_prefix: str = "/uploads") -> None:
+    def __init__(self, directory: Path = LOCAL_UPLOAD_DIR, url_prefix: str = "/media/public") -> None:
         self._directory = directory
         self._url_prefix = url_prefix.rstrip("/")
 
@@ -81,12 +81,21 @@ class FirebaseStorageProvider(StorageProvider):
 
             uploader = upload_to_firebase
         try:
-            return uploader(
-                data,
-                folder=folder,
-                content_type=content_type,
-                file_extension=extension,
-            )
+            try:
+                return uploader(
+                    data,
+                    folder=folder,
+                    content_type=content_type,
+                    file_extension=extension,
+                    is_private=False,
+                )
+            except TypeError:
+                return uploader(
+                    data,
+                    folder=folder,
+                    content_type=content_type,
+                    file_extension=extension,
+                )
         except Exception as exc:
             logger.warning("Firebase storage failed; falling back to local. reason=%s", exc)
             return self._fallback.upload_bytes(

@@ -15,6 +15,7 @@ import { ScreenFallback, OfflineBanner, Wordmark, CookieConsentBanner } from './
 import { ProtectedAdminRoute, ProtectedSellerRoute } from './components/routing/ProtectedRoutes';
 import Splash from './screens/Splash';
 import SEOManager from './components/SEOManager';
+import { agentDebugLog } from './utils/agentDebugLog';
 
 // Screens are lazy-loaded: each becomes its own chunk so first paint only
 // pays for the route being visited, not the whole app.
@@ -330,32 +331,15 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
   const [unreadFriends, setUnreadFriends] = useState(0);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const publicRoutes = new Set([
-      '/',
-      '/welcome',
-      '/login',
-      '/faqs',
-      '/about-us',
-      '/terms-of-use',
-      '/privacy-policy',
-      '/privacy-center',
-      '/cookie-policy',
-      '/refund-policy',
-    ]);
-
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser && !user && !publicRoutes.has(location.pathname)) {
-        navigate('/login');
-      }
-    });
-
-    return () => unsubscribe();
-  }, [location.pathname, navigate, user]);
+  // Authoritative Firebase user: prefers App state, but bridges the React propagation
+  // gap using auth.currentUser to prevent race conditions during login navigation.
+  // When signed out (auth.currentUser === null), activeUser is immediately null.
+  const currentAuthUser = auth.currentUser;
+  const activeUser = currentAuthUser ? (user?.uid === currentAuthUser.uid ? user : currentAuthUser) : null;
 
   useEffect(() => {
-    if (user) {
-      setProfileImage(user.photoURL || null);
+    if (activeUser) {
+      setProfileImage(activeUser.photoURL || null);
       // Style Journey points power the profile-tab badge (client-side progression)
       setZipPoints(getJourneySnapshot().points);
       setUnreadFriends(0);
@@ -366,18 +350,18 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
     setProfileImage(null);
     setZipPoints(0);
     setUnreadFriends(0);
-  }, [user]);
+  }, [activeUser]);
 
   // Keep the points badge current as the user moves through the app
   useEffect(() => {
-    if (user) setZipPoints(getJourneySnapshot().points);
-  }, [location.pathname, user]);
+    if (activeUser) setZipPoints(getJourneySnapshot().points);
+  }, [location.pathname, activeUser]);
 
   // Friends-tab badge = unread DM conversations
   useEffect(() => {
-    if (!user) return;
+    if (!activeUser) return;
     return onConversations(convs => setUnreadFriends(unreadConversations(convs)));
-  }, [user]);
+  }, [activeUser]);
 
   if (loading) {
     // Animated brand splash during the (real) Firebase auth-state wait.
@@ -389,8 +373,8 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
     );
   }
 
-  const userNeedsEmailVerification = requiresEmailVerification(user);
-  const isAuthenticated = Boolean(user && !user.isAnonymous && !userNeedsEmailVerification);
+  const userNeedsEmailVerification = requiresEmailVerification(activeUser);
+  const isAuthenticated = Boolean(activeUser && !activeUser.isAnonymous && !userNeedsEmailVerification);
 
   // Full-bleed mobile shell: single container, overflow-x clipped so no
   // decorative element (shadows, stamps, transforms) can ever create
@@ -414,12 +398,12 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="/smart-fit-scan" element={isAuthenticated ? <SmartFitScan /> : <Navigate to="/login" replace />} />
           <Route path="/recommendation" element={isAuthenticated ? <Recommendation /> : <Navigate to="/login" replace />} />
           <Route path="/settings" element={isAuthenticated ? <Settings /> : <Navigate to="/login" replace />} />
-          <Route path="/seller/add-product" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerAddProduct /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
-          <Route path="/seller/catalog" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerCatalog /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
-          <Route path="/seller/edit-product/:id" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerEditProduct /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
-          <Route path="/seller/dashboard" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerDashboard /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
-          <Route path="/seller/integration" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerIntegration /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
-          <Route path="/seller/integration/sandbox" element={isAuthenticated ? <ProtectedSellerRoute user={user}><SellerIntegrationSandbox /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/add-product" element={isAuthenticated ? <ProtectedSellerRoute user={activeUser}><SellerAddProduct /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/catalog" element={isAuthenticated ? <ProtectedSellerRoute user={activeUser}><SellerCatalog /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/edit-product/:id" element={isAuthenticated ? <ProtectedSellerRoute user={activeUser}><SellerEditProduct /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/dashboard" element={isAuthenticated ? <ProtectedSellerRoute user={activeUser}><SellerDashboard /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/integration" element={isAuthenticated ? <ProtectedSellerRoute user={activeUser}><SellerIntegration /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/integration/sandbox" element={isAuthenticated ? <ProtectedSellerRoute user={activeUser}><SellerIntegrationSandbox /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
           <Route path="/how-it-works" element={isAuthenticated ? <ComingSoon featureName="How It Works" /> : <Navigate to="/login" replace />} />
           <Route path="/success" element={isAuthenticated ? <ComingSoon featureName="Success" /> : <Navigate to="/login" replace />} />
 
@@ -452,8 +436,8 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="/chat/:uid" element={isAuthenticated ? <ChatScreen /> : <Navigate to="/login" replace />} />
           <Route path="/recent-scans" element={isAuthenticated ? <RecentScans /> : <Navigate to="/login" replace />} />
           <Route path="/feed" element={isAuthenticated ? <ProductFeed /> : <Navigate to="/login" replace />} />
-          <Route path="/admin" element={isAuthenticated ? <ProtectedAdminRoute user={user}><AdminAnalytics /></ProtectedAdminRoute> : <Navigate to="/login" replace />} />
-          <Route path="/admin/analytics" element={isAuthenticated ? <ProtectedAdminRoute user={user}><AdminAnalytics /></ProtectedAdminRoute> : <Navigate to="/login" replace />} />
+          <Route path="/admin" element={isAuthenticated ? <ProtectedAdminRoute user={activeUser}><AdminAnalytics /></ProtectedAdminRoute> : <Navigate to="/login" replace />} />
+          <Route path="/admin/analytics" element={isAuthenticated ? <ProtectedAdminRoute user={activeUser}><AdminAnalytics /></ProtectedAdminRoute> : <Navigate to="/login" replace />} />
           <Route path="/order-history" element={<ComingSoon featureName="Order History" />} />
           <Route path="/stylist" element={isAuthenticated ? <StylistChat /> : <Navigate to="/login" replace />} />
           <Route path="/seller-registration" element={<ComingSoon featureName="Seller Registration" />} />
@@ -461,7 +445,7 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="/brand/management" element={isAuthenticated ? <BrandManagement /> : <Navigate to="/login" replace />} />
 
           {/* Seller Routes */}
-          <Route path="/seller/*" element={isAuthenticated ? <ProtectedSellerRoute user={user}><ComingSoon featureName="Seller Portal" /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
+          <Route path="/seller/*" element={isAuthenticated ? <ProtectedSellerRoute user={activeUser}><ComingSoon featureName="Seller Portal" /></ProtectedSellerRoute> : <Navigate to="/login" replace />} />
 
           {/* Checkout Flow */}
           <Route path="/checkout/*" element={<ComingSoon featureName="Checkout" />} />
@@ -482,7 +466,7 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>
-        <BottomNav zipPoints={zipPoints} unreadFriends={unreadFriends} profileImage={typeof userProfile.photoURL !== 'undefined' ? (userProfile.photoURL || null) : (profileImage || user?.photoURL || null)} />
+        <BottomNav zipPoints={zipPoints} unreadFriends={unreadFriends} profileImage={typeof userProfile.photoURL !== 'undefined' ? (userProfile.photoURL || null) : (profileImage || activeUser?.photoURL || null)} />
         <CookieConsentBanner />
     </div>
   );
@@ -494,6 +478,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      // #region agent log
+      agentDebugLog('App.tsx:onAuthStateChanged', 'auth state', {hasUser:Boolean(currentUser),isAnonymous:Boolean(currentUser?.isAnonymous),emailVerified:Boolean(currentUser?.emailVerified),providers:(currentUser?.providerData||[]).map(p=>p.providerId)}, 'B');
+      // #endregion
       setUser(currentUser);
       setLoading(false);
     });

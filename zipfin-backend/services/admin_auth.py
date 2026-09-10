@@ -13,6 +13,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, status
 
+from core.security_logger import log_security_event
 from services.firebase_auth import AuthenticatedUser, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,13 @@ async def require_admin(
     gate: AdminGate = Depends(get_admin_gate),
 ) -> AuthenticatedUser:
     if not await asyncio.to_thread(gate.is_admin, current_user.uid):
+        log_security_event(
+            event_type="SECURITY_AUTHORIZATION_DENIED",
+            severity="WARNING",
+            user_id=current_user.uid,
+            email=current_user.email,
+            details={"reason": "not_an_admin", "required_role": "admin"},
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={

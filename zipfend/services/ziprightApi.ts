@@ -578,6 +578,9 @@ export interface SellerMeResponse {
 export interface AccessStatusResponse {
   is_admin: boolean;
   is_seller: boolean;
+  role?: string;
+  roles?: string[];
+  permissions?: string[];
 }
 
 export async function getAccessStatus(): Promise<AccessStatusResponse> {

@@ -58,6 +58,9 @@ class AuthResult(BaseModel):
 class AccessStatusResponse(BaseModel):
     is_admin: bool
     is_seller: bool
+    role: str = "customer"
+    roles: list[str] = Field(default_factory=list)
+    permissions: list[str] = Field(default_factory=list)
 
 
 class NormalizedProduct(BaseModel):

@@ -27,7 +27,7 @@ async def avatar_create(
             file.filename,
             file.content_type,
         )
-        result = await process_avatar_upload(file)
+        result = await process_avatar_upload(file, user_id=current_user.uid)
         logger.info(
             "Avatar upload completed: user_id=%s public_path=%s",
             result.user_id,

@@ -10,6 +10,7 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
   sendEmailVerification,
+  type User,
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -152,7 +153,40 @@ const Login: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [resendCooldown]);
 
+  const getUserProfileStatus = async (targetUser: User): Promise<{ exists: boolean; fitProfileCompleted: boolean } | null> => {
+    const userDocRef = doc(db, 'users', targetUser.uid);
+    try {
+      // Ensure authoritative token readiness before reading Firestore
+      await targetUser.getIdToken();
+      const snap = await getDoc(userDocRef);
+      return { exists: snap.exists(), fitProfileCompleted: Boolean(snap.data()?.fitProfileCompleted) };
+    } catch (err: any) {
+      if (err?.code === 'permission-denied' || err?.code === 'unavailable') {
+        try {
+          // Token propagation retry: force refresh token and attempt read once more
+          await targetUser.getIdToken(true);
+          const retrySnap = await getDoc(userDocRef);
+          return { exists: retrySnap.exists(), fitProfileCompleted: Boolean(retrySnap.data()?.fitProfileCompleted) };
+        } catch (retryErr) {
+          console.warn('Post-login profile lookup deferred due to token propagation timing:', retryErr);
+          // Preserve authenticated session and allow UI to handle state safely without throwing
+          return null;
+        }
+      }
+      console.warn('Post-login profile lookup error:', err);
+      return null;
+    }
+  };
+
   const createSessionAndNavigate = async (requiresProfile = false) => {
+    // Ensure authoritative token readiness before navigation
+    if (auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken();
+      } catch (tokenErr) {
+        console.warn('Token readiness warning:', tokenErr);
+      }
+    }
     setIsLoading(false);
     navigate(requiresProfile ? '/fit-profile' : '/home', { replace: true });
   };
@@ -165,24 +199,9 @@ const Login: React.FC = () => {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Wait a moment for Firestore auth state to sync
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const userDocRef = doc(db, 'users', user.uid);
-      let userDoc;
-      try {
-        userDoc = await getDoc(userDocRef);
-      } catch (e: any) {
-        if (e.code === 'permission-denied') {
-          // Retry once after a longer delay
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          userDoc = await getDoc(userDocRef);
-        } else {
-          throw e;
-        }
-      }
-
-      createSessionAndNavigate(!userDoc.exists());
+      const profileStatus = await getUserProfileStatus(user);
+      const requiresProfile = profileStatus ? !profileStatus.exists : false;
+      await createSessionAndNavigate(requiresProfile);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Google Sign-In failed. Please try again.');
@@ -282,6 +301,18 @@ const Login: React.FC = () => {
             updatedAt: serverTimestamp(),
           }, { merge: true });
 
+          await setDoc(doc(db, 'publicProfiles', user.uid), {
+            uid: user.uid,
+            username: defaultUsername,
+            displayName: '',
+            displayNameLower: '',
+            photoURL: null,
+            location: '',
+            bio: '',
+            website: '',
+            updatedAt: serverTimestamp(),
+          }, { merge: true }).catch(() => {});
+
           setIsLoading(false);
           setStep('email-verify');
           return;
@@ -297,22 +328,9 @@ const Login: React.FC = () => {
           }
         }
 
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const userDocRef = doc(db, 'users', user.uid);
-        let userDoc;
-        try {
-          userDoc = await getDoc(userDocRef);
-        } catch (e: any) {
-          if (e.code === 'permission-denied') {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            userDoc = await getDoc(userDocRef);
-          } else {
-            throw e;
-          }
-        }
-
-        createSessionAndNavigate(!userDoc.exists() || !userDoc.data()?.fitProfileCompleted);
+        const profileStatus = await getUserProfileStatus(user);
+        const requiresProfile = profileStatus ? (!profileStatus.exists || !profileStatus.fitProfileCompleted) : false;
+        await createSessionAndNavigate(requiresProfile);
       } catch (err: any) {
         console.error('Email auth error:', err);
         setError(firebaseEmailErrorMessage(err, 'Authentication failed.'));
@@ -337,23 +355,11 @@ const Login: React.FC = () => {
       const result = await confirmationResult.confirm(otpString);
       const user = result.user;
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const profileStatus = await getUserProfileStatus(user);
 
-      const userDocRef = doc(db, 'users', user.uid);
-      let userDoc;
-      try {
-        userDoc = await getDoc(userDocRef);
-      } catch (e: any) {
-        if (e.code === 'permission-denied') {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          userDoc = await getDoc(userDocRef);
-        } else {
-          throw e;
-        }
-      }
-
-      if (!userDoc.exists()) {
+      if (profileStatus && !profileStatus.exists) {
         const defaultUsername = `user_${user.uid.replace(/[-_]/g, '').slice(0, 8).toLowerCase()}`;
+        const userDocRef = doc(db, 'users', user.uid);
         await setDoc(userDocRef, {
           uid: user.uid,
           username: defaultUsername,
@@ -363,10 +369,24 @@ const Login: React.FC = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         }, { merge: true });
-        createSessionAndNavigate(true);
+
+        await setDoc(doc(db, 'publicProfiles', user.uid), {
+          uid: user.uid,
+          username: defaultUsername,
+          displayName: '',
+          displayNameLower: '',
+          photoURL: null,
+          location: '',
+          bio: '',
+          website: '',
+          updatedAt: serverTimestamp(),
+        }, { merge: true }).catch(() => {});
+
+        await createSessionAndNavigate(true);
         return;
       } else {
-        createSessionAndNavigate(!userDoc.data()?.fitProfileCompleted);
+        const requiresProfile = profileStatus ? !profileStatus.fitProfileCompleted : false;
+        await createSessionAndNavigate(requiresProfile);
       }
     } catch (err: any) {
       console.error('OTP verification error:', err);
@@ -877,10 +897,11 @@ const Login: React.FC = () => {
                       await auth.currentUser?.reload();
                       const currentUser = auth.currentUser;
                       if (currentUser?.emailVerified) {
+                        const profileStatus = await getUserProfileStatus(currentUser);
                         const userDocRef = doc(db, 'users', currentUser.uid);
-                        const userDoc = await getDoc(userDocRef);
-                        await setDoc(userDocRef, { updatedAt: serverTimestamp() }, { merge: true });
-                        createSessionAndNavigate(!userDoc.exists() || !userDoc.data()?.fitProfileCompleted);
+                        await setDoc(userDocRef, { updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+                        const requiresProfile = profileStatus ? (!profileStatus.exists || !profileStatus.fitProfileCompleted) : false;
+                        await createSessionAndNavigate(requiresProfile);
                       } else {
                         setError('Email is not verified yet. Please check your inbox and click the verification link.');
                       }

@@ -1,0 +1,16 @@
+# Frontend .dockerignore
+node_modules
+dist
+dist-ssr
+.git
+.env
+.env.*
+*.local
+firebase-applet-config.json
+*applet-config*.json
+serviceAccountKey.json
+*serviceaccount*.json
+*service-account*.json
+*.pem
+*.key
+*.log

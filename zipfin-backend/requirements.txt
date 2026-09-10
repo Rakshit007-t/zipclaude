@@ -30,3 +30,6 @@ gradio_client
 pillow
 # Local AI super-resolution (Real-ESRGAN x2 for ~2K try-on output)
 spandrel>=0.4
+# Distributed state & job queues (Phase 2)
+redis>=5.0.0
+fakeredis>=2.20.0

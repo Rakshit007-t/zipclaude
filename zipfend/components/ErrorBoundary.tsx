@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import Wordmark from './ui/Wordmark';
+import { agentDebugLog } from '../utils/agentDebugLog';
 
 interface Props {
   children: ReactNode;
@@ -20,6 +21,9 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    // #region agent log
+    agentDebugLog('ErrorBoundary.tsx:componentDidCatch', 'react crash', {error:error.message,stack:error.stack?.slice(0,400)||'',componentStack:(errorInfo.componentStack||'').slice(0,400)}, 'A');
+    // #endregion
   }
 
   public render() {

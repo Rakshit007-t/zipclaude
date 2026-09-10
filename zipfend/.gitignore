@@ -12,6 +12,21 @@ dist
 dist-ssr
 *.local
 .env
+.env.*
+!.env.example
+!.env.*.example
+firebase-applet-config.json
+*applet-config*.json
+!firebase-applet-config.example.json
+serviceAccountKey.json
+*serviceaccount*.json
+*service-account*.json
+firebase-adminsdk*.json
+firebase_key.json
+*-key.json
+*_key.json
+*.pem
+*.key
 
 # Editor directories and files
 .vscode/*

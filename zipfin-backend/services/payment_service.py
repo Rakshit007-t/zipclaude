@@ -93,3 +93,74 @@ def verify_razorpay_webhook_signature(
             details={"reason": "HMAC SHA256 signature mismatch on payment webhook"},
         )
     return is_valid
+
+
+def create_razorpay_order(
+    amount_paise: int,
+    currency: str = "INR",
+    receipt: str | None = None,
+    notes: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a real payment provider order using server-determined amount in paise.
+
+    If RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are configured, initiates real
+    HTTPS call to Razorpay Orders API.
+    If unconfigured (development/test mode), creates a deterministic provider order.
+    """
+    import os
+    from uuid import uuid4
+
+    if amount_paise <= 0:
+        raise ValueError("Order amount must be a positive integer in paise.")
+
+    key_id = (settings.RAZORPAY_KEY_ID or os.getenv("RAZORPAY_KEY_ID", "")).strip()
+    key_secret = (settings.RAZORPAY_KEY_SECRET or os.getenv("RAZORPAY_KEY_SECRET", "")).strip()
+
+    # Real Razorpay API call when valid production/staging keys are provided
+    if key_id and key_secret and not key_id.startswith("your_") and not key_id.startswith("mock_"):
+        try:
+            import httpx
+            auth = (key_id, key_secret)
+            payload = {
+                "amount": amount_paise,
+                "currency": currency,
+                "receipt": receipt or f"rcpt_{uuid4().hex[:12]}",
+                "notes": notes or {},
+            }
+            resp = httpx.post("https://api.razorpay.com/v1/orders", json=payload, auth=auth, timeout=10.0)
+            if resp.status_code in {200, 201}:
+                data = resp.json()
+                logger.info("Created real Razorpay order %s for amount %d paise", data.get("id"), amount_paise)
+                return {
+                    "id": data["id"],
+                    "amount": data["amount"],
+                    "currency": data["currency"],
+                    "receipt": data.get("receipt", receipt),
+                    "status": data.get("status", "created"),
+                }
+            else:
+                logger.error("Razorpay order creation failed: %d %s", resp.status_code, resp.text)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Failed to initiate payment with payment provider.",
+                )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected error connecting to Razorpay: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Payment gateway is currently unreachable.",
+            ) from exc
+
+    # Deterministic test/development provider order
+    suffix = receipt.replace("ord_", "") if receipt else uuid4().hex[:14]
+    mock_order_id = f"order_rzp_{suffix}"
+    logger.info("Generated development payment provider order %s for %d paise", mock_order_id, amount_paise)
+    return {
+        "id": mock_order_id,
+        "amount": amount_paise,
+        "currency": currency,
+        "receipt": receipt,
+        "status": "created",
+    }

@@ -52,6 +52,7 @@ from services.seller_repository import (
 )
 from services.storage_provider import StorageProvider, get_storage_provider
 from services.upload_validator import validate_image_upload
+from core.security_logger import log_security_event
 from firebase_config import get_firestore_client
 
 router = APIRouter(prefix="/seller", tags=["seller"])
@@ -351,6 +352,18 @@ async def get_product(
     """Retrieve details of a single seller product."""
     record = await asyncio.to_thread(repository.get_product, product_id)
     if not record or record.get("seller_uid") != context.uid:
+        if record and record.get("seller_uid") != context.uid:
+            log_security_event(
+                event_type="SECURITY_AUTHORIZATION_DENIED",
+                severity="WARNING",
+                user_id=context.uid,
+                email=context.user.email,
+                details={
+                    "reason": "tenant_isolation_violation",
+                    "action": "read_product",
+                    "product_id": product_id,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found or not owned by this seller.",
@@ -389,6 +402,19 @@ async def update_product(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     if not record:
+        existing = await asyncio.to_thread(repository.get_product, product_id)
+        if existing and existing.get("seller_uid") != context.uid:
+            log_security_event(
+                event_type="SECURITY_AUTHORIZATION_DENIED",
+                severity="WARNING",
+                user_id=context.uid,
+                email=context.user.email,
+                details={
+                    "reason": "tenant_isolation_violation",
+                    "action": "update_product",
+                    "product_id": product_id,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found or not owned by this seller.",
@@ -412,6 +438,19 @@ async def delete_product(
     """Delete a seller product."""
     deleted = await asyncio.to_thread(repository.delete_product, product_id, context.uid)
     if not deleted:
+        existing = await asyncio.to_thread(repository.get_product, product_id)
+        if existing and existing.get("seller_uid") != context.uid:
+            log_security_event(
+                event_type="SECURITY_AUTHORIZATION_DENIED",
+                severity="WARNING",
+                user_id=context.uid,
+                email=context.user.email,
+                details={
+                    "reason": "tenant_isolation_violation",
+                    "action": "delete_product",
+                    "product_id": product_id,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found or not owned by this seller.",

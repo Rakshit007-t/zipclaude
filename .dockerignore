@@ -1,0 +1,34 @@
+# Root .dockerignore for ZipRIGHT
+.git
+.github
+node_modules
+.venv
+venv
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+
+# Secrets and environment files
+.env
+.env.*
+*.local
+serviceAccountKey.json
+*serviceaccount*.json
+*service-account*.json
+firebase-adminsdk*.json
+firebase_key.json
+*-key.json
+*_key.json
+firebase-applet-config.json
+*applet-config*.json
+*.pem
+*.key
+
+# Build output and temporary files
+dist/
+build/
+coverage/
+*.log
+uploads/
+storage/

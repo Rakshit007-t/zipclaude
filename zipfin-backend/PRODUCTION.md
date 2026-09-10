@@ -65,6 +65,8 @@
 | `CORS_ALLOW_ORIGINS` | ✅ | Comma-separated allowed origins |
 | `REPLICATE_API_TOKEN` | ✅ | CatVTON inference |
 | `FIRECRAWL_API_KEY` | ✅ | Product URL scraping |
+| `REDIS_URL` | ✅ | Redis connection URL for shared rate limits, account lockout & job queue (e.g. `redis://:pwd@redis-host:6379/0`) |
+| `TRYON_MAX_CONCURRENT_JOBS` | ❌ | Max concurrent GPU jobs (default: 2) |
 | `WEB_CONCURRENCY` | ❌ | Gunicorn workers (default: auto) |
 
 ---
@@ -281,13 +283,14 @@ gcloud secrets versions add zipright-firebase-creds --data-file=new_key.json
 - `WEB_CONCURRENCY=5` (2×CPU+1)
 - Handles ~200 concurrent requests
 
-### Horizontal Scaling
+### Horizontal Scaling & Distributed State (Phase 2)
 
-ZipRIGHT is **stateless** — all state lives in Firestore and GCS.
+ZipRIGHT backend instances are **fully multi-worker and multi-instance safe**:
 
-1. Deploy multiple containers behind a load balancer (Nginx, GCP HTTP LB, AWS ALB).
-2. Set `GUNICORN_MAX_REQUESTS=1000` (already configured) to prevent memory growth.
-3. Rate limiter is in-process — with multiple replicas, limits are per-instance. Upgrade to Redis-backed rate limiting if abuse protection becomes critical.
+1. Deploy multiple containers or Gunicorn workers behind a load balancer (Nginx, GCP HTTP LB, AWS ALB).
+2. Shared rate-limiting (`DistributedRateLimiter`) and account lockout are coordinated atomically via Redis (`REDIS_URL`).
+3. Virtual Try-On jobs are enqueued into the distributed Redis queue (`zipright:tryon:queue`), enabling requests to be accepted by any worker and retrieved from any worker without state loss.
+4. Set `GUNICORN_MAX_REQUESTS=1000` (configured in `gunicorn.conf.py`) to prevent memory growth across worker recycles.
 
 ### Heavy Workloads
 

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'motion/react';
 import { auth } from '../firebase';
+import { requiresEmailVerification } from '../services/authClient';
 import { Button, Wordmark } from '../components/ui';
 
 /**
@@ -37,7 +38,8 @@ const Welcome: React.FC = () => {
   const [active, setActive] = useState(0);
 
   useEffect(() => {
-    if (auth.currentUser) {
+    const user = auth.currentUser;
+    if (user && !user.isAnonymous && !requiresEmailVerification(user)) {
       navigate('/home');
     }
   }, [navigate]);

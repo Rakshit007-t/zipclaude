@@ -24,6 +24,7 @@ class Settings:
     FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "").strip()
 
     # Firebase
+    FIREBASE_WEB_API_KEY: str = os.getenv("FIREBASE_WEB_API_KEY", "").strip()
     FIREBASE_STORAGE_BUCKET: str = os.getenv("FIREBASE_STORAGE_BUCKET", "").strip()
     FIREBASE_CREDENTIALS_PATH: Path | None = (
         Path(os.getenv("FIREBASE_CREDENTIALS_PATH", "").strip())

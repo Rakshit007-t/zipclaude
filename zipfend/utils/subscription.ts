@@ -30,6 +30,11 @@ export const PLANS = {
   },
 };
 
+/**
+ * UI presentation hint only.
+ * NEVER use client storage as proof of authorization. Real authorization is
+ * enforced server-side via verified tokens and the /auth/access endpoint.
+ */
 export const getUserRole = (): UserRole =>
   (localStorage.getItem('zipright_role') as UserRole) || 'user';
 

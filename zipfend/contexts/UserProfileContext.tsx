@@ -12,6 +12,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { deleteField, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { deleteFitProfileApi } from '../services/ziprightApi';
+import { agentDebugLog } from '../utils/agentDebugLog';
 
 export type UserBaseSize = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
 export type UserFitPreference = 'slim' | 'regular' | 'relaxed' | 'loose';
@@ -582,7 +583,10 @@ export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ childre
           writeLocalProfile(ownerId, nextProfile);
           setIsHydrated(true);
         },
-        () => {
+        (err) => {
+          // #region agent log
+          agentDebugLog('UserProfileContext.tsx:onSnapshot', 'profile snapshot error', {code:(err as {code?:string})?.code||'',message:err?.message||String(err)}, 'E');
+          // #endregion
           void refreshProfile();
         },
       );

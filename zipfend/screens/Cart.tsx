@@ -25,6 +25,8 @@ const Cart: React.FC = () => {
   const { navigate, goBack } = useAppNavigation();
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -40,6 +42,51 @@ const Cart: React.FC = () => {
 
   const removeItem = async (id: string) => {
     removeFromCloset('cart', id);
+  };
+
+  const handleCheckout = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (items.length === 0) return;
+
+    setCheckingOut(true);
+    setCheckoutMessage(null);
+    try {
+      const token = await user.getIdToken();
+      const payload = {
+        items: items.map((i) => ({
+          product_id: i.productRefId || i.id,
+          quantity: i.quantity || 1,
+        })),
+      };
+
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+      const response = await fetch(`${backendUrl}/orders/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Idempotency-Key': `cart_${user.uid}_${Date.now()}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData?.message || resData?.detail?.message || 'Checkout failed.');
+      }
+
+      const orderData = resData.data;
+      setCheckoutMessage(`Order ${orderData.order_id} created for ₹${orderData.amount_rupees}. Awaiting payment confirmation.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Checkout encountered an error.';
+      setCheckoutMessage(msg);
+    } finally {
+      setCheckingOut(false);
+    }
   };
 
   return (
@@ -130,26 +177,40 @@ const Cart: React.FC = () => {
       {/* Checkout Bar */}
       {items.length > 0 && (
         <div className="fixed bottom-0 inset-x-0 w-full p-6 bg-surface-0/92 backdrop-blur-xl border-t border-line phone-fixed-bottom">
+          {checkoutMessage && (
+            <div className="mb-3 p-3 rounded-lg bg-surface-2 border border-line text-[12px] text-ink text-center">
+              {checkoutMessage}
+            </div>
+          )}
           <div className="flex items-center justify-between text-[11px] text-ink-soft mb-3">
             <span>Platform service fee:</span>
             <span className="font-semibold text-brand">₹0.00 (Free)</span>
           </div>
-          <p className="text-[10.5px] text-ink-faint text-center mb-3">
-            ZipRIGHT is an advisory sizing atelier and charges no hidden markup. Orders, shipping, and taxes are settled directly on the partner merchant website.
-          </p>
-          <Button
-            fullWidth
-            size="lg"
-            variant="primary"
-            onClick={() => {
-              const first = items[0];
-              const target = first?.affiliateLink || first?.productUrl || first?.url;
-              if (target) safeOpenUrl(target);
-            }}
-            icon="open_in_new"
-          >
-            Visit Merchant Store ({items.length} {items.length === 1 ? 'item' : 'items'})
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button
+              fullWidth
+              size="lg"
+              variant="primary"
+              onClick={handleCheckout}
+              disabled={checkingOut}
+              icon={checkingOut ? undefined : "shopping_cart_checkout"}
+            >
+              {checkingOut ? <Spinner size={18} /> : `Place Order & Pay (${items.length} ${items.length === 1 ? 'item' : 'items'})`}
+            </Button>
+            <Button
+              fullWidth
+              size="md"
+              variant="secondary"
+              onClick={() => {
+                const first = items[0];
+                const target = first?.affiliateLink || first?.productUrl || first?.url;
+                if (target) safeOpenUrl(target);
+              }}
+              icon="open_in_new"
+            >
+              Visit Merchant Store
+            </Button>
+          </div>
         </div>
       )}
     </div>

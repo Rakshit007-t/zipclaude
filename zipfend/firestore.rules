@@ -47,10 +47,11 @@ service cloud.firestore {
         && (!('uid' in request.resource.data) || request.resource.data.uid == uid);
       allow delete: if isSelf(uid) || isAdmin();
 
-      // Fit data, measurements and recommendations are owner/admin only.
-      match /fitProfiles/{document=**} { allow read, write: if isSelf(uid) || isAdmin(); }
+      // Fit and biometric data are strictly owner-only (least-privilege privacy boundary).
+      // Internal and admin roles do not receive direct access to raw customer fit/biometric scans.
+      match /fitProfiles/{document=**} { allow read, write: if isSelf(uid); }
       match /recommendations/{document=**} { allow read, write: if isSelf(uid) || isAdmin(); }
-      match /smartFitScans/{document=**} { allow read, write: if isSelf(uid) || isAdmin(); }
+      match /smartFitScans/{document=**} { allow read, write: if isSelf(uid); }
       // Follow/block graph is server-authoritative; clients may read only their
       // own edges while the API writes both sides and maintains counters.
       match /following/{targetUid} { allow read: if isSelf(uid) || isAdmin(); allow write: if false; }

@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import net from "net";
+import fs from "fs";
 
 function canUsePort(port: number) {
   return new Promise<boolean>((resolve) => {
@@ -42,6 +43,7 @@ async function startServer() {
   });
 
   // API routes FIRST
+  app.use(express.json({ limit: "200kb" }));
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });

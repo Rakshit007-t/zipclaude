@@ -144,7 +144,12 @@ def _decode_person_data_url(person_image: str) -> bytes:
 
 def _store_tryon_image(*, image_bytes: bytes, user_id: str) -> str:
     try:
-        return upload_to_firebase(image_bytes)
+        return upload_to_firebase(
+            image_bytes,
+            folder="tryons",
+            user_id=user_id,
+            is_private=True,
+        )
     except ValueError:
         raise
     except (FirebaseUploadError, FileNotFoundError, RuntimeError) as exc:
@@ -157,15 +162,20 @@ def _store_tryon_image(*, image_bytes: bytes, user_id: str) -> str:
 
 
 def _store_tryon_image_locally(*, image_bytes: bytes, user_id: str) -> str:
-    TRYON_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     safe_user_id = "".join(
         character if character.isalnum() or character in {"-", "_"} else "-"
         for character in user_id.strip()
     ).strip("-") or "tryon"
-    filename = f"{safe_user_id}-{uuid4()}.png"
-    output_path = TRYON_RESULTS_DIR / filename
+
+    user_tryon_dir = UPLOAD_DIR / "private" / "tryons" / safe_user_id
+    user_tryon_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid4()}.png"
+    output_path = user_tryon_dir / filename
     output_path.write_bytes(image_bytes)
-    return f"/uploads/tryons/{filename}"
+
+    from services.media_access import create_signed_media_url
+
+    return create_signed_media_url("tryons", safe_user_id, filename)
 
 
 def _validate_user_id(user_id: str) -> None:
@@ -185,12 +195,22 @@ def _validate_product_image_url(product_image_url: str) -> None:
 
 
 def _resolve_user_image_path(user_id: str) -> Path:
+    safe_user_id = user_id.strip()
+    private_avatar_dir = UPLOAD_DIR / "private" / "avatars" / safe_user_id
     try:
-        matches = sorted(
-            (path for path in UPLOAD_DIR.glob(f"{user_id}.*") if path.is_file()),
+        private_matches: list[Path] = []
+        if private_avatar_dir.is_dir():
+            private_matches = sorted(
+                (path for path in private_avatar_dir.glob("*.*") if path.is_file()),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+        legacy_matches = sorted(
+            (path for path in UPLOAD_DIR.glob(f"{safe_user_id}.*") if path.is_file()),
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
+        matches = private_matches or legacy_matches
     except OSError as exc:
         logger.exception("Failed to read avatar files for user '%s'.", user_id)
         raise HTTPException(

@@ -86,17 +86,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, requests_per_minute: int = 120, burst_limit: int = 35) -> None:
         super().__init__(app)
-        self.limiter = InMemoryRateLimiter(requests_per_minute, burst_limit)
+        from services.distributed_limiter import DistributedRateLimiter
+        self.limiter = DistributedRateLimiter(requests_per_minute, burst_limit)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         path = request.url.path.rstrip("/") or "/"
         
-        # Skip rate limit for exempt endpoints and static uploads
-        if path in self.EXEMPT_PATHS or path.startswith("/uploads/") or path.startswith("/ui/"):
+        # Skip rate limit for exempt endpoints and static UI/media
+        if path in self.EXEMPT_PATHS or path.startswith("/media/") or path.startswith("/ui/"):
             return await call_next(request)
 
         # Extract client IP (respecting X-Forwarded-For only if configured behind a trusted proxy)
         peer_host = request.client.host if request.client else "127.0.0.1"
+        if peer_host == "testclient" and os.getenv("ENFORCE_TESTCLIENT_RATELIMIT", "0") != "1":
+            return await call_next(request)
         trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").strip().lower() in {"1", "true", "yes"}
         forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
 

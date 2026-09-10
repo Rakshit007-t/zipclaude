@@ -187,6 +187,7 @@ const Settings: React.FC = () => {
 
   // Seller State
   const [userRole, setUserRoleState] = useState(getUserRole());
+  const [isServerAdmin, setIsServerAdmin] = useState(false);
   const [sellerStatus, setSellerStatusState] = useState(getSellerStatus());
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
   const [pendingSellers, setPendingSellers] = useState<SellerProfile[]>([]);
@@ -349,6 +350,7 @@ const Settings: React.FC = () => {
                 // Server-authoritative role synchronization
                 try {
                     const access = await getAccessStatus();
+                    setIsServerAdmin(Boolean(access.is_admin));
                     if (access.is_admin) {
                         setUserRole('admin');
                         setUserRoleState('admin');
@@ -361,6 +363,7 @@ const Settings: React.FC = () => {
                     }
                 } catch {
                     // Fail-closed to unprivileged user role on error
+                    setIsServerAdmin(false);
                     setUserRole('user');
                     setUserRoleState('user');
                 }
@@ -1358,7 +1361,7 @@ const Settings: React.FC = () => {
 
   // --- VIEW: ADMIN PENDING APPROVALS ---
   if (view === 'admin-approvals') {
-    if (userRole !== 'admin') {
+    if (!isServerAdmin) {
       setView('main');
       return null;
     }
@@ -1694,7 +1697,7 @@ const Settings: React.FC = () => {
         )}
 
         {/* Administrator Controls */}
-        {userRole === 'admin' && (
+        {isServerAdmin && (
           <div className="px-6 mb-8">
             <Eyebrow className="mb-4 ml-1 text-brand">Admin Controls</Eyebrow>
             <MenuGroup>

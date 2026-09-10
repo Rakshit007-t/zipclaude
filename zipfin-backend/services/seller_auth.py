@@ -21,6 +21,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, status
 
+from core.security_logger import log_security_event
 from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.seller_repository import SellerRepository, get_seller_repository
 
@@ -44,6 +45,13 @@ async def _load_seller_context(
     """Load the caller's seller record or 403 when they are not a seller."""
     record = await asyncio.to_thread(repository.get_seller, current_user.uid)
     if record is None:
+        log_security_event(
+            event_type="SECURITY_AUTHORIZATION_DENIED",
+            severity="WARNING",
+            user_id=current_user.uid,
+            email=current_user.email,
+            details={"reason": "not_a_seller", "required_role": "seller"},
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
@@ -71,6 +79,13 @@ async def require_active_seller(
     context = await _load_seller_context(current_user, repository)
     seller_status = str(context.seller.get("status", ""))
     if seller_status != "active":
+        log_security_event(
+            event_type="SECURITY_AUTHORIZATION_DENIED",
+            severity="WARNING",
+            user_id=current_user.uid,
+            email=current_user.email,
+            details={"reason": f"seller_{seller_status or 'inactive'}", "seller_status": seller_status},
+        )
         messages = {
             "pending": "Your seller application is under review.",
             "rejected": "Your seller application was not approved.",

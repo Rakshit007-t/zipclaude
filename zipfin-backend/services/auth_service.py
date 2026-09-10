@@ -8,6 +8,7 @@ import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from core.config import settings
 from models.schema import AuthResult, AuthSession, AuthUser, EmailAuthRequest
 from services.firebase_auth import verify_firebase_token
 
@@ -24,30 +25,23 @@ class CurrentUser(AuthUser):
 
 
 def _get_firebase_web_api_key() -> str:
-    api_key = os.getenv("FIREBASE_WEB_API_KEY", "").strip()
+    api_key = (settings.FIREBASE_WEB_API_KEY or os.getenv("FIREBASE_WEB_API_KEY", "")).strip()
     if api_key:
         return api_key
 
-    try:
-        config_payload = json.loads(FIREBASE_CONFIG_PATH.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase web API key is not configured.",
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Firebase web config is invalid JSON.",
-        ) from exc
+    if FIREBASE_CONFIG_PATH.is_file():
+        try:
+            config_payload = json.loads(FIREBASE_CONFIG_PATH.read_text(encoding="utf-8"))
+            api_key = str(config_payload.get("apiKey") or "").strip()
+            if api_key:
+                return api_key
+        except Exception:
+            pass
 
-    api_key = str(config_payload.get("apiKey") or "").strip()
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase web API key is not configured.",
-        )
-    return api_key
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Firebase web API key is not configured.",
+    )
 
 
 def _firebase_endpoint(path: str) -> str:

@@ -23,6 +23,7 @@ from services.admin_auth import AdminGate, get_admin_gate
 from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.request_rate_limiter import enforce_rate_limit
 from services.seller_repository import SellerRepository, get_seller_repository
+from core.authorization import resolve_authorization_context
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -56,15 +57,19 @@ async def auth_access(
         window_seconds=60,
         detail="Too many access checks. Please try again later.",
     )
-    is_admin, seller_record = await asyncio.gather(
-        asyncio.to_thread(admin_gate.is_admin, current_user.uid),
-        asyncio.to_thread(seller_repository.get_seller, current_user.uid),
+    context = await resolve_authorization_context(
+        current_user=current_user,
+        admin_gate=admin_gate,
+        seller_repository=seller_repository,
     )
     return success_response(
         message="Account access retrieved.",
         data=AccessStatusResponse(
-            is_admin=is_admin,
-            is_seller=bool(seller_record and seller_record.get("status") == "active"),
+            is_admin=context.is_admin,
+            is_seller=context.is_seller,
+            role=context.primary_role.value,
+            roles=[r.value for r in sorted(context.roles, key=lambda x: x.value)],
+            permissions=[p.value for p in sorted(context.permissions, key=lambda x: x.value)],
         ),
     )
 

@@ -49,6 +49,8 @@ from routes.notification import router as notification_router
 from routes.brand import router as brand_router
 from routes.gifts import router as gifts_router
 from routes.payments import router as payments_router
+from routes.media import router as media_router
+from routes.orders import router as orders_router
 from services.billing_alerts import router as billing_router
 from services.tryon_live_store import initialize_tryon_store
 
@@ -187,9 +189,13 @@ def create_app() -> FastAPI:
     app.include_router(gifts_router)
     app.include_router(payments_router)
     app.include_router(billing_router)
+    app.include_router(media_router)
+    app.include_router(orders_router)
 
     # ── Static file mounts (directory listing disabled) ───────────────────────
-    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR, html=False), name="uploads")
+    # Phase 1B: /uploads unauthenticated public mount removed for customer privacy.
+    # Private media is now securely retrieved via /media/private/...
+    # Public assets are served via /media/public/...
     app.mount("/ui", StaticFiles(directory=UI_DIR, html=False), name="ui")
 
     # ── Request logging + metrics middleware ──────────────────────────────────

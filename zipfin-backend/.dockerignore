@@ -21,11 +21,18 @@ env/
 # Environment / secrets — NEVER include in image
 .env
 .env.*
+*.local
 serviceAccountKey.json
 *serviceaccount*.json
 *service-account*.json
+firebase-adminsdk*.json
+firebase_key.json
 *-key.json
 *_key.json
+firebase-applet-config.json
+*applet-config*.json
+*.pem
+*.key
 
 # Test code (not needed in image)
 tests/
