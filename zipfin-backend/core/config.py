@@ -49,10 +49,20 @@ class Settings:
     PAYMENT_PROVIDER: str = os.getenv("PAYMENT_PROVIDER", "").strip().lower()
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
+    RAZORPAY_WEBHOOK_SECRET: str = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
     FIREBASE_TOKEN_URI: str = os.getenv(
         "FIREBASE_TOKEN_URI",
         "https://oauth2.googleapis.com/token",
     ).strip()
+
+    # Distributed State & Caching
+    REDIS_URL: str = os.getenv("REDIS_URL", "").strip()
+    REDIS_TIMEOUT_SECONDS: float = float(os.getenv("REDIS_TIMEOUT_SECONDS", "2.0"))
+
+    # Sentry Monitoring (Phase 5B)
+    SENTRY_DSN: str = os.getenv("SENTRY_DSN", "").strip()
+    SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT", "").strip() or os.getenv("ENV", "development").strip()
+    SENTRY_RELEASE: str = os.getenv("SENTRY_RELEASE", "").strip() or "zipright-backend@1.0.0"
 
     def get_firebase_credentials_dict(self) -> dict[str, str] | None:
         if self.FIREBASE_CREDENTIALS_JSON:

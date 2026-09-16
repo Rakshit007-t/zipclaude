@@ -18,9 +18,9 @@ cryptography>=42,<46
 playwright==1.54.0
 firebase-admin>=6.5,<7
 # Virtual try-on (local CatVTON).
---extra-index-url https://download.pytorch.org/whl/cu121
-torch==2.5.1+cu121
-torchvision==0.20.1+cu121
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu
 diffusers>=0.29
 transformers>=4.41
 accelerate
@@ -33,3 +33,6 @@ spandrel>=0.4
 # Distributed state & job queues (Phase 2)
 redis>=5.0.0
 fakeredis>=2.20.0
+# Error monitoring (Phase 5B)
+sentry-sdk[fastapi]>=2.0.0,<3
+

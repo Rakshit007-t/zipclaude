@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 
 ORDERS_COLLECTION = "orders"
 CHECKOUT_IDEMPOTENCY_TTL_SECONDS = 3600  # 1 hour
+CHECKOUT_LOCK_TTL_SECONDS = 30         # 30 seconds atomic lock lease
+CHECKOUT_POLL_TIMEOUT_SECONDS = 2.0    # Concurrency backoff timeout
+CHECKOUT_POLL_INTERVAL_SECONDS = 0.2
 WEBHOOK_IDEMPOTENCY_TTL_SECONDS = 86400  # 24 hours
 MAX_ORDER_AMOUNT_PAISE = 10_000_000      # ₹100,000 fraud cap
 
@@ -183,6 +186,38 @@ class OrderService:
         orders.sort(key=lambda x: x.created_at, reverse=True)
         return orders
 
+    def list_seller_orders(
+        self,
+        seller_uid: str,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[Order]:
+        """Fetch orders containing items sold by this seller, newest first.
+
+        Uses Firestore array_contains on seller_uids index.
+        Pagination is bounded between 1 and 100 items.
+        """
+        seller_uid = seller_uid.strip()
+        if not seller_uid:
+            return []
+
+        limit = max(1, min(limit, 100))
+        offset = max(0, offset)
+
+        snaps = (
+            self._db()
+            .collection(ORDERS_COLLECTION)
+            .where("seller_uids", "array_contains", seller_uid)
+            .get()
+        )
+        orders: list[Order] = []
+        for snap in snaps:
+            orders.append(_doc_to_order(snap.id, snap.to_dict() or {}))
+
+        # Sort newest first
+        orders.sort(key=lambda x: x.created_at, reverse=True)
+        return orders[offset : offset + limit]
+
     def create_checkout_order(
         self,
         *,
@@ -190,12 +225,14 @@ class OrderService:
         items_payload: list[dict[str, Any]],
         idempotency_key: str | None = None,
     ) -> Order:
-        """Create a server-authoritative checkout order with strict price integrity.
+        """Create a server-authoritative checkout order with strict price integrity and atomic distributed idempotency.
 
-        1. Revalidates every product against seller_products.
-        2. Rejects client-supplied prices, totals, or seller assignments.
-        3. Computes exact integer paise totals on the server.
-        4. Creates a Razorpay order matching the server-determined amount.
+        1. Atomic distributed lock using Redis SET key value NX EX <ttl>.
+        2. Revalidates every product against seller_products.
+        3. Rejects client-supplied prices, totals, or seller assignments.
+        4. Computes exact integer paise totals on the server.
+        5. Creates a Razorpay order matching the server-determined amount.
+        6. Replays existing order if duplicate request or fails closed if Redis is down in production.
         """
         customer_uid = customer_uid.strip()
         if not customer_uid:
@@ -209,103 +246,224 @@ class OrderService:
         now = time.time()
         r = get_redis_client()
 
-        # ── 1. Check Checkout Idempotency ──────────────────────────────────────
+        # ── 1. Atomic Distributed Idempotency Lock ─────────────────────────────
+        idem_key = None
+        lock_acquired = False
         if idempotency_key:
             idem_key = f"zipright:checkout:idempotency:{customer_uid}:{idempotency_key}"
             try:
-                cached_order_id = r.get(idem_key)
-                if cached_order_id:
-                    if isinstance(cached_order_id, bytes):
-                        cached_order_id = cached_order_id.decode("utf-8")
-                    existing = self.get_order(str(cached_order_id))
-                    if existing:
-                        logger.info("Checkout idempotency hit for user %s: order %s", customer_uid, existing.order_id)
-                        return existing
+                # Atomic distributed lock: SET key value NX EX <ttl>
+                lock_acquired = bool(r.set(idem_key, "IN_PROGRESS", nx=True, ex=CHECKOUT_LOCK_TTL_SECONDS))
             except Exception as exc:
-                logger.warning("Idempotency check error: %s", exc)
+                logger.error("Redis error acquiring idempotency lock for %s: %s", idem_key, exc)
+                # Production failure behavior: fail-closed if Redis is down to guarantee strong idempotency
+                from core.config import settings
+                if settings.ENV in ("production", "staging") or os.getenv("STRICT_REDIS_IDEMPOTENCY", "false").lower() == "true":
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Idempotency service temporarily unavailable. Please retry shortly.",
+                    )
+                # Local development/testing fallback when not in strict mode
+                lock_acquired = True
 
-        # ── 2. Authoritative Price & Seller Validation ─────────────────────────
-        line_items: list[dict[str, Any]] = []
-        seller_uids_set: set[str] = set()
-        subtotal_paise = 0
+            if not lock_acquired:
+                # Key already exists: another request is in progress or completed.
+                # Poll up to CHECKOUT_POLL_TIMEOUT_SECONDS for the concurrent winner to finish.
+                val = None
+                poll_end = time.time() + CHECKOUT_POLL_TIMEOUT_SECONDS
+                while time.time() < poll_end:
+                    try:
+                        raw = r.get(idem_key)
+                        val = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+                    except Exception:
+                        val = None
 
-        for item in items_payload:
-            product_id = str(item.get("product_id") or "").strip()
-            if not product_id:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="product_id is required.")
+                    if val and val != "IN_PROGRESS":
+                        break
+                    time.sleep(CHECKOUT_POLL_INTERVAL_SECONDS)
 
-            try:
-                quantity = int(item.get("quantity", 1))
-            except (ValueError, TypeError):
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Invalid quantity for {product_id}.")
+                if val and val != "IN_PROGRESS":
+                    existing = self.get_order(str(val))
+                    if existing and existing.customer_uid == customer_uid:
+                        logger.info("Checkout idempotency replayed for user %s: order %s", customer_uid, existing.order_id)
+                        return existing
 
-            if quantity < 1 or quantity > 50:
+                # Still IN_PROGRESS or winner failed to produce order
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Quantity for product '{product_id}' must be between 1 and 50.",
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="A checkout request with this idempotency key is already in progress. Please retry shortly.",
                 )
 
-            # Load strictly from server-authoritative product repository
-            product = self.product_repo.get_product(product_id)
-            if not product:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Product '{product_id}' was not found in catalog.",
-                )
+        try:
+            # ── 2. Authoritative Price & Seller Validation ─────────────────────────
+            line_items: list[dict[str, Any]] = []
+            seller_uids_set: set[str] = set()
+            subtotal_paise = 0
 
-            product_status = str(product.get("status") or "active").lower()
-            if product_status not in {"active", "published"}:
+            for item in items_payload:
+                product_id = str(item.get("product_id") or "").strip()
+                if not product_id:
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="product_id is required.")
+
+                try:
+                    quantity = int(item.get("quantity", 1))
+                except (ValueError, TypeError):
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Invalid quantity for {product_id}.")
+
+                if quantity < 1 or quantity > 50:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Quantity for product '{product_id}' must be between 1 and 50.",
+                    )
+
+                # Load strictly from server-authoritative product repository
+                product = self.product_repo.get_product(product_id)
+                if not product:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Product '{product_id}' was not found in catalog.",
+                    )
+
+                product_status = str(product.get("status") or "active").lower()
+                if product_status not in {"active", "published"}:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Product '{product.get('title', product_id)}' is currently inactive or unavailable.",
+                    )
+
+                # Resolve server-authoritative fields (NEVER trust client values)
+                authoritative_seller = str(product.get("seller_uid") or "").strip()
+                authoritative_title = str(product.get("title") or f"Product {product_id}").strip()
+                unit_price_paise = parse_price_to_paise(product.get("price"))
+
+                if unit_price_paise <= 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Product '{authoritative_title}' has an invalid price configuration.",
+                    )
+
+                line_total_paise = unit_price_paise * quantity
+                subtotal_paise += line_total_paise
+                seller_uids_set.add(authoritative_seller)
+
+                line_items.append({
+                    "product_id": product_id,
+                    "seller_uid": authoritative_seller,
+                    "title": authoritative_title,
+                    "quantity": quantity,
+                    "unit_price_paise": unit_price_paise,
+                    "line_total_paise": line_total_paise,
+                })
+
+            # Platform fee / Shipping rules (server-controlled)
+            shipping_paise = 0
+            tax_paise = 0
+            total_paise = subtotal_paise + shipping_paise + tax_paise
+
+            if total_paise <= 0 or total_paise > MAX_ORDER_AMOUNT_PAISE:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Product '{product.get('title', product_id)}' is currently inactive or unavailable.",
+                    detail="Total order amount is invalid or exceeds maximum single-order limit.",
                 )
 
-            # Resolve server-authoritative fields (NEVER trust client values)
-            authoritative_seller = str(product.get("seller_uid") or "").strip()
-            authoritative_title = str(product.get("title") or f"Product {product_id}").strip()
-            unit_price_paise = parse_price_to_paise(product.get("price"))
+            order_id = f"ord_{uuid4().hex}"
 
-            if unit_price_paise <= 0:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Product '{authoritative_title}' has an invalid price configuration.",
-                )
+            # ── 3. Initiate Real Payment Provider Order ───────────────────────────
+            notes = {
+                "zipright_order_id": order_id,
+                "customer_uid": customer_uid,
+                "item_count": str(len(line_items)),
+            }
+            provider_order = create_razorpay_order(
+                amount_paise=total_paise,
+                currency="INR",
+                receipt=order_id,
+                notes=notes,
+            )
+            payment_order_id = provider_order.get("id")
 
-            line_total_paise = unit_price_paise * quantity
-            subtotal_paise += line_total_paise
-            seller_uids_set.add(authoritative_seller)
-
-            line_items.append({
-                "product_id": product_id,
-                "seller_uid": authoritative_seller,
-                "title": authoritative_title,
-                "quantity": quantity,
-                "unit_price_paise": unit_price_paise,
-                "line_total_paise": line_total_paise,
-            })
-
-        # Platform fee / Shipping rules (server-controlled)
-        shipping_paise = 0
-        tax_paise = 0
-        total_paise = subtotal_paise + shipping_paise + tax_paise
-
-        if total_paise <= 0 or total_paise > MAX_ORDER_AMOUNT_PAISE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Total order amount is invalid or exceeds maximum single-order limit.",
+            order = Order(
+                order_id=order_id,
+                customer_uid=customer_uid,
+                status=OrderStatus.PENDING_PAYMENT.value,
+                currency="INR",
+                items=line_items,
+                subtotal_paise=subtotal_paise,
+                shipping_paise=shipping_paise,
+                tax_paise=tax_paise,
+                total_paise=total_paise,
+                seller_uids=sorted(list(seller_uids_set)),
+                payment_provider="razorpay",
+                payment_order_id=payment_order_id,
+                payment_id=None,
+                idempotency_key=idempotency_key,
+                created_at=now,
+                updated_at=now,
             )
 
-        order_id = f"ord_{uuid4().hex}"
+            # ── 4. Persist Order to Firestore and Cache in Redis ──────────────────
+            order_dict = _order_to_dict(order)
+            self._db().collection(ORDERS_COLLECTION).document(order_id).set(order_dict)
 
-        # ── 3. Initiate Real Payment Provider Order ───────────────────────────
+            try:
+                r.set(f"zipright:order:{order_id}", json.dumps(order_dict), ex=CHECKOUT_IDEMPOTENCY_TTL_SECONDS)
+                if idempotency_key and idem_key:
+                    # Update idempotency key from "IN_PROGRESS" to the confirmed order_id with 1-hour TTL
+                    r.set(idem_key, order_id, ex=CHECKOUT_IDEMPOTENCY_TTL_SECONDS)
+            except Exception as exc:
+                logger.warning("Failed to cache order %s in Redis: %s", order_id, exc)
+
+            log_security_event(
+                event_type="ORDER_CREATED",
+                severity="INFO",
+                user_id=customer_uid,
+                details={
+                    "order_id": order_id,
+                    "total_paise": total_paise,
+                    "payment_order_id": payment_order_id,
+                },
+            )
+            return order
+        except Exception:
+            # If order creation failed, release the in-progress lock so client can retry
+            if idempotency_key and idem_key:
+                try:
+                    raw = r.get(idem_key)
+                    val = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+                    if val == "IN_PROGRESS":
+                        r.delete(idem_key)
+                except Exception:
+                    pass
+            raise
+
+    def create_package_order(
+        self,
+        *,
+        customer_uid: str,
+        package_id: str,
+    ) -> Order:
+        """Create a server-authoritative payment order for subscription credits or top-up packages."""
+        from services.payment_service import get_server_price
+
+        customer_uid = customer_uid.strip()
+        if not customer_uid:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+
+        package = get_server_price(package_id)
+        amount_paise = int(package.get("amount_paise") or (package["amount_rupees"] * 100))
+        currency = package.get("currency", "INR")
+
+        now = time.time()
+        order_id = f"ord_pkg_{uuid4().hex}"
+
         notes = {
             "zipright_order_id": order_id,
             "customer_uid": customer_uid,
-            "item_count": str(len(line_items)),
+            "package_id": package["id"],
         }
         provider_order = create_razorpay_order(
-            amount_paise=total_paise,
-            currency="INR",
+            amount_paise=amount_paise,
+            currency=currency,
             receipt=order_id,
             notes=notes,
         )
@@ -315,35 +473,36 @@ class OrderService:
             order_id=order_id,
             customer_uid=customer_uid,
             status=OrderStatus.PENDING_PAYMENT.value,
-            currency="INR",
-            items=line_items,
-            subtotal_paise=subtotal_paise,
-            shipping_paise=shipping_paise,
-            tax_paise=tax_paise,
-            total_paise=total_paise,
-            seller_uids=sorted(list(seller_uids_set)),
+            currency=currency,
+            items=[{
+                "product_id": package["id"],
+                "seller_uid": "platform",
+                "title": package["title"],
+                "quantity": 1,
+                "unit_price_paise": amount_paise,
+                "line_total_paise": amount_paise,
+                "credits": package.get("credits", 0),
+            }],
+            subtotal_paise=amount_paise,
+            shipping_paise=0,
+            tax_paise=0,
+            total_paise=amount_paise,
+            seller_uids=["platform"],
             payment_provider="razorpay",
             payment_order_id=payment_order_id,
             payment_id=None,
-            idempotency_key=idempotency_key,
             created_at=now,
             updated_at=now,
         )
 
-        # ── 4. Persist Order to Firestore and Cache in Redis ──────────────────
         order_dict = _order_to_dict(order)
         self._db().collection(ORDERS_COLLECTION).document(order_id).set(order_dict)
 
         try:
+            r = get_redis_client()
             r.set(f"zipright:order:{order_id}", json.dumps(order_dict), ex=CHECKOUT_IDEMPOTENCY_TTL_SECONDS)
-            if idempotency_key:
-                r.set(
-                    f"zipright:checkout:idempotency:{customer_uid}:{idempotency_key}",
-                    order_id,
-                    ex=CHECKOUT_IDEMPOTENCY_TTL_SECONDS,
-                )
         except Exception as exc:
-            logger.warning("Failed to cache order %s in Redis: %s", order_id, exc)
+            logger.warning("Failed to cache package order %s in Redis: %s", order_id, exc)
 
         log_security_event(
             event_type="ORDER_CREATED",
@@ -351,8 +510,9 @@ class OrderService:
             user_id=customer_uid,
             details={
                 "order_id": order_id,
-                "total_paise": total_paise,
+                "total_paise": amount_paise,
                 "payment_order_id": payment_order_id,
+                "package_id": package["id"],
             },
         )
         return order
@@ -421,42 +581,132 @@ class OrderService:
         if not order:
             return {"status": "order_not_found"}
 
+        # ── Step 3: Provider Order ID Verification ───────────────────────────
+        # Webhook provider order ID must strictly match stored order.payment_order_id
+        if not provider_order_id or not order.payment_order_id or str(provider_order_id).strip() != str(order.payment_order_id).strip():
+            logger.warning(
+                "Provider order ID mismatch for order %s: webhook=%s vs stored=%s",
+                zipright_order_id,
+                provider_order_id,
+                order.payment_order_id,
+            )
+            log_security_event(
+                event_type="SECURITY_PAYMENT_PROVIDER_ORDER_MISMATCH",
+                severity="CRITICAL",
+                ip_address=ip_address,
+                details={
+                    "order_id": zipright_order_id,
+                    "webhook_provider_order_id": str(provider_order_id),
+                    "stored_payment_order_id": str(order.payment_order_id),
+                },
+            )
+            return {"status": "provider_order_mismatch", "order_id": zipright_order_id}
+
         now = time.time()
         order_doc_ref = self._db().collection(ORDERS_COLLECTION).document(zipright_order_id)
 
         # ── Transition Logic ──────────────────────────────────────────────────
         if event_type in {"order.paid", "payment.captured"}:
-            if order.status == OrderStatus.PENDING_PAYMENT.value:
-                order.status = OrderStatus.PAID.value
-                order.payment_id = payment_id
-                order.paid_at = now
-                order.updated_at = now
+            # 1. State check (Step 8: Payment State Machine)
+            if order.status != OrderStatus.PENDING_PAYMENT.value:
+                logger.info("Order %s not in payable state (current: %s)", zipright_order_id, order.status)
+                return {"status": "no_transition_needed", "current_status": order.status}
 
-                order_doc_ref.set({
-                    "status": OrderStatus.PAID.value,
-                    "payment_id": payment_id,
-                    "paid_at": now,
-                    "updated_at": now,
-                }, merge=True)
-
-                # Invalidate/update Redis cache
-                try:
-                    r.set(f"zipright:order:{zipright_order_id}", json.dumps(_order_to_dict(order)), ex=CHECKOUT_IDEMPOTENCY_TTL_SECONDS)
-                except Exception:
-                    pass
-
+            # 2. Payment amount verification (Step 2)
+            raw_amount = payment_entity.get("amount") if payment_entity.get("amount") is not None else order_entity.get("amount")
+            if raw_amount is None:
+                logger.error("Missing payment amount in webhook payload for order %s", zipright_order_id)
                 log_security_event(
-                    event_type="SECURITY_PAYMENT_SUCCEEDED",
-                    severity="INFO",
-                    user_id=order.customer_uid,
+                    event_type="SECURITY_PAYMENT_AMOUNT_MISMATCH",
+                    severity="CRITICAL",
+                    ip_address=ip_address,
+                    details={"order_id": zipright_order_id, "reason": "missing_amount"},
+                )
+                return {"status": "amount_mismatch", "order_id": zipright_order_id}
+
+            try:
+                webhook_amount_paise = int(raw_amount)
+            except (ValueError, TypeError):
+                logger.error("Invalid payment amount format in webhook for order %s: %s", zipright_order_id, raw_amount)
+                log_security_event(
+                    event_type="SECURITY_PAYMENT_AMOUNT_MISMATCH",
+                    severity="CRITICAL",
+                    ip_address=ip_address,
+                    details={"order_id": zipright_order_id, "reason": "invalid_amount_type"},
+                )
+                return {"status": "amount_mismatch", "order_id": zipright_order_id}
+
+            if webhook_amount_paise != order.total_paise:
+                logger.error(
+                    "Payment amount mismatch for order %s: webhook=%d paise vs expected=%d paise",
+                    zipright_order_id,
+                    webhook_amount_paise,
+                    order.total_paise,
+                )
+                log_security_event(
+                    event_type="SECURITY_PAYMENT_AMOUNT_MISMATCH",
+                    severity="CRITICAL",
+                    ip_address=ip_address,
                     details={
                         "order_id": zipright_order_id,
-                        "payment_id": payment_id,
-                        "amount_paise": order.total_paise,
+                        "webhook_amount_paise": webhook_amount_paise,
+                        "expected_total_paise": order.total_paise,
                     },
                 )
-                logger.info("Order %s transitioned to PAID via verified webhook event %s", zipright_order_id, event_type)
-                return {"status": "marked_paid", "order_id": zipright_order_id}
+                return {"status": "amount_mismatch", "order_id": zipright_order_id}
+
+            # 3. Currency verification (Step 2)
+            raw_currency = payment_entity.get("currency") or order_entity.get("currency")
+            if not raw_currency or str(raw_currency).strip().upper() != order.currency.strip().upper():
+                logger.error(
+                    "Payment currency mismatch for order %s: webhook=%s vs expected=%s",
+                    zipright_order_id,
+                    raw_currency,
+                    order.currency,
+                )
+                log_security_event(
+                    event_type="SECURITY_PAYMENT_CURRENCY_MISMATCH",
+                    severity="CRITICAL",
+                    ip_address=ip_address,
+                    details={
+                        "order_id": zipright_order_id,
+                        "webhook_currency": str(raw_currency),
+                        "expected_currency": order.currency,
+                    },
+                )
+                return {"status": "currency_mismatch", "order_id": zipright_order_id}
+
+            # All checks succeeded: transition to PAID
+            order.status = OrderStatus.PAID.value
+            order.payment_id = payment_id
+            order.paid_at = now
+            order.updated_at = now
+
+            order_doc_ref.set({
+                "status": OrderStatus.PAID.value,
+                "payment_id": payment_id,
+                "paid_at": now,
+                "updated_at": now,
+            }, merge=True)
+
+            # Invalidate/update Redis cache
+            try:
+                r.set(f"zipright:order:{zipright_order_id}", json.dumps(_order_to_dict(order)), ex=CHECKOUT_IDEMPOTENCY_TTL_SECONDS)
+            except Exception:
+                pass
+
+            log_security_event(
+                event_type="SECURITY_PAYMENT_SUCCEEDED",
+                severity="INFO",
+                user_id=order.customer_uid,
+                details={
+                    "order_id": zipright_order_id,
+                    "payment_id": payment_id,
+                    "amount_paise": order.total_paise,
+                },
+            )
+            logger.info("Order %s transitioned to PAID via verified webhook event %s", zipright_order_id, event_type)
+            return {"status": "marked_paid", "order_id": zipright_order_id}
 
         elif event_type in {"payment.failed"}:
             if order.status == OrderStatus.PENDING_PAYMENT.value:

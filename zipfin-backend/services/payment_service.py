@@ -23,6 +23,7 @@ SERVER_PRICING_CATALOG: dict[str, dict[str, Any]] = {
         "id": "wallet_pack_starter",
         "title": "Starter Atelier Top-Up",
         "amount_rupees": 299,
+        "amount_paise": 29900,
         "credits": 300,
         "currency": "INR",
     },
@@ -30,6 +31,7 @@ SERVER_PRICING_CATALOG: dict[str, dict[str, Any]] = {
         "id": "wallet_pack_standard",
         "title": "Signature Wardrobe Top-Up",
         "amount_rupees": 499,
+        "amount_paise": 49900,
         "credits": 550,
         "currency": "INR",
     },
@@ -37,6 +39,7 @@ SERVER_PRICING_CATALOG: dict[str, dict[str, Any]] = {
         "id": "wallet_pack_couture",
         "title": "Couture Atelier Top-Up",
         "amount_rupees": 999,
+        "amount_paise": 99900,
         "credits": 1200,
         "currency": "INR",
     },
@@ -44,6 +47,7 @@ SERVER_PRICING_CATALOG: dict[str, dict[str, Any]] = {
         "id": "sub_vip_monthly",
         "title": "VIP Atelier Monthly Membership",
         "amount_rupees": 799,
+        "amount_paise": 79900,
         "credits": 1000,
         "currency": "INR",
     },
@@ -60,7 +64,10 @@ def get_server_price(package_id: str) -> dict[str, Any]:
                 "details": {"code": "invalid_pricing_package"},
             },
         )
-    return SERVER_PRICING_CATALOG[package_id]
+    pkg = dict(SERVER_PRICING_CATALOG[package_id])
+    if "amount_paise" not in pkg:
+        pkg["amount_paise"] = int(pkg.get("amount_rupees", 0) * 100)
+    return pkg
 
 
 def verify_razorpay_webhook_signature(
@@ -117,7 +124,7 @@ def create_razorpay_order(
     key_secret = (settings.RAZORPAY_KEY_SECRET or os.getenv("RAZORPAY_KEY_SECRET", "")).strip()
 
     # Real Razorpay API call when valid production/staging keys are provided
-    if key_id and key_secret and not key_id.startswith("your_") and not key_id.startswith("mock_"):
+    if key_id and key_secret and not key_id.startswith("your_") and not key_id.startswith("mock_") and not key_id.startswith("rzp_test_placeholder"):
         try:
             import httpx
             auth = (key_id, key_secret)
@@ -152,6 +159,18 @@ def create_razorpay_order(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Payment gateway is currently unreachable.",
             ) from exc
+
+    # In production/staging, missing live credentials must fail safely rather than using mock shortcuts
+    if settings.ENV.lower() in ("production", "staging"):
+        log_security_event(
+            event_type="PAYMENT_GATEWAY_UNCONFIGURED_IN_PROD",
+            severity="CRITICAL",
+            details={"env": settings.ENV, "amount_paise": amount_paise},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Payment gateway credentials are not configured for this environment.",
+        )
 
     # Deterministic test/development provider order
     suffix = receipt.replace("ord_", "") if receipt else uuid4().hex[:14]

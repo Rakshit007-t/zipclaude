@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "zipright-staging",
+    "staging": "zipright-staging"
+  }
+}

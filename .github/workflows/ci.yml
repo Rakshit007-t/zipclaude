@@ -46,6 +46,7 @@ jobs:
             fastapi uvicorn[standard] gunicorn pydantic python-dotenv \
             firebase-admin google-cloud-firestore google-api-core \
             httpx requests beautifulsoup4 pillow \
+            redis fakeredis cryptography \
             pytest pytest-asyncio anyio
 
       - name: Run tests
@@ -58,9 +59,9 @@ jobs:
         run: |
           python -m pytest tests/ -v --tb=short
 
-  # ── Frontend: TypeScript typecheck ─────────────────────────────────────────
-  frontend-typecheck:
-    name: Frontend Typecheck
+  # ── Frontend: TypeScript typecheck & tests ──────────────────────────────────
+  frontend-validation:
+    name: Frontend Validation
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -82,6 +83,9 @@ jobs:
 
       - name: TypeScript typecheck
         run: npm run typecheck
+
+      - name: Frontend checkout & idempotency tests
+        run: npx tsx tests/checkout.test.ts
 
   # ── Docker: build validation (no push) ────────────────────────────────────
   docker-build:

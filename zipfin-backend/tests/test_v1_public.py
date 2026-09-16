@@ -52,3 +52,14 @@ def test_public_v1_auth_rejection():
     )
     assert res2.status_code == 401
     assert "Invalid API key format" in res2.json()["message"]
+
+
+def test_healthz_shallow_liveness():
+    """Test /healthz shallow process liveness check for container orchestrators."""
+    response = client.get("/healthz")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["isValid"] is True
+    assert payload["data"]["status"] == "ok"
+    assert "version" in payload["data"]
+

@@ -6,6 +6,7 @@ import time
 import asyncio
 import io
 from pathlib import Path
+from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException, UploadFile
 
@@ -301,3 +302,113 @@ def test_automated_backups():
     # Manifest contains entry
     manifest = load_manifest()
     assert any(m["filename"] == entry["filename"] for m in manifest)
+
+
+# 11. PRODUCTION READINESS & OBSERVABILITY TESTS (PHASE 4 GATE)
+def test_health_check_probes_redis_and_firestore():
+    from fastapi.testclient import TestClient
+    from main import app
+
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code in (200, 503)
+    data = response.json().get("data", {})
+    assert "checks" in data
+    assert "firestore" in data["checks"]
+    assert "redis" in data["checks"]
+    assert data["checks"]["redis"] in ("ok", "degraded")
+
+
+def test_staging_cors_origin_regex_disabled(monkeypatch):
+    from main import _get_cors_origin_regex
+
+    monkeypatch.setenv("ENV", "staging")
+    monkeypatch.delenv("CORS_ALLOW_ORIGIN_REGEX", raising=False)
+    regex = _get_cors_origin_regex()
+    assert regex is None, "Staging environment must not use broad private-IP CORS regex"
+
+    monkeypatch.setenv("ENV", "production")
+    assert _get_cors_origin_regex() is None
+
+    monkeypatch.setenv("ENV", "development")
+    dev_regex = _get_cors_origin_regex()
+    assert dev_regex is not None
+    assert "localhost" in dev_regex
+
+
+def test_settings_includes_redis_configuration():
+    from core.config import settings
+
+    assert hasattr(settings, "REDIS_URL")
+    assert hasattr(settings, "REDIS_TIMEOUT_SECONDS")
+    assert isinstance(settings.REDIS_TIMEOUT_SECONDS, (int, float))
+    assert settings.REDIS_TIMEOUT_SECONDS > 0
+
+
+def test_redis_failure_lockout_fails_closed_in_production(monkeypatch):
+    """Verifies account lockout fails closed with 503 in production rather than silently downgrading to per-worker state."""
+    from services.account_lockout import check_account_locked, record_failed_attempt
+    import core.redis_client as rc
+
+    # Mock Redis client get/pipeline to simulate Redis cluster outage
+    mock_client = MagicMock()
+    mock_client.get.side_effect = ConnectionError("Redis cluster unreachable")
+    mock_client.pipeline.side_effect = ConnectionError("Redis cluster unreachable")
+    rc.reset_redis_client_for_testing(mock_client)
+
+    try:
+        # 1. In production: must fail closed (503) to prevent distributed brute-force bypass
+        monkeypatch.setenv("ENV", "production")
+        from core.config import settings
+        monkeypatch.setattr(settings, "ENV", "production")
+
+        with pytest.raises(HTTPException) as exc_check:
+            check_account_locked("victim@example.com")
+        assert exc_check.value.status_code == 503
+        assert exc_check.value.detail["details"]["code"] == "security_service_unavailable"
+
+        with pytest.raises(HTTPException) as exc_record:
+            record_failed_attempt("victim@example.com")
+        assert exc_record.value.status_code == 503
+        assert exc_record.value.detail["details"]["code"] == "security_service_unavailable"
+
+        # 2. In development: safely falls back to local in-memory dictionaries
+        monkeypatch.setenv("ENV", "development")
+        monkeypatch.setattr(settings, "ENV", "development")
+        # Does not raise 503
+        check_account_locked("dev_user@example.com")
+        record_failed_attempt("dev_user@example.com")
+    finally:
+        rc.reset_redis_client_for_testing(None)
+
+
+def test_redis_failure_rate_limiter_fails_closed_in_production(monkeypatch):
+    """Verifies distributed rate limiter fails closed with 503 in production rather than diluting limits across workers."""
+    from services.distributed_limiter import DistributedRateLimiter
+    from core.rate_limit_middleware import RateLimitMiddleware
+    import core.redis_client as rc
+
+    # Mock Redis client to simulate Redis outage
+    mock_client = MagicMock()
+    mock_client.pipeline.side_effect = ConnectionError("Redis cluster unreachable")
+    rc.reset_redis_client_for_testing(mock_client)
+
+    try:
+        # 1. In production: must fail closed (503)
+        monkeypatch.setenv("ENV", "production")
+        from core.config import settings
+        monkeypatch.setattr(settings, "ENV", "production")
+
+        limiter = DistributedRateLimiter(requests_per_minute=10, burst_limit=5)
+        with pytest.raises(HTTPException) as exc:
+            limiter.is_allowed("198.51.100.42")
+        assert exc.value.status_code == 503
+        assert exc.value.detail["details"]["code"] == "rate_limiter_unavailable"
+
+        # 2. In development: safely uses local in-memory fallback
+        monkeypatch.setenv("ENV", "development")
+        monkeypatch.setattr(settings, "ENV", "development")
+        allowed, retry_after, remaining = limiter.is_allowed("198.51.100.42")
+        assert allowed is True
+    finally:
+        rc.reset_redis_client_for_testing(None)

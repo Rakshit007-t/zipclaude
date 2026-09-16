@@ -19,7 +19,8 @@ def _default_workers() -> int:
     return max(2, min((cpu_count * 2) + 1, 8))
 
 
-bind = os.getenv("GUNICORN_BIND", "0.0.0.0:8000")
+_port = os.getenv("PORT", "8000")
+bind = os.getenv("GUNICORN_BIND") or f"0.0.0.0:{_port}"
 worker_class = "uvicorn.workers.UvicornWorker"
 workers = _env_int("WEB_CONCURRENCY", _default_workers())
 threads = _env_int("GUNICORN_THREADS", 1)

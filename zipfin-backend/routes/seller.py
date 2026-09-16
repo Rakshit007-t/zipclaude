@@ -39,8 +39,10 @@ from models.seller_schema import (
     SyncHistoryEvent,
 )
 import re
+from pydantic import BaseModel, Field
 from services.admin_auth import require_admin
 from services.firebase_auth import AuthenticatedUser, get_current_user
+from services.order_service import OrderService, get_order_service
 from services.product_import import ProductImportService, get_product_import_service
 from services.product_repository import SellerProductRepository, get_product_repository
 from services.seller_auth import SellerContext, require_active_seller, require_seller
@@ -949,3 +951,97 @@ async def get_seller_usage_metrics(
         "period": "30_days",
     }
     return success_response(message="Seller usage metrics retrieved.", data=metrics_data)
+
+
+# ── Seller Order Management ───────────────────────────────────────────────────
+
+
+class SellerOrderItem(BaseModel):
+    product_id: str
+    title: str
+    quantity: int
+    unit_price_paise: int
+    line_total_paise: int
+    line_total_rupees: float
+
+
+class SellerOrderSummary(BaseModel):
+    order_id: str
+    status: str
+    currency: str
+    items: list[SellerOrderItem]
+    seller_subtotal_paise: int
+    seller_subtotal_rupees: float
+    created_at: float
+    paid_at: float | None = None
+
+
+@router.get(
+    "/orders",
+    response_model=ApiResponse[list[SellerOrderSummary]],
+    status_code=status.HTTP_200_OK,
+)
+async def list_seller_orders(
+    limit: int = 20,
+    offset: int = 0,
+    context: SellerContext = Depends(require_active_seller),
+    order_service: OrderService = Depends(get_order_service),
+) -> ApiResponse[list[SellerOrderSummary]]:
+    """Retrieve orders containing products belonging to the authenticated seller.
+
+    Strict seller isolation:
+    - Derives seller identity exclusively from verified auth context (context.uid).
+    - NEVER accepts seller_id from client as an authorization input.
+    - Filters order line items so sellers only see items from their own catalog.
+    - Omit all customer personal identifiable info (email, phone, address, measurements, biometrics).
+    - Bounded pagination (max 100 items per page).
+    """
+    safe_limit = max(1, min(limit, 100))
+    safe_offset = max(0, offset)
+
+    orders = await asyncio.to_thread(
+        order_service.list_seller_orders,
+        context.uid,
+        limit=safe_limit,
+        offset=safe_offset,
+    )
+
+    summaries: list[SellerOrderSummary] = []
+    for order in orders:
+        seller_items: list[SellerOrderItem] = []
+        seller_paise = 0
+        for item in order.items:
+            if item.get("seller_uid") == context.uid:
+                qty = int(item.get("quantity", 1))
+                unit_p = int(item.get("unit_price_paise", 0))
+                line_p = int(item.get("line_total_paise", unit_p * qty))
+                seller_paise += line_p
+                seller_items.append(
+                    SellerOrderItem(
+                        product_id=str(item.get("product_id", "")),
+                        title=str(item.get("title", "")),
+                        quantity=qty,
+                        unit_price_paise=unit_p,
+                        line_total_paise=line_p,
+                        line_total_rupees=round(line_p / 100.0, 2),
+                    )
+                )
+
+        if seller_items:
+            summaries.append(
+                SellerOrderSummary(
+                    order_id=order.order_id,
+                    status=order.status,
+                    currency=order.currency,
+                    items=seller_items,
+                    seller_subtotal_paise=seller_paise,
+                    seller_subtotal_rupees=round(seller_paise / 100.0, 2),
+                    created_at=order.created_at,
+                    paid_at=order.paid_at,
+                )
+            )
+
+    return success_response(
+        message="Seller orders retrieved successfully.",
+        data=summaries,
+    )

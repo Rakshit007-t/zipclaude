@@ -11,6 +11,7 @@ from __future__ import annotations
 import collections
 from datetime import datetime, timezone
 import logging
+import os
 import threading
 import time
 from uuid import uuid4
@@ -68,11 +69,26 @@ def check_account_locked(identifier: str, ip_address: str = "unknown") -> None:
                 r.delete(locked_key)
                 r.delete(f"zipright:lockout:attempts:{key}")
                 return
-        # If Redis check passed, check local fallback just in case
     except HTTPException:
         raise
     except Exception as exc:
-        logger.warning("Redis check_account_locked failed (%s), using local fallback.", exc)
+        logger.warning("Redis check_account_locked failed (%s), evaluating fallback policy.", exc)
+        from core.config import settings
+        if settings.ENV.lower() in ("production", "staging") or os.getenv("STRICT_REDIS_SECURITY", "false").lower() == "true":
+            log_security_event(
+                event_type="SECURITY_SERVICE_UNAVAILABLE",
+                severity="CRITICAL",
+                ip_address=ip_address,
+                email=identifier,
+                details={"service": "account_lockout", "error": str(exc)},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "message": "Authentication security service temporarily unavailable. Please retry shortly.",
+                    "details": {"code": "security_service_unavailable"},
+                },
+            )
 
     # 2. Local Fallback Check
     with _lock:
@@ -141,7 +157,16 @@ def record_failed_attempt(identifier: str, ip_address: str = "unknown") -> None:
             )
         return
     except Exception as exc:
-        logger.warning("Redis record_failed_attempt failed (%s), using local fallback.", exc)
+        logger.warning("Redis record_failed_attempt failed (%s), evaluating fallback policy.", exc)
+        from core.config import settings
+        if settings.ENV.lower() in ("production", "staging") or os.getenv("STRICT_REDIS_SECURITY", "false").lower() == "true":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "message": "Authentication security service temporarily unavailable. Please retry shortly.",
+                    "details": {"code": "security_service_unavailable"},
+                },
+            )
 
     # 2. Local Fallback Recording
     with _lock:

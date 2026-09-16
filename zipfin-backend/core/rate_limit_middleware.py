@@ -82,7 +82,7 @@ class InMemoryRateLimiter:
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """FastAPI/Starlette middleware enforcing in-memory client IP rate limits."""
 
-    EXEMPT_PATHS = {"/health", "/api/health", "/metrics", "/docs", "/redoc", "/openapi.json"}
+    EXEMPT_PATHS = {"/health", "/healthz", "/api/health", "/metrics", "/docs", "/redoc", "/openapi.json"}
 
     def __init__(self, app, requests_per_minute: int = 120, burst_limit: int = 35) -> None:
         super().__init__(app)
@@ -107,8 +107,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             client_ip = forwarded_for.split(",")[0].strip()
         else:
             client_ip = peer_host
-
-        allowed, retry_after, remaining = self.limiter.is_allowed(client_ip)
+        from fastapi import HTTPException
+        try:
+            allowed, retry_after, remaining = self.limiter.is_allowed(client_ip)
+        except HTTPException as exc:
+            msg = exc.detail if isinstance(exc.detail, str) else (exc.detail.get("message", "Service unavailable.") if isinstance(exc.detail, dict) else "Service unavailable.")
+            details = exc.detail.get("details", {}) if isinstance(exc.detail, dict) else {}
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={
+                    "success": False,
+                    "message": msg,
+                    "details": details,
+                },
+            )
 
         if not allowed:
             logger.warning("Rate limit exceeded for IP=%s on path=%s", client_ip, path)

@@ -103,6 +103,12 @@ async def checkout(
     Prices, totals, and seller associations are determined strictly server-side
     by resolving catalog items from the database.
     """
+    if current_user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anonymous accounts cannot create checkout orders. Please sign in or register.",
+        )
+
     idempotency_key = x_idempotency_key.strip() if x_idempotency_key else None
     items_payload = [item.model_dump() for item in payload.items]
 

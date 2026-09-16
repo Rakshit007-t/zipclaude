@@ -40,6 +40,9 @@ export default defineConfig({
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
             }
+            if (id.includes('@sentry')) {
+              return 'vendor-sentry';
+            }
             return 'vendor-libs';
           }
         },

@@ -35,6 +35,7 @@ class CreateOrderResponse(BaseModel):
     amount: int
     currency: str
     key_id: str
+    razorpay_order_id: str | None = None
 
 
 @router.get("/packages", response_model=ApiResponse[list[dict[str, Any]]])
@@ -48,43 +49,65 @@ async def list_packages() -> ApiResponse[list[dict[str, Any]]]:
 async def create_payment_order(
     payload: CreateOrderRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    order_service: OrderService = Depends(get_order_service),
 ) -> ApiResponse[CreateOrderResponse]:
     """Create a server-authoritative Razorpay payment order for subscription credits."""
-    package = get_server_price(payload.package_id)
-    amount_paise = package["amount_paise"]
+    if current_user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anonymous accounts cannot create payment orders. Please sign in or register.",
+        )
 
-    order_id = f"order_srv_{os.urandom(8).hex()}"
+    order = order_service.create_package_order(
+        customer_uid=current_user.uid,
+        package_id=payload.package_id,
+    )
+
     key_id = (settings.RAZORPAY_KEY_ID or os.getenv("RAZORPAY_KEY_ID", "rzp_test_mock")).strip()
 
-    logger.info("Created server-authoritative order %s for user %s", order_id, current_user.uid)
+    logger.info("Created server-authoritative order %s (provider: %s) for user %s", order.order_id, order.payment_order_id, current_user.uid)
     return success_response(
         message="Order created successfully.",
         data=CreateOrderResponse(
-            order_id=order_id,
-            amount=amount_paise,
-            currency=package.get("currency", "INR"),
+            order_id=order.order_id,
+            amount=order.total_paise,
+            currency=order.currency,
             key_id=key_id,
+            razorpay_order_id=order.payment_order_id,
         ),
     )
 
 
-@router.post("/orders", response_model=ApiResponse[dict[str, Any]], status_code=status.HTTP_201_CREATED)
+@router.post("/orders", response_model=ApiResponse[dict[str, Any]], status_code=status.HTTP_201_CREATED, deprecated=True)
 async def create_payment_order_legacy(
     payload: CreateOrderRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    order_service: OrderService = Depends(get_order_service),
 ) -> ApiResponse[dict[str, Any]]:
-    """Create a payment order for subscription credits.
+    """Legacy payment order endpoint for subscription credits.
 
+    DEPRECATED: Use POST /payments/create-order or POST /orders/checkout.
     Guarantees the price is resolved strictly server-side, blocking client tampering.
     """
-    package = get_server_price(payload.package_id)
+    if current_user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anonymous accounts cannot create payment orders. Please sign in or register.",
+        )
+
+    order = order_service.create_package_order(
+        customer_uid=current_user.uid,
+        package_id=payload.package_id,
+    )
 
     order_data = {
-        "order_id": f"order_{package['id']}_{current_user.uid[:8]}",
-        "package_id": package["id"],
-        "amount_rupees": package["amount_rupees"],
-        "currency": package["currency"],
+        "order_id": order.order_id,
+        "package_id": payload.package_id,
+        "amount_rupees": round(order.total_paise / 100.0, 2),
+        "amount_paise": order.total_paise,
+        "currency": order.currency,
         "user_id": current_user.uid,
+        "payment_order_id": order.payment_order_id,
     }
 
     return success_response(
@@ -103,8 +126,9 @@ async def razorpay_webhook(
     signature = request.headers.get("X-Razorpay-Signature", "").strip()
 
     webhook_secret = (
-        os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip()
-        or settings.RAZORPAY_KEY_SECRET
+        (settings.RAZORPAY_WEBHOOK_SECRET or "").strip()
+        or os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip()
+        or (settings.RAZORPAY_KEY_SECRET or "").strip()
     )
 
     raw_body = await request.body()

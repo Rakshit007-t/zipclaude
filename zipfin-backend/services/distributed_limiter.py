@@ -8,6 +8,7 @@ Falls back to a thread-safe local sliding window limiter if Redis is unavailable
 from __future__ import annotations
 
 import logging
+import os
 import time
 from uuid import uuid4
 from typing import TYPE_CHECKING
@@ -84,8 +85,21 @@ class DistributedRateLimiter:
 
         except Exception as exc:
             logger.warning(
-                "Redis rate limiter unavailable (%s), applying local in-memory fallback for %s.",
+                "Redis rate limiter unavailable (%s), evaluating fallback policy for %s.",
                 exc,
                 client_ip,
             )
+            from core.config import settings
+            if (
+                settings.ENV.lower() in ("production", "staging")
+                or os.getenv("STRICT_REDIS_SECURITY", "false").lower() == "true"
+            ) and os.getenv("ALLOW_INSECURE_LOCAL_FALLBACK", "false").lower() != "true":
+                from fastapi import HTTPException, status
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={
+                        "message": "Rate limit service temporarily unavailable. Please retry shortly.",
+                        "details": {"code": "rate_limiter_unavailable"},
+                    },
+                )
             return self._local_fallback.is_allowed(client_ip)

@@ -60,12 +60,31 @@ class _FakeDocument:
 
 
 class _FakeQuery:
-    def __init__(self, store: dict[str, dict], filters: list | None = None) -> None:
+    def __init__(
+        self,
+        store: dict[str, dict],
+        filters: list | None = None,
+        limit_n: int | None = None,
+        offset_n: int = 0,
+    ) -> None:
         self._store = store
         self._filters = filters or []
+        self._limit_n = limit_n
+        self._offset_n = offset_n
 
     def where(self, field_path: str, op_string: str, value: any) -> _FakeQuery:
-        return _FakeQuery(self._store, self._filters + [(field_path, op_string, value)])
+        return _FakeQuery(
+            self._store,
+            self._filters + [(field_path, op_string, value)],
+            self._limit_n,
+            self._offset_n,
+        )
+
+    def limit(self, n: int) -> _FakeQuery:
+        return _FakeQuery(self._store, self._filters, n, self._offset_n)
+
+    def offset(self, n: int) -> _FakeQuery:
+        return _FakeQuery(self._store, self._filters, self._limit_n, n)
 
     def get(self) -> list[_FakeSnapshot]:
         results = []
@@ -76,8 +95,18 @@ class _FakeQuery:
                     if doc_data.get(field) != val:
                         match = False
                         break
+                elif op in ("array_contains", "array-contains"):
+                    field_val = doc_data.get(field)
+                    if not isinstance(field_val, (list, tuple, set)) or val not in field_val:
+                        match = False
+                        break
             if match:
                 results.append(_FakeSnapshot(doc_data, key))
+
+        if self._offset_n:
+            results = results[self._offset_n:]
+        if self._limit_n is not None:
+            results = results[:self._limit_n]
         return results
 
 

@@ -30,6 +30,7 @@ from core.logging_config import configure_logging
 from core.rate_limit_middleware import RateLimitMiddleware
 from core.csrf_middleware import CSRFMiddleware
 from core.request_size_limiter import RequestSizeLimiterMiddleware
+from core.sentry import init_sentry
 from models.schema import ApiResponse
 from routes.auth import router as auth_router
 from routes.product import router as product_router
@@ -112,8 +113,8 @@ def _get_cors_origin_regex() -> str | None:
     if configured_regex:
         return configured_regex
 
-    # In production, disable broad private IP regex matching
-    if os.getenv("ENV", "development") == "production":
+    # In production and staging, disable broad private IP regex matching
+    if os.getenv("ENV", "development").lower() in ("production", "staging"):
         return None
 
     return (
@@ -127,6 +128,7 @@ def _get_cors_origin_regex() -> str | None:
 
 
 def create_app() -> FastAPI:
+    init_sentry()
     initialize_tryon_store()
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     UI_DIR.mkdir(parents=True, exist_ok=True)
@@ -289,6 +291,16 @@ def create_app() -> FastAPI:
             request.method,
             request.url.path,
         )
+        try:
+            import sentry_sdk
+            with sentry_sdk.isolation_scope() as scope:
+                req_id = getattr(request.state, "request_id", None)
+                if req_id:
+                    scope.set_tag("request_id", req_id)
+                sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass
+
         return error_response(
             status_code=500,
             detail=None,
@@ -301,6 +313,18 @@ def create_app() -> FastAPI:
         return success_response(
             message="ZipRIGHT backend running.",
             data={"status": "running", "version": APP_VERSION, "env": env},
+        )
+
+    @app.get("/healthz", tags=["health"], response_model=ApiResponse[dict[str, str]])
+    async def liveness_check() -> ApiResponse[dict[str, str]]:
+        """Minimal process liveness check for container orchestrators (ACA, K8s).
+
+        Does not query external dependencies (Redis, Firestore). Returns HTTP 200
+        as long as the application process is alive and accepting requests.
+        """
+        return success_response(
+            message="ZipRIGHT process alive.",
+            data={"status": "ok", "version": APP_VERSION},
         )
 
     @app.get("/health", tags=["health"], response_model=ApiResponse[dict])
@@ -324,6 +348,21 @@ def create_app() -> FastAPI:
             logger.warning("Health check — Firestore degraded: %s", exc)
             checks["firestore"] = "degraded"
             overall = "degraded"
+
+        # Distributed Redis probe
+        try:
+            from core.redis_client import is_redis_healthy
+            if is_redis_healthy():
+                checks["redis"] = "ok"
+            else:
+                checks["redis"] = "degraded"
+                if env in ("production", "staging") or os.getenv("REDIS_URL"):
+                    overall = "degraded"
+        except Exception as exc:
+            logger.warning("Health check — Redis degraded: %s", exc)
+            checks["redis"] = "degraded"
+            if env in ("production", "staging") or os.getenv("REDIS_URL"):
+                overall = "degraded"
 
         uptime_seconds = round(time.time() - APP_START_TIME)
         data = {

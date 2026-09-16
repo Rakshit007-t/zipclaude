@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { agentDebugLog } from './utils/agentDebugLog';
+import { initSentry } from './services/sentry';
+
+// Initialize Sentry error monitoring (Phase 5B)
+initSentry();
+
 
 // #region agent log
 window.addEventListener('error', (event) => {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { listCloset, onClosetChange, removeFromCloset, updateQuantity, type ClosetItem } from '../services/closet';
+import { openRazorpayCheckout, pollOrderPaymentStatus, getOrCreateCheckoutIdempotencyKey, clearCheckoutIdempotencyKey, type ServerCheckoutData } from '../services/checkoutService';
 import { useAppNavigation } from '../utils/useAppNavigation';
 import { AppBar, Button, EmptyState, Spinner } from '../components/ui';
 import { safeOpenUrl } from '../utils/sanitize';
@@ -26,6 +27,7 @@ const Cart: React.FC = () => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutStatus, setCheckoutStatus] = useState<'idle' | 'initiating' | 'modal_open' | 'processing' | 'confirmed' | 'failed' | 'dismissed'>('idle');
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,41 +52,92 @@ const Cart: React.FC = () => {
       navigate('/login');
       return;
     }
-    if (items.length === 0) return;
+    if (items.length === 0 || checkingOut) return;
 
     setCheckingOut(true);
+    setCheckoutStatus('initiating');
     setCheckoutMessage(null);
     try {
       const token = await user.getIdToken();
-      const payload = {
-        items: items.map((i) => ({
-          product_id: i.productRefId || i.id,
-          quantity: i.quantity || 1,
-        })),
-      };
+      const itemsPayload = items.map((i) => ({
+        product_id: i.productRefId || i.id,
+        quantity: i.quantity || 1,
+      }));
+      const payload = { items: itemsPayload };
 
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+      // Retry-stable idempotency key: cached across retries, reloads, and network drops for this attempt
+      const idempotencyKey = getOrCreateCheckoutIdempotencyKey(user.uid, itemsPayload);
       const response = await fetch(`${backendUrl}/orders/checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          'X-Idempotency-Key': `cart_${user.uid}_${Date.now()}`,
+          'X-Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify(payload),
       });
 
       const resData = await response.json();
       if (!response.ok) {
-        throw new Error(resData?.message || resData?.detail?.message || 'Checkout failed.');
+        throw new Error(resData?.message || resData?.detail?.message || 'Checkout creation failed.');
       }
 
-      const orderData = resData.data;
-      setCheckoutMessage(`Order ${orderData.order_id} created for ₹${orderData.amount_rupees}. Awaiting payment confirmation.`);
+      const orderData: ServerCheckoutData = resData.data;
+      setCheckoutStatus('modal_open');
+      setCheckoutMessage(`Order ${orderData.order_id} created for ₹${orderData.amount_rupees}. Opening secure payment...`);
+
+      // Open Razorpay Checkout modal using SERVER-authoritative data
+      await openRazorpayCheckout(
+        orderData,
+        {
+          onSuccess: async () => {
+            // CRITICAL: Frontend does NOT mark the order as PAID directly.
+            // Backend webhook is authoritative. Frontend displays confirmation polling.
+            setCheckoutStatus('processing');
+            setCheckoutMessage(`Payment submitted for order ${orderData.order_id}. Awaiting settlement confirmation...`);
+
+            try {
+              const finalStatus = await pollOrderPaymentStatus(orderData.order_id, token, backendUrl);
+              if (finalStatus === 'PAID') {
+                setCheckoutStatus('confirmed');
+                setCheckoutMessage(`Payment confirmed! Order ${orderData.order_id} has been placed successfully.`);
+                // Only confirmed PAID orders clear cart and active idempotency session
+                items.forEach((item) => removeFromCloset('cart', item.id));
+                clearCheckoutIdempotencyKey(user.uid);
+              } else if (finalStatus === 'PAYMENT_FAILED') {
+                setCheckoutStatus('failed');
+                setCheckoutMessage(`Payment for order ${orderData.order_id} was declined.`);
+              } else {
+                setCheckoutMessage(`Order ${orderData.order_id} is processing. Webhook will finalize payment state.`);
+              }
+            } catch {
+              setCheckoutMessage(`Payment received. Order ${orderData.order_id} is processing.`);
+            } finally {
+              setCheckingOut(false);
+            }
+          },
+          onFailure: (err) => {
+            setCheckoutStatus('failed');
+            const desc = err?.error?.description || 'Payment was declined or cancelled.';
+            setCheckoutMessage(`Payment failed: ${desc}`);
+            setCheckingOut(false);
+          },
+          onDismiss: () => {
+            setCheckoutStatus('dismissed');
+            setCheckoutMessage('Checkout window closed. You can resume payment whenever you are ready.');
+            setCheckingOut(false);
+          },
+        },
+        {
+          name: user.displayName || undefined,
+          email: user.email || undefined,
+        }
+      );
     } catch (err: unknown) {
+      setCheckoutStatus('failed');
       const msg = err instanceof Error ? err.message : 'Checkout encountered an error.';
       setCheckoutMessage(msg);
-    } finally {
       setCheckingOut(false);
     }
   };
