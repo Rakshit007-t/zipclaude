@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
-import { useUserProfile } from '../contexts/UserProfileContext';
+import { useUserProfile, type FitProfileDraft } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
 import { recordJourneyEvent } from '../services/styleJourney';
 import { saveFitProfile, type FitProfilePayload } from '../services/ziprightApi';
@@ -53,6 +53,11 @@ const brands = [
 ];
 
 const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const genders = ['Male', 'Female', 'Other'];
+const MIN_HEIGHT_CM = 50;
+const MAX_HEIGHT_CM = 300;
+const MIN_WEIGHT_KG = 10;
+const MAX_WEIGHT_KG = 500;
 
 
 function createProfileId(userId: string) {
@@ -111,12 +116,71 @@ function feetAndInchesToCm(feetValue: string, inchesValue: string) {
   return Number.isFinite(totalInches) && totalInches > 0 ? Number((totalInches * 2.54).toFixed(2)) : undefined;
 }
 
-function hasHeightValue(fitData: FitData) {
+function getValidHeightCm(fitData: FitData) {
+  let heightCm: number | undefined;
+
   if (fitData.heightUnit === 'cm') {
-    return Boolean(fitData.heightCm);
+    const parsedHeight = Number(fitData.heightCm);
+    heightCm = Number.isFinite(parsedHeight) ? parsedHeight : undefined;
+  } else {
+    const feet = Number(fitData.heightFt);
+    const inches = Number(fitData.heightIn);
+    if (
+      fitData.heightFt.trim() !== '' &&
+      fitData.heightIn.trim() !== '' &&
+      Number.isFinite(feet) && feet > 0 &&
+      Number.isFinite(inches) && inches >= 0 && inches < 12
+    ) {
+      heightCm = Number(((feet * 12 + inches) * 2.54).toFixed(2));
+    }
   }
 
-  return fitData.heightFt !== '' && fitData.heightIn !== '';
+  return heightCm && heightCm > MIN_HEIGHT_CM && heightCm <= MAX_HEIGHT_CM
+    ? heightCm
+    : undefined;
+}
+
+type RequiredProfileField = {
+  id: 'profileName' | 'gender' | 'brand' | 'topSize' | 'height' | 'weight' | 'bodyShape';
+  message: string;
+  valid: boolean;
+};
+
+function getProfileValidation(profileName: string, fitData: FitData) {
+  const normalizedName = profileName.trim();
+  const heightCm = getValidHeightCm(fitData);
+  const weightKg = Number(fitData.weight);
+  const validBodyShapeIds = (fitData.gender === 'Female' ? femaleBodyShapes : maleBodyShapes)
+    .map(shape => shape.id);
+  const fields: RequiredProfileField[] = [
+    {
+      id: 'profileName',
+      message: 'Please enter a profile name of 100 characters or fewer.',
+      valid: normalizedName.length > 0 && normalizedName.length <= 100,
+    },
+    { id: 'gender', message: 'Please select a gender.', valid: genders.includes(fitData.gender) },
+    { id: 'brand', message: 'Please select a preferred brand.', valid: Boolean(fitData.brand) },
+    { id: 'topSize', message: 'Please select your usual size.', valid: sizes.includes(fitData.topSize) },
+    { id: 'height', message: 'Please enter a valid height.', valid: typeof heightCm === 'number' },
+    {
+      id: 'weight',
+      message: 'Please enter a valid weight.',
+      valid: Number.isFinite(weightKg) && weightKg > MIN_WEIGHT_KG && weightKg <= MAX_WEIGHT_KG,
+    },
+    {
+      id: 'bodyShape',
+      message: 'Please select your body shape.',
+      valid: validBodyShapeIds.includes(fitData.bodyShape),
+    },
+  ];
+
+  return {
+    fields,
+    heightCm,
+    weightKg,
+    isComplete: fields.every(field => field.valid),
+    firstInvalid: fields.find(field => !field.valid),
+  };
 }
 
 function isFinitePositiveNumber(value: unknown): value is number {
@@ -316,18 +380,11 @@ const FitProfile: React.FC = () => {
     setUserProfile,
     updateProfile,
     isHydrated,
-    updateWeight,
-    updateBodyShape,
-    updateBaseSize,
-    updateFitPreference,
     deleteFitProfile,
   } = useUserProfile();
 
   const navigationState = (location.state as any) || {};
   const mode = navigationState.mode || 'add';
-  const scanReturnFallbackRef = useRef<string | null>(
-    navigationState.smartFitCompleted ? '/add-product' : null,
-  );
   const hasInitializedFromProfileRef = useRef(false);
 
   const [profileName, setProfileName] = useState('');
@@ -338,10 +395,61 @@ const FitProfile: React.FC = () => {
   const [showBodyShapeGuide, setShowBodyShapeGuide] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [formReady, setFormReady] = useState(false);
+  const formBaselineRef = useRef<string | null>(null);
+  const lastDraftSignatureRef = useRef<string | null>(null);
+
+  const stateMemberId = typeof navigationState.memberId === 'string' ? navigationState.memberId : '';
+  const activeProfileId = stateMemberId || userProfile.selectedProfileId || userProfile.profileId || '';
+  const getFormSnapshot = (name: string, data: FitData) => JSON.stringify({ name, data });
+  const getSavedForm = () => {
+    const storedHeight = Number(userProfile.height || 0);
+    const { feet, inches } = storedHeight > 0
+      ? cmToFeetAndInches(storedHeight)
+      : { feet: '', inches: '' };
+    const measurements = userProfile.measurements || {};
+
+    return {
+      profileName: userProfile.profileName || '',
+      fitData: {
+        ...defaultFitData,
+        gender: userProfile.gender || defaultFitData.gender,
+        brand: userProfile.preferredBrand || '',
+        topSize: userProfile.baseSize || userProfile.usualSize || defaultFitData.topSize,
+        heightFt: feet ? String(feet) : '',
+        heightIn: inches === '' ? '' : String(inches),
+        heightCm: storedHeight > 0 ? String(storedHeight) : '',
+        weight: userProfile.weight > 0 ? String(userProfile.weight) : '',
+        waistSize: cmToInchesString(measurements.waist),
+        bodyShape: userProfile.bodyShape || '',
+        chestSize: cmToInchesString(measurements.chest),
+        bustSize: cmToInchesString(measurements.bust ?? measurements.chest),
+        hipsSize: cmToInchesString(measurements.hips),
+        fitPreference: fitPreferenceToSlider(userProfile.fitPreference),
+      },
+    };
+  };
+  const draftMatchesCurrentForm = (draft?: FitProfileDraft) => Boolean(
+    draft &&
+    draft.mode === mode &&
+    (mode !== 'edit' || draft.profileId === activeProfileId),
+  );
+  const initialiseForm = (
+    nextProfileName: string,
+    nextFitData: FitData,
+    baseline = { profileName: nextProfileName, fitData: nextFitData },
+  ) => {
+    setProfileName(nextProfileName);
+    setFitData(nextFitData);
+    formBaselineRef.current = getFormSnapshot(baseline.profileName, baseline.fitData);
+    hasInitializedFromProfileRef.current = true;
+    setFormReady(true);
+  };
 
   useEffect(() => {
     const loadProfile = async () => {
-      if (mode !== 'edit') {
+      if (mode !== 'edit' || draftMatchesCurrentForm(userProfile.fitProfileDraft)) {
         return;
       }
 
@@ -366,8 +474,11 @@ const FitProfile: React.FC = () => {
               ? 3
               : 2;
 
-          setProfileName(data.profileName || '');
-          setFitData({
+          if (hasInitializedFromProfileRef.current) {
+            return;
+          }
+
+          const savedFitData: FitData = {
             gender: data.gender || 'Male',
             brand: data.preferredBrand || '',
             topSize: data.usualSize || 'M',
@@ -383,7 +494,8 @@ const FitProfile: React.FC = () => {
             hipsSize: cmToInchesString(smartFit.hips) || '',
             braCup: '',
             fitPreference: normalizedFitPreference,
-          });
+          };
+          initialiseForm(data.profileName || '', savedFitData);
         }
       } catch (e) {
         console.error('Error loading profile:', e);
@@ -393,130 +505,36 @@ const FitProfile: React.FC = () => {
       }
     };
     void loadProfile();
-  }, [mode, showToast]);
+  }, [mode, showToast, userProfile.fitProfileDraft]);
 
   useEffect(() => {
-    if (!isHydrated || hasInitializedFromProfileRef.current || !hasSavedProfileData(userProfile)) {
+    if (!isHydrated || hasInitializedFromProfileRef.current) {
       return;
     }
 
-    hasInitializedFromProfileRef.current = true;
+    const savedForm = getSavedForm();
+    const draft = userProfile.fitProfileDraft;
+    if (draftMatchesCurrentForm(draft)) {
+      initialiseForm(draft.profileName, draft.fitData, savedForm);
+      lastDraftSignatureRef.current = JSON.stringify(draft);
+      return;
+    }
 
-    const storedHeight = Number(userProfile.height || 0);
-    const { feet, inches } = storedHeight > 0
-      ? cmToFeetAndInches(storedHeight)
-      : { feet: '', inches: '' };
-    const measurements = userProfile.measurements || {};
-
-    setProfileName(prev => prev || userProfile.profileName || '');
-    setFitData(prev => ({
-      ...prev,
-      gender: userProfile.gender || prev.gender,
-      brand: prev.brand || userProfile.preferredBrand || '',
-      topSize: userProfile.baseSize || userProfile.usualSize || prev.topSize,
-      heightUnit: prev.heightUnit,
-      heightFt: prev.heightFt || (feet ? String(feet) : ''),
-      heightIn: prev.heightIn || (inches === '' ? '' : String(inches)),
-      heightCm: prev.heightCm || (storedHeight > 0 ? String(storedHeight) : ''),
-      weight: prev.weight || (userProfile.weight > 0 ? String(userProfile.weight) : ''),
-      waistSize: prev.waistSize || cmToInchesString(measurements.waist),
-      bodyShape: prev.bodyShape || userProfile.bodyShape || '',
-      chestSize: prev.chestSize || cmToInchesString(measurements.chest),
-      bustSize: prev.bustSize || cmToInchesString(measurements.bust ?? measurements.chest),
-      hipsSize: prev.hipsSize || cmToInchesString(measurements.hips),
-      fitPreference: fitPreferenceToSlider(userProfile.fitPreference),
-    }));
+    initialiseForm(savedForm.profileName, savedForm.fitData);
   }, [isHydrated, userProfile]);
-
-  useEffect(() => {
-    if (mode === 'edit' || userProfile.height <= 0) {
-      return;
-    }
-
-    const { feet, inches } = cmToFeetAndInches(userProfile.height);
-    setFitData(prev => ({
-      ...prev,
-      heightCm: String(userProfile.height),
-      heightFt: String(feet),
-      heightIn: String(inches),
-    }));
-  }, [mode, userProfile.height]);
-
-  useEffect(() => {
-    if (mode === 'edit' || userProfile.weight <= 0) {
-      return;
-    }
-
-    setFitData(prev => ({
-      ...prev,
-      weight: prev.weight || String(userProfile.weight),
-    }));
-  }, [mode, userProfile.weight]);
-
-  useEffect(() => {
-    if (mode === 'edit' || !userProfile.baseSize) {
-      return;
-    }
-
-    setFitData(prev => ({
-      ...prev,
-      topSize: userProfile.baseSize || prev.topSize,
-    }));
-  }, [mode, userProfile.baseSize]);
-
-  useEffect(() => {
-    if (mode === 'edit' || !userProfile.fitPreference) {
-      return;
-    }
-
-    const nextFitPreference = userProfile.fitPreference === 'slim'
-      ? 1
-      : userProfile.fitPreference === 'relaxed' || userProfile.fitPreference === 'loose'
-        ? 3
-        : 2;
-
-    setFitData(prev => ({
-      ...prev,
-      fitPreference: nextFitPreference,
-    }));
-  }, [mode, userProfile.fitPreference]);
-
-  useEffect(() => {
-    if (mode === 'edit' || !userProfile.bodyShape) {
-      return;
-    }
-
-    setFitData(prev => ({
-      ...prev,
-      bodyShape: prev.bodyShape || userProfile.bodyShape || '',
-    }));
-  }, [mode, userProfile.bodyShape]);
-
-  useEffect(() => {
-    if (mode === 'edit') {
-      return;
-    }
-
-    const { chest, waist, hips, bust } = userProfile.measurements;
-    if (!chest && !waist && !hips && !bust) {
-      return;
-    }
-
-    setFitData(prev => ({
-      ...prev,
-      waistSize: prev.waistSize || cmToInchesString(waist),
-      chestSize: prev.gender === 'Female' ? prev.chestSize : (prev.chestSize || cmToInchesString(chest)),
-      bustSize: prev.gender === 'Female' ? (prev.bustSize || cmToInchesString(bust ?? chest)) : prev.bustSize,
-      hipsSize: prev.gender === 'Female' ? (prev.hipsSize || cmToInchesString(hips)) : prev.hipsSize,
-    }));
-  }, [mode, userProfile.measurements]);
 
   // Apply measurements from SmartFitScan
   useEffect(() => {
     const state = location.state as any;
     if (state?.smartFitCompleted && state?.measurements) {
+      const scanHeight = userProfile.height > 0 ? cmToFeetAndInches(userProfile.height) : null;
       setFitData(prev => ({
         ...prev,
+        ...(scanHeight ? {
+          heightCm: String(userProfile.height),
+          heightFt: String(scanHeight.feet),
+          heightIn: String(scanHeight.inches),
+        } : {}),
         waistSize: cmToInchesString(state.measurements.waist) || prev.waistSize,
         chestSize: prev.gender === 'Female' ? prev.chestSize : (cmToInchesString(state.measurements.chest) || prev.chestSize),
         bustSize: prev.gender === 'Female' ? (cmToInchesString(state.measurements.bust || state.measurements.chest) || prev.bustSize) : prev.bustSize,
@@ -529,7 +547,7 @@ const FitProfile: React.FC = () => {
       delete newState.measurements;
       navigate('.', { replace: true, state: newState });
     }
-  }, [location.state, navigate]);
+  }, [location.state, navigate, userProfile.height]);
 
   const bodyShapes = fitData.gender === 'Female' ? femaleBodyShapes : maleBodyShapes;
   const shapeGuideData = fitData.gender === 'Female' ? femaleShapeGuide : maleShapeGuide;
@@ -556,24 +574,14 @@ const FitProfile: React.FC = () => {
     }
   }, [fitData.heightFt, fitData.heightIn, fitData.heightCm, fitData.heightUnit, fitData.weight, isFemale]);
 
-  // Profile completion
+  const profileValidation = useMemo(
+    () => getProfileValidation(profileName, fitData),
+    [profileName, fitData],
+  );
   const completeness = useMemo(() => {
-    let filled = 0;
-    let total = 7;
-    if (profileName.trim()) filled++;
-    if (fitData.gender) filled++;
-    if (fitData.brand) filled++;
-    if (fitData.topSize) filled++;
-    const hasHeight = hasHeightValue(fitData);
-    if (hasHeight) filled++;
-    if (fitData.weight) filled++;
-    if (fitData.bodyShape) filled++;
-    // Optional fields add to total
-    if (fitData.waistSize) { filled++; total++; } else { total++; }
-    if (fitData.chestSize || fitData.bustSize) { filled++; total++; } else { total++; }
-    if (isFemale && fitData.hipsSize) { filled++; total++; } else if (isFemale) { total++; }
-    return Math.round((filled / total) * 100);
-  }, [profileName, fitData, isFemale]);
+    const completed = profileValidation.fields.filter(field => field.valid).length;
+    return Math.round((completed / profileValidation.fields.length) * 100);
+  }, [profileValidation]);
 
   const fitPreferenceLabel = fitData.fitPreference === 1 ? 'Slim' : fitData.fitPreference === 3 ? 'Relaxed' : 'Regular';
 
@@ -601,60 +609,66 @@ const FitProfile: React.FC = () => {
     ? (fitData.heightFt ? `${fitData.heightFt}'${fitData.heightIn || '0'}"` : `-'- "`)
     : (fitData.heightCm ? `${fitData.heightCm}cm` : '-');
 
-  // Check if required fields are filled
-  const isComplete = useMemo(() => {
-    const hasHeight = hasHeightValue(fitData);
-    return profileName.trim() && fitData.brand && fitData.topSize && hasHeight && fitData.weight && fitData.bodyShape;
-  }, [profileName, fitData]);
+  const isComplete = profileValidation.isComplete;
+  const currentFormSnapshot = getFormSnapshot(profileName, fitData);
+  const hasUnsavedChanges = Boolean(
+    formReady &&
+    currentFormSnapshot !== formBaselineRef.current,
+  );
+
+  useEffect(() => {
+    if (!formReady) {
+      return;
+    }
+
+    const nextDraft: FitProfileDraft | undefined = hasUnsavedChanges
+      ? {
+          mode,
+          profileId: mode === 'edit' ? activeProfileId || undefined : undefined,
+          profileName,
+          fitData,
+        }
+      : undefined;
+    const signature = JSON.stringify(nextDraft);
+    if (lastDraftSignatureRef.current === signature) {
+      return;
+    }
+
+    lastDraftSignatureRef.current = signature;
+    setUserProfile(prev => ({ ...prev, fitProfileDraft: nextDraft }));
+  }, [activeProfileId, fitData, formReady, hasUnsavedChanges, mode, profileName, setUserProfile]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   const handleHeightUnitChange = (heightUnit: 'ft' | 'cm') => {
     setFitData(prev => ({ ...prev, heightUnit }));
-
-    if (userProfile.height > 0) {
-      const { feet, inches } = cmToFeetAndInches(userProfile.height);
-      setFitData(prev => ({
-        ...prev,
-        heightUnit,
-        heightCm: String(userProfile.height),
-        heightFt: String(feet),
-        heightIn: String(inches),
-      }));
-    }
   };
 
   const handleHeightCmChange = (value: string) => {
     setFitData(prev => ({ ...prev, heightCm: value }));
-
-    const parsedHeight = parsePositiveNumber(value);
-    setUserProfile(prev => ({
-      ...prev,
-      height: parsedHeight ?? 0,
-    }));
   };
 
   const handleHeightFtChange = (value: string) => {
-    const nextHeight = feetAndInchesToCm(value, fitData.heightIn);
     setFitData(prev => ({ ...prev, heightFt: value }));
-    setUserProfile(prev => ({
-      ...prev,
-      height: nextHeight ?? 0,
-    }));
   };
 
   const handleHeightInChange = (value: string) => {
-    const nextHeight = feetAndInchesToCm(fitData.heightFt, value);
     setFitData(prev => ({ ...prev, heightIn: value }));
-    setUserProfile(prev => ({
-      ...prev,
-      height: nextHeight ?? 0,
-    }));
   };
 
   const handleWeightChange = (value: string) => {
     setFitData(prev => ({ ...prev, weight: value }));
-
-    const parsedWeight = parsePositiveNumber(value);
-    updateWeight(parsedWeight ?? 0);
   };
 
   const handleMeasurementChange = (field: 'chest' | 'waist' | 'hips' | 'bust', value: string) => {
@@ -670,31 +684,48 @@ const FitProfile: React.FC = () => {
       [fitFieldMap[field]]: value,
     }));
 
-    const parsedMeasurement = parsePositiveNumber(value);
-    const metricField = field === 'bust' ? 'bust' : field;
-
-    setUserProfile(prev => ({
-      ...prev,
-      measurements: {
-        ...prev.measurements,
-        [metricField]: inchesToCm(parsedMeasurement),
-        ...(field === 'bust' ? { chest: inchesToCm(parsedMeasurement) } : {}),
-      },
-    }));
   };
 
   const handleBack = () => {
+    if (hasUnsavedChanges) {
+      setShowLeaveConfirm(true);
+      return;
+    }
+    goBack('/manage-profiles');
+  };
+
+  const handleStay = () => {
+    setShowLeaveConfirm(false);
+  };
+
+  const handleStartSmartFitScan = () => {
+    if (formReady && hasUnsavedChanges) {
+      const nextDraft: FitProfileDraft = {
+        mode,
+        profileId: mode === 'edit' ? activeProfileId || undefined : undefined,
+        profileName,
+        fitData,
+      };
+      lastDraftSignatureRef.current = JSON.stringify(nextDraft);
+      setUserProfile(prev => ({ ...prev, fitProfileDraft: nextDraft }));
+    }
+    navigate('/smart-fit-scan');
+  };
+
+  const handleLeave = () => {
+    formBaselineRef.current = getFormSnapshot(profileName, fitData);
+    lastDraftSignatureRef.current = JSON.stringify(undefined);
+    setUserProfile(prev => ({ ...prev, fitProfileDraft: undefined }));
+    setShowLeaveConfirm(false);
     goBack('/manage-profiles');
   };
 
   const handleSave = async () => {
-    if (!profileName.trim()) { showToast('Please enter a profile name.', 'error'); return; }
-    if (!fitData.brand) { showToast('Please select a preferred brand.', 'error'); return; }
-    if (!fitData.topSize) { showToast('Please select your usual size.', 'error'); return; }
-    const hasHeight = hasHeightValue(fitData);
-    if (!hasHeight) { showToast('Please enter your height.', 'error'); return; }
-    if (!fitData.weight) { showToast('Please enter your weight.', 'error'); return; }
-    if (!fitData.bodyShape) { showToast('Please select your body shape.', 'error'); return; }
+    const validation = getProfileValidation(profileName, fitData);
+    if (!validation.isComplete) {
+      showToast(validation.firstInvalid?.message || 'Complete the required fields to save your profile.', 'error');
+      return;
+    }
 
     const user = auth.currentUser;
     const userId = user?.uid;
@@ -706,10 +737,9 @@ const FitProfile: React.FC = () => {
 
     setSaving(true);
     try {
-      const height = fitData.heightUnit === 'cm'
-        ? fitData.heightCm
-        : String(feetAndInchesToCm(fitData.heightFt, fitData.heightIn) ?? 0);
-      const selectedBodyShape = fitData.bodyShape || suggestedShape;
+      const height = validation.heightCm as number;
+      const weight = validation.weightKg;
+      const selectedBodyShape = fitData.bodyShape;
       const selectedFitPreference =
         fitData.fitPreference === 1
           ? 'slim'
@@ -763,8 +793,8 @@ const FitProfile: React.FC = () => {
         preferredBrand: fitData.brand,
         usualSize: selectedBaseSize,
         baseSize: selectedBaseSize,
-        height: Number(height),
-        weight: Number(fitData.weight),
+        height,
+        weight,
         bodyShape: selectedBodyShape,
         shoulderType: userProfile.shoulderType,
         fitPreference: selectedFitPreference,
@@ -792,8 +822,8 @@ const FitProfile: React.FC = () => {
         preferredBrand: fitData.brand,
         usualSize: selectedBaseSize,
         baseSize: selectedBaseSize,
-        height: Number(height),
-        weight: Number(fitData.weight),
+        height,
+        weight,
         bodyShape: selectedBodyShape,
         fitPreference: selectedFitPreference,
         selectedProfileId: profileId,
@@ -804,7 +834,8 @@ const FitProfile: React.FC = () => {
         fitProfiles,
       };
 
-      if (user && !user.isAnonymous) {
+      const isRemoteSave = Boolean(user && !user.isAnonymous);
+      if (isRemoteSave) {
         await saveFitProfile(profileData as FitProfilePayload);
       }
 
@@ -815,8 +846,8 @@ const FitProfile: React.FC = () => {
         preferredBrand: profileData.preferredBrand,
         usualSize: selectedBaseSize,
         baseSize: selectedBaseSize,
-        height: Number(height),
-        weight: Number(fitData.weight),
+        height,
+        weight,
         bodyShape: selectedBodyShape,
         fitPreference: selectedFitPreference,
         selectedProfileId: profileId,
@@ -825,9 +856,19 @@ const FitProfile: React.FC = () => {
         fitProfiles,
         ...(hasAnySmartFit ? { smartFit: nextSmartFit } : {}),
         measurements: nextMeasurements,
+        fitProfileDraft: undefined,
       });
 
-      showToast(mode === 'edit' ? 'Profile updated!' : 'Profile saved!', 'success');
+      const savedProfileName = profileName.trim();
+      setProfileName(savedProfileName);
+      formBaselineRef.current = getFormSnapshot(savedProfileName, fitData);
+      lastDraftSignatureRef.current = JSON.stringify(undefined);
+      showToast(
+        isRemoteSave
+          ? (mode === 'edit' ? 'Profile updated!' : 'Profile saved!')
+          : 'Profile saved on this device.',
+        'success',
+      );
       if (completeness >= 100) {
         recordJourneyEvent('profile_completed');
       }
@@ -835,7 +876,12 @@ const FitProfile: React.FC = () => {
       navigate('/home', { replace: true });
     } catch (e) {
       console.error('[FitProfile] Save failed:', e);
-      showToast('Failed to save profile. Please try again.', 'error');
+      showToast(
+        user && !user.isAnonymous
+          ? 'Profile could not be saved remotely. Your unfinished profile is still on this device.'
+          : 'Profile could not be saved on this device. Please try again.',
+        'error',
+      );
     } finally {
       setSaving(false);
     }
@@ -926,7 +972,7 @@ const FitProfile: React.FC = () => {
               Scan yourself with AI and auto-fill your measurements.
             </p>
             <button
-              onClick={() => navigate('/smart-fit-scan')}
+              onClick={handleStartSmartFitScan}
               className="border border-ink-invert/40 text-ink-invert font-semibold text-[11px] uppercase tracking-[0.12em] h-10 px-5 rounded-full inline-flex items-center gap-2 press"
             >
               Measure now
@@ -953,17 +999,17 @@ const FitProfile: React.FC = () => {
           {fitData.heightUnit === 'ft' ? (
             <div className="flex gap-3 mt-3">
               <div className="flex-1 relative">
-                <input type="number" aria-label="Height, feet" value={fitData.heightFt} onChange={(e) => handleHeightFtChange(e.target.value)} placeholder="5" className={`${fieldCls} pr-12`} />
+                <input type="number" min="1" max="9" aria-label="Height, feet" value={fitData.heightFt} onChange={(e) => handleHeightFtChange(e.target.value)} placeholder="5" className={`${fieldCls} pr-12`} />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">ft</span>
               </div>
               <div className="flex-1 relative">
-                <input type="number" aria-label="Height, inches" value={fitData.heightIn} onChange={(e) => handleHeightInChange(e.target.value)} placeholder="10" className={`${fieldCls} pr-12`} />
+                <input type="number" min="0" max="11" aria-label="Height, inches" value={fitData.heightIn} onChange={(e) => handleHeightInChange(e.target.value)} placeholder="10" className={`${fieldCls} pr-12`} />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">in</span>
               </div>
             </div>
           ) : (
             <div className="mt-3 relative">
-              <input type="number" aria-label="Height in centimetres" value={fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178" className={`${fieldCls} pr-12`} />
+              <input type="number" min="51" max="300" aria-label="Height in centimetres" value={fitData.heightCm} onChange={(e) => handleHeightCmChange(e.target.value)} placeholder="178" className={`${fieldCls} pr-12`} />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">cm</span>
             </div>
           )}
@@ -973,7 +1019,7 @@ const FitProfile: React.FC = () => {
         <div className="mb-8">
           <FieldLabel label="Weight" required hint="Helps estimate body build." />
           <div className="relative">
-            <input type="number" aria-label="Weight in kilograms" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70" className={`${fieldCls} pr-12`} />
+            <input type="number" min="11" max="500" aria-label="Weight in kilograms" value={fitData.weight} onChange={(e) => handleWeightChange(e.target.value)} placeholder="70" className={`${fieldCls} pr-12`} />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-faint text-[13px]">kg</span>
           </div>
         </div>
@@ -1053,7 +1099,6 @@ const FitProfile: React.FC = () => {
                   key={shape.id}
                   onClick={() => {
                     setFitData({ ...fitData, bodyShape: shape.id });
-                    updateBodyShape(shape.id);
                   }}
                   className={`relative p-4 pt-5 rounded-card border text-left transition-[transform,border-color,background-color] press-soft ${isSelected
                       ? 'bg-ink text-ink-invert border-ink'
@@ -1079,13 +1124,12 @@ const FitProfile: React.FC = () => {
 
           {/* Gender */}
           <div>
-            <FieldLabel label="Gender" hint="Used to apply gender-specific sizing rules." />
+            <FieldLabel label="Gender" required hint="Used to apply gender-specific sizing rules." />
             <SegmentedControl
               aria-label="Gender"
               value={fitData.gender}
               onChange={(g) => {
                 setFitData({ ...fitData, gender: g, bodyShape: '', bustSize: '', hipsSize: '', braCup: '' });
-                updateBodyShape(undefined);
               }}
               options={[
                 { value: 'Male', label: 'Male' },
@@ -1137,7 +1181,6 @@ const FitProfile: React.FC = () => {
                   className="min-w-[56px]"
                   onClick={() => {
                     setFitData({ ...fitData, topSize: s });
-                    updateBaseSize(s as any);
                   }}
                 >
                   {s}
@@ -1180,9 +1223,6 @@ const FitProfile: React.FC = () => {
             onChange={(v) => {
               const value = Number(v);
               setFitData({ ...fitData, fitPreference: value });
-              updateFitPreference(
-                value === 1 ? 'slim' : value === 3 ? 'relaxed' : 'regular',
-              );
             }}
             options={[
               { value: '1', label: 'Slim', icon: 'compress' },
@@ -1231,6 +1271,7 @@ const FitProfile: React.FC = () => {
           fullWidth
           variant={isComplete ? 'primary' : 'outline'}
           loading={saving}
+          disabled={!isComplete || saving}
           onClick={handleSave}
         >
           Save profile
@@ -1320,6 +1361,23 @@ const FitProfile: React.FC = () => {
             </Button>
             <Button variant="danger" className="flex-1" loading={deleting} onClick={handleDeleteProfile}>
               Delete
+            </Button>
+          </>
+        )}
+      />
+
+      <Modal
+        open={showLeaveConfirm}
+        onClose={handleStay}
+        title="Leave without saving?"
+        description="Your changes haven't been saved."
+        actions={(
+          <>
+            <Button variant="outline" className="flex-1" onClick={handleStay}>
+              Stay
+            </Button>
+            <Button variant="danger" className="flex-1" onClick={handleLeave}>
+              Leave
             </Button>
           </>
         )}

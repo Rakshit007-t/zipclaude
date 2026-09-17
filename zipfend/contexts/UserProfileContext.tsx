@@ -29,6 +29,34 @@ export interface UserMeasurements {
   confidence?: number;
 }
 
+/**
+ * A local-only in-progress Fit Profile. It intentionally lives beside the
+ * existing local profile cache so a route change (for example, Smart Fit Scan)
+ * cannot discard form entries before the user saves the profile.
+ */
+export interface FitProfileDraft {
+  mode: 'add' | 'edit';
+  profileId?: string;
+  profileName: string;
+  fitData: {
+    gender: string;
+    brand: string;
+    topSize: string;
+    heightUnit: 'ft' | 'cm';
+    heightFt: string;
+    heightIn: string;
+    heightCm: string;
+    weight: string;
+    waistSize: string;
+    bodyShape: string;
+    chestSize: string;
+    bustSize: string;
+    hipsSize: string;
+    braCup: string;
+    fitPreference: number;
+  };
+}
+
 export interface UserProfile {
   username?: string;
   displayName?: string;
@@ -55,6 +83,7 @@ export interface UserProfile {
   selectedProfile?: string;
   recommendationPreferences?: Record<string, unknown>;
   fitProfiles?: Array<Record<string, unknown>>;
+  fitProfileDraft?: FitProfileDraft;
 }
 
 interface UserProfileContextType {
@@ -133,6 +162,39 @@ function normalizePlainRecord(value: unknown): Record<string, unknown> | undefin
   return isPlainRecord(value) ? value : undefined;
 }
 
+function normalizeFitProfileDraft(value: unknown): FitProfileDraft | undefined {
+  if (!isPlainRecord(value) || !isPlainRecord(value.fitData)) {
+    return undefined;
+  }
+
+  const fitData = value.fitData;
+  const stringValue = (field: string) => typeof fitData[field] === 'string' ? fitData[field] : '';
+  const fitPreference = Number(fitData.fitPreference);
+
+  return {
+    mode: value.mode === 'edit' ? 'edit' : 'add',
+    profileId: normalizeString(value.profileId) || undefined,
+    profileName: typeof value.profileName === 'string' ? value.profileName : '',
+    fitData: {
+      gender: stringValue('gender'),
+      brand: stringValue('brand'),
+      topSize: stringValue('topSize'),
+      heightUnit: fitData.heightUnit === 'cm' ? 'cm' : 'ft',
+      heightFt: stringValue('heightFt'),
+      heightIn: stringValue('heightIn'),
+      heightCm: stringValue('heightCm'),
+      weight: stringValue('weight'),
+      waistSize: stringValue('waistSize'),
+      bodyShape: stringValue('bodyShape'),
+      chestSize: stringValue('chestSize'),
+      bustSize: stringValue('bustSize'),
+      hipsSize: stringValue('hipsSize'),
+      braCup: stringValue('braCup'),
+      fitPreference: [1, 2, 3].includes(fitPreference) ? fitPreference : 2,
+    },
+  };
+}
+
 function normalizeMeasurements(measurements: unknown): UserMeasurements {
   if (!measurements || typeof measurements !== 'object') {
     return {};
@@ -179,7 +241,7 @@ function hasRawProfileData(payload: Record<string, unknown> | undefined) {
 }
 
 function hasProfileData(profile: UserProfile) {
-  return hasRawProfileData(profile as unknown as Record<string, unknown>);
+  return hasRawProfileData(profile as unknown as Record<string, unknown>) || Boolean(profile.fitProfileDraft);
 }
 
 function normalizeProfileRecords(value: unknown): Array<Record<string, unknown>> {
@@ -224,6 +286,7 @@ function normalizeUserProfileDoc(profile: unknown): UserProfile {
     ...storedMeasurements,
     ...smartFit,
   };
+  const fitProfileDraft = normalizeFitProfileDraft(payload.fitProfileDraft);
 
   return {
     profileId: normalizeString(sourcePayload.profileId ?? sourcePayload.id) || undefined,
@@ -253,6 +316,7 @@ function normalizeUserProfileDoc(profile: unknown): UserProfile {
       sourcePayload.recommendationPreferences ?? payload.recommendationPreferences,
     ),
     fitProfiles,
+    ...(fitProfileDraft ? { fitProfileDraft } : {}),
   };
 }
 
@@ -289,6 +353,9 @@ function mergeProfile(
     previousProfile.usualSize,
   );
   const fitPreference = normalizeFitPreference(nextProfile.fitPreference ?? previousProfile.fitPreference);
+  const fitProfileDraft = 'fitProfileDraft' in nextProfile
+    ? normalizeFitProfileDraft(nextProfile.fitProfileDraft)
+    : previousProfile.fitProfileDraft;
 
   return {
     profileId: normalizeString(nextProfile.profileId ?? previousProfile.profileId) || undefined,
@@ -326,6 +393,7 @@ function mergeProfile(
     fitProfiles: Array.isArray(nextProfile.fitProfiles)
       ? normalizeProfileRecords(nextProfile.fitProfiles)
       : normalizeProfileRecords(previousProfile.fitProfiles),
+    fitProfileDraft,
   };
 }
 
