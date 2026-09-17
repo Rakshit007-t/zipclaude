@@ -110,7 +110,7 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
   }, [isZMenuOpen]);
 
   // Show on specific routes
-  const hiddenRoutes = ['/login', '/welcome', '/splash', '/fit-profile', '/seller/add-product', '/seller/edit-product', '/developer'];
+  const hiddenRoutes = ['/login', '/welcome', '/splash', '/fit-profile', '/smart-fit-scan', '/seller/add-product', '/seller/edit-product', '/developer'];
   const showNav = !hiddenRoutes.some(r => location.pathname.startsWith(r));
 
   if (!showNav) return null;
