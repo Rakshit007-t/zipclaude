@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import base64
 import logging
 import math
@@ -58,6 +59,11 @@ _POSE_TASK_LOCK = Lock()
 _SEGMENTER_TASK_LOCK = Lock()
 _POSE_TASK = None
 _SEGMENTER_TASK = None
+
+_SOLUTIONS_POSE_LOCK = Lock()
+_SOLUTIONS_SEGMENTER_LOCK = Lock()
+_SOLUTIONS_POSE = None
+_SOLUTIONS_SEGMENTER = None
 HEAD_LANDMARKS = tuple(range(0, 9))
 LEFT_SHOULDER = 11
 RIGHT_SHOULDER = 12
@@ -569,7 +575,15 @@ def _analyze_view(image: np.ndarray, *, view: str = "front") -> dict[str, object
 
 
 def _detect_pose(image: np.ndarray, *, silhouette: dict[str, object] | None = None):
-    if POSE is None:
+    pose = None
+    if POSE is not None:
+        try:
+            pose = _get_solutions_pose()
+        except Exception as exc:
+            logger.warning("MediaPipe Solutions pose initialization failed. reason=%s", exc)
+            pose = None
+
+    if pose is None:
         try:
             return _detect_pose_with_tasks(image)
         except Exception as exc:
@@ -579,13 +593,18 @@ def _detect_pose(image: np.ndarray, *, silhouette: dict[str, object] | None = No
             return _synthetic_pose_from_silhouette(silhouette, image.shape[1], image.shape[0])
 
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    with POSE.Pose(
-        static_image_mode=True,
-        model_complexity=2,
-        enable_segmentation=False,
-        min_detection_confidence=0.5,
-    ) as pose:
-        result = pose.process(rgb_image)
+    try:
+        with _SOLUTIONS_POSE_LOCK:
+            result = pose.process(rgb_image)
+    except Exception as exc:
+        logger.warning("MediaPipe Solutions pose inference failed, resetting instance. reason=%s", exc)
+        _reset_solutions_pose()
+        try:
+            return _detect_pose_with_tasks(image)
+        except Exception as inner_exc:
+            if silhouette is None:
+                raise MeasurementProcessingError(SCAN_FAILURE_MESSAGE) from inner_exc
+            return _synthetic_pose_from_silhouette(silhouette, image.shape[1], image.shape[0])
 
     if not result.pose_landmarks:
         raise MeasurementProcessingError(SCAN_FAILURE_MESSAGE)
@@ -594,7 +613,15 @@ def _detect_pose(image: np.ndarray, *, silhouette: dict[str, object] | None = No
 
 
 def _extract_silhouette(image: np.ndarray) -> dict[str, object]:
-    if SELFIE_SEGMENTATION is None:
+    segmenter = None
+    if SELFIE_SEGMENTATION is not None:
+        try:
+            segmenter = _get_solutions_segmenter()
+        except Exception as exc:
+            logger.warning("MediaPipe Solutions segmentation initialization failed. reason=%s", exc)
+            segmenter = None
+
+    if segmenter is None:
         try:
             return _extract_silhouette_with_tasks(image)
         except Exception as exc:
@@ -602,8 +629,17 @@ def _extract_silhouette(image: np.ndarray) -> dict[str, object]:
             return _extract_silhouette_with_opencv(image)
 
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    with SELFIE_SEGMENTATION.SelfieSegmentation(model_selection=1) as segmenter:
-        segmentation = segmenter.process(rgb_image).segmentation_mask
+    try:
+        with _SOLUTIONS_SEGMENTER_LOCK:
+            result = segmenter.process(rgb_image)
+            segmentation = result.segmentation_mask
+    except Exception as exc:
+        logger.warning("MediaPipe Solutions segmentation inference failed, resetting instance. reason=%s", exc)
+        _reset_solutions_segmenter()
+        try:
+            return _extract_silhouette_with_tasks(image)
+        except Exception:
+            return _extract_silhouette_with_opencv(image)
 
     if segmentation is None:
         raise MeasurementProcessingError(SCAN_FAILURE_MESSAGE)
@@ -711,6 +747,116 @@ def _get_image_segmenter():
         )
         _SEGMENTER_TASK = vision.ImageSegmenter.create_from_options(options)
     return _SEGMENTER_TASK
+
+
+def _get_solutions_pose():
+    global _SOLUTIONS_POSE
+    if _SOLUTIONS_POSE is not None:
+        return _SOLUTIONS_POSE
+    if POSE is None:
+        return None
+    with _SOLUTIONS_POSE_LOCK:
+        if _SOLUTIONS_POSE is not None:
+            return _SOLUTIONS_POSE
+        try:
+            _SOLUTIONS_POSE = POSE.Pose(
+                static_image_mode=True,
+                model_complexity=2,
+                enable_segmentation=False,
+                min_detection_confidence=0.5,
+            )
+        except Exception as exc:
+            logger.warning("Failed to initialize MediaPipe Solutions Pose. reason=%s", exc)
+            _SOLUTIONS_POSE = None
+            return None
+    return _SOLUTIONS_POSE
+
+
+def _get_solutions_segmenter():
+    global _SOLUTIONS_SEGMENTER
+    if _SOLUTIONS_SEGMENTER is not None:
+        return _SOLUTIONS_SEGMENTER
+    if SELFIE_SEGMENTATION is None:
+        return None
+    with _SOLUTIONS_SEGMENTER_LOCK:
+        if _SOLUTIONS_SEGMENTER is not None:
+            return _SOLUTIONS_SEGMENTER
+        try:
+            _SOLUTIONS_SEGMENTER = SELFIE_SEGMENTATION.SelfieSegmentation(model_selection=1)
+        except Exception as exc:
+            logger.warning("Failed to initialize MediaPipe Solutions SelfieSegmentation. reason=%s", exc)
+            _SOLUTIONS_SEGMENTER = None
+            return None
+    return _SOLUTIONS_SEGMENTER
+
+
+def _reset_solutions_pose():
+    global _SOLUTIONS_POSE
+    with _SOLUTIONS_POSE_LOCK:
+        if _SOLUTIONS_POSE is not None:
+            try:
+                if hasattr(_SOLUTIONS_POSE, "close"):
+                    _SOLUTIONS_POSE.close()
+            except Exception:
+                pass
+            _SOLUTIONS_POSE = None
+
+
+def _reset_solutions_segmenter():
+    global _SOLUTIONS_SEGMENTER
+    with _SOLUTIONS_SEGMENTER_LOCK:
+        if _SOLUTIONS_SEGMENTER is not None:
+            try:
+                if hasattr(_SOLUTIONS_SEGMENTER, "close"):
+                    _SOLUTIONS_SEGMENTER.close()
+            except Exception:
+                pass
+            _SOLUTIONS_SEGMENTER = None
+
+
+def cleanup_models():
+    """Safely closes all initialized MediaPipe models in this process and resets holders to None."""
+    global _SOLUTIONS_POSE, _SOLUTIONS_SEGMENTER, _POSE_TASK, _SEGMENTER_TASK
+    with _SOLUTIONS_POSE_LOCK:
+        if _SOLUTIONS_POSE is not None:
+            try:
+                if hasattr(_SOLUTIONS_POSE, "close"):
+                    _SOLUTIONS_POSE.close()
+            except Exception:
+                pass
+            _SOLUTIONS_POSE = None
+
+    with _SOLUTIONS_SEGMENTER_LOCK:
+        if _SOLUTIONS_SEGMENTER is not None:
+            try:
+                if hasattr(_SOLUTIONS_SEGMENTER, "close"):
+                    _SOLUTIONS_SEGMENTER.close()
+            except Exception:
+                pass
+            _SOLUTIONS_SEGMENTER = None
+
+    with _POSE_TASK_LOCK:
+        if _POSE_TASK is not None:
+            try:
+                if hasattr(_POSE_TASK, "close"):
+                    _POSE_TASK.close()
+            except Exception:
+                pass
+            _POSE_TASK = None
+
+    with _SEGMENTER_TASK_LOCK:
+        if _SEGMENTER_TASK is not None:
+            try:
+                if hasattr(_SEGMENTER_TASK, "close"):
+                    _SEGMENTER_TASK.close()
+            except Exception:
+                pass
+            _SEGMENTER_TASK = None
+
+
+reset_models = cleanup_models
+cleanup_smartfit_models = cleanup_models
+atexit.register(cleanup_models)
 
 
 def _ensure_task_model(path: Path, source_url: str) -> Path:
