@@ -308,13 +308,145 @@ async function parseJsonResponse(response: Response) {
   return response.json().catch(() => null);
 }
 
-const toBase64 = (file: File | Blob): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-  });
+export const MAX_SCAN_IMAGE_DIMENSION = 1280;
+export const SCAN_IMAGE_JPEG_QUALITY = 0.82;
+
+/**
+ * Normalizes an image for Smart Fit measurement scanning:
+ * - Decodes File, Blob, or Data URL
+ * - Downscales so longest dimension is <= 1280px (preserves aspect ratio)
+ * - Does not upscale smaller images
+ * - Encodes as JPEG at ~0.82 quality
+ * - Avoids duplicate re-encoding if already compliant
+ */
+export async function normalizeScanImage(
+  image: string | File | Blob,
+  maxDim = MAX_SCAN_IMAGE_DIMENSION,
+  quality = SCAN_IMAGE_JPEG_QUALITY,
+): Promise<string> {
+  if (typeof image === 'string') {
+    const trimmed = image.trim();
+    if (!trimmed) {
+      throw new Error('Please capture or upload a valid photo.');
+    }
+    const dataUrl = trimmed.startsWith('data:image/')
+      ? trimmed
+      : `data:image/jpeg;base64,${trimmed}`;
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const width = img.naturalWidth || img.width;
+        const height = img.naturalHeight || img.height;
+        if (!width || !height) {
+          reject(new Error('We could not read the image dimensions. Please retake the photo.'));
+          return;
+        }
+
+        const longest = Math.max(width, height);
+        // Avoid redundant re-encoding if image is already a JPEG within dimension bounds
+        if (longest <= maxDim && dataUrl.startsWith('data:image/jpeg')) {
+          resolve(dataUrl);
+          return;
+        }
+
+        const scale = longest > maxDim ? maxDim / longest : 1;
+        const targetWidth = Math.max(1, Math.round(width * scale));
+        const targetHeight = Math.max(1, Math.round(height * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('We could not decode your photo. Please try again.'));
+      img.src = dataUrl;
+    });
+  }
+
+  // image is File or Blob
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(image, { imageOrientation: 'from-image' });
+      try {
+        const width = bitmap.width;
+        const height = bitmap.height;
+        if (!width || !height) {
+          throw new Error('Invalid image dimensions.');
+        }
+
+        const longest = Math.max(width, height);
+        const scale = longest > maxDim ? maxDim / longest : 1;
+        const targetWidth = Math.max(1, Math.round(width * scale));
+        const targetHeight = Math.max(1, Math.round(height * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!ctx) {
+          throw new Error('Canvas rendering context unavailable.');
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+        return canvas.toDataURL('image/jpeg', quality);
+      } finally {
+        bitmap.close();
+      }
+    } catch {
+      // Fallback to Image element below
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(image);
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const width = img.naturalWidth || img.width;
+        const height = img.naturalHeight || img.height;
+        if (!width || !height) {
+          reject(new Error('We could not read the image dimensions. Please retake the photo.'));
+          return;
+        }
+
+        const longest = Math.max(width, height);
+        const scale = longest > maxDim ? maxDim / longest : 1;
+        const targetWidth = Math.max(1, Math.round(width * scale));
+        const targetHeight = Math.max(1, Math.round(height * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!ctx) {
+          reject(new Error('Canvas rendering context unavailable.'));
+          return;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('We could not decode your photo. Please try again.'));
+      img.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 function ensureScanImageDataUrl(value: string, label: 'Front' | 'Side') {
   const normalizedValue = value.trim();
@@ -352,14 +484,8 @@ export async function processSmartFitScan({
   }
 
   const apiUrl = `${getBackendBaseUrl()}/smart-fit/measurements`;
-  const frontBase64 =
-    typeof frontImage === 'string'
-      ? frontImage
-      : await toBase64(frontImage);
-  const sideBase64 =
-    typeof sideImage === 'string'
-      ? sideImage
-      : await toBase64(sideImage);
+  const frontBase64 = await normalizeScanImage(frontImage);
+  const sideBase64 = await normalizeScanImage(sideImage);
   const normalizedHeight = Number(height);
   const scanPayload = {
     front_image: ensureScanImageDataUrl(frontBase64, 'Front'),

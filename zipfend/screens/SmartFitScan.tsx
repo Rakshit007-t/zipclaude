@@ -7,7 +7,7 @@ import { AppBar, Button, Eyebrow, Spinner } from '../components/ui';
 
 
 import { auth, db } from '../firebase';
-import { processSmartFitScan, SmartFitMeasurements, SmartFitScanResult } from '../services/ziprightApi';
+import { normalizeScanImage, processSmartFitScan, SmartFitMeasurements, SmartFitScanResult } from '../services/ziprightApi';
 
 type ScanMeasurementKey = 'chest' | 'waist' | 'shoulders' | 'arms' | 'legs' | 'torso' | 'hips' | 'bust';
 type CoreMeasurementKey = 'chest' | 'waist' | 'shoulders';
@@ -33,41 +33,6 @@ function hasCapturedImage(image: string | File | null) {
   return typeof image === 'string' && image.trim().length > 0;
 }
 
-const toBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        const maxDimension = 1200;
-
-        if (width > height && width > maxDimension) {
-          height = Math.round((height * maxDimension) / width);
-          width = maxDimension;
-        } else if (height > maxDimension) {
-          width = Math.round((width * maxDimension) / height);
-          height = maxDimension;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
-        } else {
-          resolve(reader.result as string);
-        }
-      };
-      img.onerror = () => resolve(reader.result as string);
-      img.src = reader.result as string;
-    };
-    reader.onerror = (error) => reject(error);
-  });
 
 function isFinitePositiveNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
@@ -261,14 +226,27 @@ const SmartFitScan: React.FC = () => {
   const handleCapture = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (videoRef.current) {
+      const video = videoRef.current;
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
+      if (!videoWidth || !videoHeight) return;
+
+      const maxDimension = 1280;
+      const longestSide = Math.max(videoWidth, videoHeight);
+      const scale = longestSide > maxDimension ? maxDimension / longestSide : 1;
+      const targetWidth = Math.max(1, Math.round(videoWidth * scale));
+      const targetHeight = Math.max(1, Math.round(videoHeight * scale));
+
       const canvas = document.createElement("canvas");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext("2d");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d", { alpha: false });
 
       if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        const imageBase64 = canvas.toDataURL("image/jpeg");
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+        const imageBase64 = canvas.toDataURL("image/jpeg", 0.82);
 
         if (step === 2) {
           setCapturedFrontImage(imageBase64);
@@ -369,8 +347,8 @@ const SmartFitScan: React.FC = () => {
 
     try {
       updateHeight(parsedHeight);
-      const frontBase64 = finalFront instanceof File ? await toBase64(finalFront) : finalFront;
-      const sideBase64 = finalSide instanceof File ? await toBase64(finalSide) : finalSide;
+      const frontBase64 = await normalizeScanImage(finalFront);
+      const sideBase64 = await normalizeScanImage(finalSide);
       const result = await processSmartFitScan({
         height: parsedHeight,
         frontImage: frontBase64,
