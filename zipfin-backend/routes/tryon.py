@@ -28,7 +28,7 @@ def log_tryon_event(user_id: str, product_image_url: str) -> None:
         db = get_firestore_client()
         
         # Look up if this image belongs to a seller product
-        snapshots = db.collection("seller_products").where("images", "array_contains", product_image_url).get()
+        snapshots = db.collection("seller_products").where(filter=firestore.FieldFilter("images", "array_contains", product_image_url)).get()
         product = None
         for snap in snapshots:
             product = snap.to_dict()

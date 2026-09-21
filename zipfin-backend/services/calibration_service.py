@@ -201,12 +201,13 @@ def _feedback_docs(fieldname: str, value: str) -> list[dict]:
 
 def _fetch_feedback_docs(fieldname: str, value: str) -> list[dict]:
     """Single seam to the storage backend — replaceable/mockable in tests."""
+    from firebase_admin import firestore
     from firebase_config import get_firestore_client
 
     client = get_firestore_client()
     stream = (
         client.collection(FEEDBACK_COLLECTION)
-        .where(fieldname, "==", value)
+        .where(filter=firestore.FieldFilter(fieldname, "==", value))
         .limit(QUERY_LIMIT)
         .stream()
     )

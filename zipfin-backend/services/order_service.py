@@ -175,7 +175,7 @@ class OrderService:
         snaps = (
             self._db()
             .collection(ORDERS_COLLECTION)
-            .where("customer_uid", "==", customer_uid)
+            .where(filter=firestore.FieldFilter("customer_uid", "==", customer_uid))
             .get()
         )
         orders = []
@@ -207,7 +207,7 @@ class OrderService:
         snaps = (
             self._db()
             .collection(ORDERS_COLLECTION)
-            .where("seller_uids", "array_contains", seller_uid)
+            .where(filter=firestore.FieldFilter("seller_uids", "array_contains", seller_uid))
             .get()
         )
         orders: list[Order] = []
@@ -565,7 +565,7 @@ class OrderService:
 
         if not zipright_order_id and provider_order_id:
             # Look up order in Firestore by payment_order_id
-            query = self._db().collection(ORDERS_COLLECTION).where("payment_order_id", "==", provider_order_id)
+            query = self._db().collection(ORDERS_COLLECTION).where(filter=firestore.FieldFilter("payment_order_id", "==", provider_order_id))
             if hasattr(query, "limit"):
                 query = query.limit(1)
             snaps = query.get()

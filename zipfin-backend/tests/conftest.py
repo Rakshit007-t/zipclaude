@@ -7,9 +7,36 @@ from datetime import datetime, timezone
 import pytest
 
 
-def _resolve_sentinels(data: dict) -> dict:
+try:
+    from firebase_admin import firestore as firebase_firestore
+except ImportError:
+    import sys
+    from unittest.mock import MagicMock
+    mock_fs = MagicMock()
+    mock_fs.SERVER_TIMESTAMP = "SERVER_TIMESTAMP"
+    mock_fs.Client = MagicMock
+    sys.modules["google.cloud.firestore"] = mock_fs
+    sys.modules["google.cloud.firestore_v1"] = mock_fs
+    mock_faf = MagicMock()
+    mock_faf.SERVER_TIMESTAMP = "SERVER_TIMESTAMP"
+    mock_faf.client = MagicMock
+    sys.modules["firebase_admin.firestore"] = mock_faf
     from firebase_admin import firestore as firebase_firestore
 
+try:
+    import sentry_sdk
+except ImportError:
+    import sys
+    from unittest.mock import MagicMock
+    mock_sentry = MagicMock()
+    mock_sentry.init = MagicMock()
+    mock_sentry.capture_exception = MagicMock()
+    sys.modules["sentry_sdk"] = mock_sentry
+    sys.modules["sentry_sdk.integrations"] = MagicMock()
+    sys.modules["sentry_sdk.integrations.fastapi"] = MagicMock()
+    sys.modules["sentry_sdk.integrations.starlette"] = MagicMock()
+
+def _resolve_sentinels(data: dict) -> dict:
     return {
         key: datetime.now(timezone.utc) if value is firebase_firestore.SERVER_TIMESTAMP else value
         for key, value in data.items()
@@ -72,7 +99,18 @@ class _FakeQuery:
         self._limit_n = limit_n
         self._offset_n = offset_n
 
-    def where(self, field_path: str, op_string: str, value: any) -> _FakeQuery:
+    def where(
+        self,
+        field_path: str | None = None,
+        op_string: str | None = None,
+        value: any = None,
+        *,
+        filter: any = None,
+    ) -> _FakeQuery:
+        if filter is not None:
+            field_path = getattr(filter, "field_path", field_path)
+            op_string = getattr(filter, "op_string", op_string)
+            value = getattr(filter, "value", value)
         return _FakeQuery(
             self._store,
             self._filters + [(field_path, op_string, value)],
@@ -123,8 +161,17 @@ class _FakeCollection:
     def get(self) -> list[_FakeSnapshot]:
         return _FakeQuery(self._store).get()
 
-    def where(self, field_path: str, op_string: str, value: any) -> _FakeQuery:
-        return _FakeQuery(self._store).where(field_path, op_string, value)
+    def where(
+        self,
+        field_path: str | None = None,
+        op_string: str | None = None,
+        value: any = None,
+        *,
+        filter: any = None,
+    ) -> _FakeQuery:
+        return _FakeQuery(self._store).where(
+            field_path, op_string, value, filter=filter
+        )
 
 
 

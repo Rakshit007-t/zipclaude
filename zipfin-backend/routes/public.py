@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from core.api import success_response
+from firebase_admin import firestore
 from firebase_config import get_firestore_client
 from models.schema import (
     ApiResponse,
@@ -114,7 +115,7 @@ def _get_seller_uid_by_store_url(db, store_url: str) -> str:
 
     snaps = (
         db.collection("seller_integrations")
-        .where("store_url", "==", store_url_clean)
+        .where(filter=firestore.FieldFilter("store_url", "==", store_url_clean))
         .get()
     )
     if snaps:
@@ -124,7 +125,7 @@ def _get_seller_uid_by_store_url(db, store_url: str) -> str:
     fallback_url = store_url_clean.replace("https://", "").replace("http://", "")
     snaps = (
         db.collection("seller_integrations")
-        .where("store_url", "==", fallback_url)
+        .where(filter=firestore.FieldFilter("store_url", "==", fallback_url))
         .get()
     )
     if snaps:
@@ -179,7 +180,7 @@ def _get_seller_product(
         title_clean = product_title.strip().lower()
         snaps = (
             db.collection("seller_products")
-            .where("seller_uid", "==", seller_uid)
+            .where(filter=firestore.FieldFilter("seller_uid", "==", seller_uid))
             .get()
         )
         # exact match
@@ -305,7 +306,7 @@ async def list_public_products(
     seller_uid = _get_seller_uid_by_store_url(db, store_url)
     snaps = (
         db.collection("seller_products")
-        .where("seller_uid", "==", seller_uid)
+        .where(filter=firestore.FieldFilter("seller_uid", "==", seller_uid))
         .get()
     )
     products: list[dict] = []

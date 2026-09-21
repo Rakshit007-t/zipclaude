@@ -596,19 +596,19 @@ async def get_seller_dashboard(
         
         # 2. Fetch try-on count
         tryons_snap = await asyncio.to_thread(
-            lambda: db.collection("tryon_events").where("seller_uid", "==", context.uid).get()
+            lambda: db.collection("tryon_events").where(filter=firebase_firestore.FieldFilter("seller_uid", "==", context.uid)).get()
         )
         total_tryons = len(tryons_snap)
         
         # 3. Fetch size recommendations
         recs_snap = await asyncio.to_thread(
-            lambda: db.collection("recommendation_generated_events").where("normalizedBrand", "==", normalized_store_name).get()
+            lambda: db.collection("recommendation_generated_events").where(filter=firebase_firestore.FieldFilter("normalizedBrand", "==", normalized_store_name)).get()
         )
         total_recs = len(recs_snap)
         
         # 4. Fetch size feedback
         feedback_snap = await asyncio.to_thread(
-            lambda: db.collection("size_feedback").where("brand", "==", store_name).get()
+            lambda: db.collection("size_feedback").where(filter=firebase_firestore.FieldFilter("brand", "==", store_name)).get()
         )
         feedback_count = len(feedback_snap)
         

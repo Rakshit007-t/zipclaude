@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from firebase_admin import firestore
+
 logger = logging.getLogger(__name__)
 
 SELLERS_COLLECTION = "sellers"
@@ -128,7 +130,7 @@ class SellerRepository:
         """Admin-only query of all sellers, optionally filtered by status."""
         query = self.client.collection(SELLERS_COLLECTION)
         if status:
-            query = query.where("status", "==", status)
+            query = query.where(filter=firestore.FieldFilter("status", "==", status))
         snapshots = query.get()
         records = []
         for snap in snapshots:

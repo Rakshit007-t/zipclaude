@@ -10,6 +10,8 @@ import logging
 import uuid
 from typing import Any
 
+from firebase_admin import firestore
+
 logger = logging.getLogger(__name__)
 
 PRODUCTS_COLLECTION = "seller_products"
@@ -76,7 +78,7 @@ class SellerProductRepository:
         brand: str | None = None,
         status: str | None = None,
     ) -> list[dict[str, Any]]:
-        snapshots = self._collection().where("seller_uid", "==", seller_uid.strip()).get()
+        snapshots = self._collection().where(filter=firestore.FieldFilter("seller_uid", "==", seller_uid.strip())).get()
         records = []
         for snap in snapshots:
             rec = snap.to_dict() or {}
@@ -172,8 +174,8 @@ class SellerProductRepository:
             return None
         snaps = (
             self._collection()
-            .where("seller_uid", "==", seller_uid)
-            .where("external_id", "==", external_id)
+            .where(filter=firestore.FieldFilter("seller_uid", "==", seller_uid))
+            .where(filter=firestore.FieldFilter("external_id", "==", external_id))
             .get()
         )
         for snap in snaps:

@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from cryptography.fernet import Fernet
+from firebase_admin import firestore
 from firebase_config import get_firestore_client
 from models.seller_schema import (
     SellerIntegrationConnectRequest,
@@ -146,7 +147,11 @@ class EcommerceService:
         )
 
     def get_sync_history(self, seller_uid: str) -> list[SyncHistoryEvent]:
-        snaps = self._history_col().where("seller_uid", "==", seller_uid).get()
+        snaps = (
+            self._history_col()
+            .where(filter=firestore.FieldFilter("seller_uid", "==", seller_uid))
+            .get()
+        )
         events = []
         for snap in snaps:
             data = snap.to_dict() or {}
