@@ -11,7 +11,7 @@ Deploy the client rules to that named database before release:
 
 ```bash
 cd zipfend
-firebase use [REDACTED_HISTORICAL_PROJECT]
+firebase use zipright-staging
 firebase deploy --only firestore:rules
 ```
 

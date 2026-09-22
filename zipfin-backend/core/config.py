@@ -56,6 +56,18 @@ class Settings:
     ).strip()
 
     # Distributed State & Caching
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "").strip()
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "10000" if "redis.azure.net" in os.getenv("REDIS_HOST", "").lower() else "6379").strip() or "6379")
+    REDIS_USERNAME: str = os.getenv("REDIS_USERNAME", "default").strip() or "default"
+    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "").strip("\r\n")
+    REDIS_SSL: bool = (
+        os.getenv("REDIS_SSL", "").strip().lower() in ("true", "1", "yes")
+        or (bool(os.getenv("REDIS_HOST")) and ("redis.azure.net" in os.getenv("REDIS_HOST", "").lower() or os.getenv("REDIS_PORT") == "10000"))
+    )
+    REDIS_CLUSTER_MODE: bool = (
+        os.getenv("REDIS_CLUSTER_MODE", "").strip().lower() in ("true", "1", "yes")
+        or (bool(os.getenv("REDIS_HOST")) and "redis.azure.net" in os.getenv("REDIS_HOST", "").lower())
+    )
     REDIS_URL: str = os.getenv("REDIS_URL", "").strip()
     REDIS_TIMEOUT_SECONDS: float = float(os.getenv("REDIS_TIMEOUT_SECONDS", "2.0"))
 
