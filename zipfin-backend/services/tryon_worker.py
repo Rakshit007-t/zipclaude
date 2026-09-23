@@ -181,6 +181,18 @@ def execute_job(job_id: str) -> None:
             job.stage = "Failed"
             job.error = sanitize_error_message(exc)
             job.completed_at = time.time()
+            if not getattr(job, "refunded", False):
+                try:
+                    from services.tryon_access import refund_tryon_credit
+                    refund_tryon_credit(
+                        user_id=job.user_id,
+                        job_id=job.job_id,
+                        charged_rupees=getattr(job, "charged_rupees", 0),
+                        free_tryon=getattr(job, "free_tryon", False),
+                    )
+                    job.refunded = True
+                except Exception as refund_exc:
+                    logger.warning("Failed to refund failed job %s: %s", job.job_id, refund_exc)
             queue.save_job(job)
 
             log_security_event(

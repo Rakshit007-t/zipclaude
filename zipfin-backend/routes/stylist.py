@@ -31,8 +31,14 @@ async def stylist(
     payload: StylistRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> StylistResponse:
-    client_ip = request.client.host if request.client else "unknown"
+    from core.config import settings
+    if settings.AI_EMERGENCY_KILL_SWITCH:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI Stylist service is temporarily disabled by system administrator.",
+        )
 
+    client_ip = request.client.host if request.client else "unknown"
     # Enforce AI rate limiting & daily compute quota
     enforce_ai_usage_cap(user_id=current_user.uid, ip_address=client_ip)
 

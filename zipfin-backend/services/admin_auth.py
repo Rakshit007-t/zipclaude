@@ -36,10 +36,14 @@ class AdminGate:
     def is_admin(self, uid: str) -> bool:
         if not uid or not uid.strip():
             return False
+        clean_uid = uid.strip()
+        from core.config import settings
+        if clean_uid in getattr(settings, "ADMIN_USER_IDS", []):
+            return True
         try:
-            snapshot = self.client.collection(ADMINS_COLLECTION).document(uid.strip()).get()
+            snapshot = self.client.collection(ADMINS_COLLECTION).document(clean_uid).get()
         except Exception as exc:  # storage/network issue — fail closed
-            logger.warning("Admin check failed for uid=%s: %s", uid, exc)
+            logger.warning("Admin check failed for uid=%s: %s", clean_uid, exc)
             return False
         if not getattr(snapshot, "exists", False):
             return False

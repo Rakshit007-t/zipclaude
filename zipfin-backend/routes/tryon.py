@@ -60,23 +60,31 @@ async def tryon_image(
     payload: TryOnImageRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[TryOnImageResponse]:
-    try:
-        client_ip = request.client.host if request.client else "unknown"
-        enforce_rate_limit(
-            key=f"tryon-image:{current_user.uid}:{client_ip}",
-            max_requests=10,
-            window_seconds=60,
-            detail="Rate limit exceeded for Virtual Try-On requests.",
+    from core.config import settings
+    if settings.VTO_EMERGENCY_KILL_SWITCH:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Virtual Try-On service is temporarily disabled by system administrator.",
         )
-        if payload.user_id != current_user.uid:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "message": "user_id must match authenticated user.",
-                    "details": {"code": "user_mismatch"},
-                },
-            )
-        consume_tryon_credit(current_user)
+
+    client_ip = request.client.host if request.client else "unknown"
+    enforce_rate_limit(
+        key=f"tryon-image:{current_user.uid}:{client_ip}",
+        max_requests=10,
+        window_seconds=60,
+        detail="Rate limit exceeded for Virtual Try-On requests.",
+    )
+    if payload.user_id != current_user.uid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "user_id must match authenticated user.",
+                "details": {"code": "user_mismatch"},
+            },
+        )
+    charge = consume_tryon_credit(current_user)
+    req_id = getattr(request.state, "request_id", None) or f"sync_{current_user.uid}_{time.time()}"
+    try:
         logger.info(
             "Processing try-on request: user_id=%s product_image_url=%s cloth_type=%s quality=%s",
             payload.user_id,
@@ -104,8 +112,22 @@ async def tryon_image(
             data=result,
         )
     except HTTPException:
+        from services.tryon_access import refund_tryon_credit
+        refund_tryon_credit(
+            user_id=current_user.uid,
+            job_id=req_id,
+            charged_rupees=charge.charged_rupees,
+            free_tryon=(charge.charged_rupees == 0),
+        )
         raise
     except Exception as exc:
+        from services.tryon_access import refund_tryon_credit
+        refund_tryon_credit(
+            user_id=current_user.uid,
+            job_id=req_id,
+            charged_rupees=charge.charged_rupees,
+            free_tryon=(charge.charged_rupees == 0),
+        )
         logger.exception("Unexpected try-on image route failure for user '%s'.", payload.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -125,6 +147,13 @@ async def create_tryon_job(
 ) -> ApiResponse[TryOnJobCreateResponse]:
     """Start a try-on generation job that keeps running server-side even if
     the client disconnects (app minimized/closed)."""
+    from core.config import settings
+    if settings.VTO_EMERGENCY_KILL_SWITCH:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Virtual Try-On service is temporarily disabled by system administrator.",
+        )
+
     if payload.user_id != current_user.uid:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -150,18 +179,32 @@ async def create_tryon_job(
 
     # Reserve the free use / deduct the wallet before the background worker can
     # reach generate_vton_image().
-    consume_tryon_credit(current_user)
+    charge = consume_tryon_credit(current_user)
     if payload.product_image_url:
         await asyncio.to_thread(log_tryon_event, payload.user_id, str(payload.product_image_url))
-    job_id = start_tryon_job(
-        user_id=payload.user_id,
-        product_image_url=str(payload.product_image_url),
-        cloth_type=payload.cloth_type,
-        quality=payload.quality,
-        person_image=payload.person_image,
-        garment_image=payload.garment_image,
-        idempotency_key=idempotency_key,
-    )
+
+    try:
+        job_id = start_tryon_job(
+            user_id=payload.user_id,
+            product_image_url=str(payload.product_image_url),
+            cloth_type=payload.cloth_type,
+            quality=payload.quality,
+            person_image=payload.person_image,
+            garment_image=payload.garment_image,
+            idempotency_key=idempotency_key,
+            charged_rupees=charge.charged_rupees,
+            free_tryon=(charge.charged_rupees == 0),
+        )
+    except Exception as exc:
+        from services.tryon_access import refund_tryon_credit
+        refund_tryon_credit(
+            user_id=current_user.uid,
+            job_id=f"job_fail_{current_user.uid}_{time.time()}",
+            charged_rupees=charge.charged_rupees,
+            free_tryon=(charge.charged_rupees == 0),
+        )
+        raise exc
+
     logger.info(
         "Started try-on job %s: user_id=%s cloth_type=%s quality=%s idempotency_key=%s",
         job_id,

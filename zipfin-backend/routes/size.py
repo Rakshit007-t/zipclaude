@@ -19,6 +19,7 @@ from models.schema import (
     SizeEngineResponse,
 )
 from services.firebase_auth import AuthenticatedUser, get_current_user
+from services.request_rate_limiter import enforce_rate_limit
 from services.measurement_service import (
     MeasurementProcessingError,
     estimate_measurements_from_scan,
@@ -188,6 +189,13 @@ async def smart_fit_measurements(
     request: Request,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[SmartFitScanResponse]:
+    enforce_rate_limit(
+        request=request,
+        current_user=current_user,
+        scope="smart_fit_scan",
+        max_requests=20,
+        window_seconds=60,
+    )
     try:
         raw_body = await request.body()
         raw_body_text = raw_body.decode("utf-8", errors="replace")

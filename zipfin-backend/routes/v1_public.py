@@ -136,19 +136,41 @@ async def public_v1_tryon(
         payload.cloth_type,
     )
 
+    from core.config import settings
+    if settings.VTO_EMERGENCY_KILL_SWITCH:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Virtual Try-On service is temporarily disabled by system administrator.",
+        )
+
+    from services.tryon_access import consume_tryon_credit_for_uid, refund_tryon_credit
+    charge = consume_tryon_credit_for_uid(api_key.user_id)
+    req_id = f"v1_sync_{api_key.user_id}_{datetime.now(timezone.utc).timestamp()}"
+
     if payload.async_job:
-        job_id = start_tryon_job(
-            user_id=api_key.user_id,
-            product_image_url=str(payload.product_image_url or ""),
-            cloth_type=payload.cloth_type,
-            quality=payload.quality,
-            person_image=payload.person_image,
-            garment_image=payload.garment_image,
-        )
-        return success_response(
-            message="Try-on job queued successfully.",
-            data=V1TryOnResponse(job_id=job_id, status="queued"),
-        )
+        try:
+            job_id = start_tryon_job(
+                user_id=api_key.user_id,
+                product_image_url=str(payload.product_image_url or ""),
+                cloth_type=payload.cloth_type,
+                quality=payload.quality,
+                person_image=payload.person_image,
+                garment_image=payload.garment_image,
+                charged_rupees=charge.charged_rupees,
+                free_tryon=(charge.charged_rupees == 0),
+            )
+            return success_response(
+                message="Try-on job queued successfully.",
+                data=V1TryOnResponse(job_id=job_id, status="queued"),
+            )
+        except Exception as exc:
+            refund_tryon_credit(
+                user_id=api_key.user_id,
+                job_id=f"v1_job_fail_{api_key.user_id}_{datetime.now(timezone.utc).timestamp()}",
+                charged_rupees=charge.charged_rupees,
+                free_tryon=(charge.charged_rupees == 0),
+            )
+            raise exc
     else:
         try:
             result = await process_tryon_request(
@@ -168,6 +190,12 @@ async def public_v1_tryon(
                 ),
             )
         except Exception as exc:
+            refund_tryon_credit(
+                user_id=api_key.user_id,
+                job_id=req_id,
+                charged_rupees=charge.charged_rupees,
+                free_tryon=(charge.charged_rupees == 0),
+            )
             logger.exception("Failed to process public try-on request.")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

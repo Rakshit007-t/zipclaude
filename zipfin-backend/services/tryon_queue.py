@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 JOB_TTL_SECONDS = 2 * 60 * 60  # 2 hours
 DEFAULT_MAX_CONCURRENT_GPU_JOBS = 2
 DEFAULT_MAX_RETRIES = 2
-DEFAULT_JOB_TIMEOUT_SECONDS = 600  # 10 minutes
+DEFAULT_JOB_TIMEOUT_SECONDS = 180  # 3 minutes maximum job duration
 DEFAULT_USER_MAX_ACTIVE_JOBS = 2
 IDEMPOTENCY_TTL_SECONDS = 3600  # 1 hour
 
@@ -61,6 +61,10 @@ class TryOnJob:
     quality: str = "standard"
     person_image: str | None = None
     garment_image: str | None = None
+    # Entitlement & Refund tracking
+    charged_rupees: int = 0
+    free_tryon: bool = False
+    refunded: bool = False
 
 
 def _get_max_concurrent_gpu() -> int:
@@ -194,6 +198,8 @@ class TryOnJobQueue:
         person_image: str | None = None,
         garment_image: str | None = None,
         idempotency_key: str | None = None,
+        charged_rupees: int = 0,
+        free_tryon: bool = False,
     ) -> str:
         """Create and enqueue a durable try-on job with idempotency and user limit checks."""
         r = get_redis_client()
@@ -251,6 +257,9 @@ class TryOnJobQueue:
             quality=quality,
             person_image=person_image,
             garment_image=garment_image,
+            charged_rupees=charged_rupees,
+            free_tryon=free_tryon,
+            refunded=False,
         )
         self.save_job(job)
 

@@ -19,7 +19,7 @@ class AuthenticatedUser:
     is_anonymous: bool = False
 
 
-def verify_firebase_token(token: str) -> AuthenticatedUser:
+def verify_firebase_token(token: str, check_revoked: bool | None = None) -> AuthenticatedUser:
     token_value = (token or "").strip()
     if not token_value:
         raise HTTPException(
@@ -28,8 +28,31 @@ def verify_firebase_token(token: str) -> AuthenticatedUser:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if check_revoked is None:
+        check_revoked = settings.ENV.lower() not in {"test", "testing"}
+
     try:
-        decoded = auth.verify_id_token(token_value)
+        decoded = auth.verify_id_token(token_value, check_revoked=check_revoked)
+    except getattr(auth, "RevokedIdTokenError", Exception) as exc:
+        if type(exc).__name__ == "RevokedIdTokenError":
+            logger.warning("Firebase token is revoked: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "message": "Firebase access token has been revoked or user disabled.",
+                    "details": {"code": "token_revoked"},
+                },
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from exc
+        logger.warning("Firebase token verification failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "message": "Invalid Firebase access token.",
+                "details": {"code": "invalid_token"},
+            },
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
     except Exception as exc:
         logger.warning("Firebase token verification failed: %s", exc)
         raise HTTPException(

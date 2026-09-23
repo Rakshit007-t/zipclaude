@@ -20,6 +20,8 @@ UPLOAD_PATH_PREFIXES = (
     "/seller/catalog/import",
     "/tryon",
     "/measurement",
+    "/smart-fit",
+    "/v1/",
 )
 
 

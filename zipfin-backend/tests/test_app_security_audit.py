@@ -36,6 +36,8 @@ from services.admin_auth import AdminGate, get_admin_gate, require_admin
 from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.payment_service import SERVER_PRICING_CATALOG, get_server_price
 from services.product_repository import SellerProductRepository
+from services.seller_repository import SellerRepository, get_seller_repository
+from services.order_service import OrderService, get_order_service
 from services.tryon_jobs import start_tryon_job
 from services.tryon_live_store import (
     create_garment_record,
@@ -239,7 +241,7 @@ def test_admin_routes_strictly_locked_for_non_admins():
         app.dependency_overrides.pop(get_admin_gate, None)
 
 
-def test_admin_routes_accessible_by_verified_admin():
+def test_admin_routes_accessible_by_verified_admin(fake_client):
     """Verify verified administrators can access admin routes."""
     client = TestClient(app)
 
@@ -250,6 +252,7 @@ def test_admin_routes_accessible_by_verified_admin():
     fake_gate = MagicMock(spec=AdminGate)
     fake_gate.is_admin.return_value = True
     app.dependency_overrides[get_admin_gate] = lambda: fake_gate
+    app.dependency_overrides[get_seller_repository] = lambda: SellerRepository(client=fake_client)
 
     try:
         res = client.get("/seller")
@@ -258,6 +261,7 @@ def test_admin_routes_accessible_by_verified_admin():
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_admin_gate, None)
+        app.dependency_overrides.pop(get_seller_repository, None)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -369,7 +373,7 @@ def test_field_tampering_mass_assignment_stripped_in_product_update(fake_client)
     assert updated["id"] == prod_id, "id must NEVER be altered by update"
 
 
-def test_field_tampering_payment_pricing_server_authoritative():
+def test_field_tampering_payment_pricing_server_authoritative(fake_client):
     """Verify price cannot be dictated by client payloads."""
     starter_price = get_server_price("wallet_pack_starter")
     assert starter_price["amount_rupees"] == SERVER_PRICING_CATALOG["wallet_pack_starter"]["amount_rupees"]
@@ -379,6 +383,7 @@ def test_field_tampering_payment_pricing_server_authoritative():
         uid="shopper_tamper",
         email="shopper@example.com",
     )
+    app.dependency_overrides[get_order_service] = lambda: OrderService(db=fake_client)
     try:
         # Attacker attempts to send amount_rupees: 1
         res = client.post(
@@ -392,6 +397,7 @@ def test_field_tampering_payment_pricing_server_authoritative():
         assert data["currency"] == "INR"
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_order_service, None)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

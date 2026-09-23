@@ -59,6 +59,9 @@ def get_firebase_credentials():
     if os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip():
         return credentials.ApplicationDefault()
 
+    if settings.ENV.lower() not in ("production", "prod"):
+        return None
+
     raise RuntimeError(
         "Firebase credentials are not configured. Set FIREBASE_CREDENTIALS_JSON, "
         "the FIREBASE_PROJECT_ID/FIREBASE_PRIVATE_KEY/FIREBASE_CLIENT_EMAIL trio, "
@@ -82,7 +85,10 @@ def initialize_firebase() -> firebase_admin.App:
             options: dict[str, str] = {}
             if settings.FIREBASE_STORAGE_BUCKET:
                 options["storageBucket"] = get_storage_bucket_name()
-            return firebase_admin.initialize_app(get_firebase_credentials(), options or None)
+            if settings.FIREBASE_PROJECT_ID:
+                options["projectId"] = settings.FIREBASE_PROJECT_ID
+            cred = get_firebase_credentials()
+            return firebase_admin.initialize_app(cred, options or None)
         except (FileNotFoundError, RuntimeError):
             raise
         except Exception as exc:

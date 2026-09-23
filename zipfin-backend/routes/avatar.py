@@ -1,11 +1,12 @@
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
 from core.api import success_response
 from models.schema import ApiResponse, AvatarCreateResponse
 from services.firebase_auth import AuthenticatedUser, get_current_user
 from services.face_engine import process_avatar_upload
+from services.request_rate_limiter import enforce_rate_limit
 
 router = APIRouter(tags=["avatar"])
 logger = logging.getLogger(__name__)
@@ -17,9 +18,17 @@ logger = logging.getLogger(__name__)
     status_code=status.HTTP_201_CREATED,
 )
 async def avatar_create(
+    request: Request,
     file: UploadFile = File(...),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[AvatarCreateResponse]:
+    enforce_rate_limit(
+        request=request,
+        current_user=current_user,
+        scope="avatar_create",
+        max_requests=10,
+        window_seconds=60,
+    )
     try:
         logger.info(
             "Processing avatar upload: user_id=%s filename=%s content_type=%s",

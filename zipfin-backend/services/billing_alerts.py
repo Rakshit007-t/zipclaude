@@ -8,12 +8,14 @@ indicative of Denial-of-Wallet (DoW) or resource depletion attacks.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hmac
 import logging
 import os
 from typing import Any
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from core.config import settings
 from core.security_logger import log_security_event
 
 logger = logging.getLogger(__name__)
@@ -85,11 +87,18 @@ async def receive_cloud_billing_webhook(
     """Ingest Google Cloud Billing or AWS Budget pub/sub webhook notifications."""
     client_ip = request.client.host if request.client else "unknown"
 
-    # Verify authorization header if configured
+    # Verify authorization header
     billing_secret = os.getenv("BILLING_WEBHOOK_SECRET")
+    is_prod = settings.ENV.lower() in {"production", "prod", "staging"}
+    if is_prod and not billing_secret:
+        logger.error("BILLING_WEBHOOK_SECRET is not configured in production.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Billing webhook configuration error.",
+        )
     if billing_secret:
         auth = request.headers.get("X-Billing-Secret", "")
-        if auth != billing_secret:
+        if not hmac.compare_digest(auth, billing_secret):
             log_security_event(
                 event_type="SECURITY_BILLING_WEBHOOK_UNAUTHORIZED",
                 severity="CRITICAL",

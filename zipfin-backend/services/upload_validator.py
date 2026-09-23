@@ -134,4 +134,33 @@ async def validate_image_upload(
             detail="File binary signature is invalid or corrupted. Please upload a genuine JPEG, PNG, or WebP image.",
         )
 
+    # Dimension and decompression bomb verification
+    try:
+        import io
+        from PIL import Image
+        from core.config import settings
+
+        max_dimension = getattr(settings, "MAX_IMAGE_DIMENSION", 4096)
+        with Image.open(io.BytesIO(content)) as img:
+            width, height = img.size
+            if width > max_dimension or height > max_dimension:
+                log_security_event(
+                    event_type="SECURITY_UPLOAD_OVERSIZED_DIMENSIONS",
+                    severity="WARNING",
+                    ip_address=ip_address,
+                    details={"filename": filename, "width": width, "height": height, "max_dimension": max_dimension},
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"Image resolution ({width}x{height}) exceeds maximum allowed dimensions ({max_dimension}x{max_dimension}).",
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if "DecompressionBombError" in type(exc).__name__:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Image exceeds maximum safe decompression limits.",
+            )
+
     return content

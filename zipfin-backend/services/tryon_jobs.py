@@ -31,6 +31,8 @@ def start_tryon_job(
     person_image: str | None = None,
     garment_image: str | None = None,
     idempotency_key: str | None = None,
+    charged_rupees: int = 0,
+    free_tryon: bool = False,
 ) -> str:
     """Create and enqueue a durable try-on job."""
     # Ensure queue worker is active in development/single-instance mode (disabled during automated test runs)
@@ -47,4 +49,6 @@ def start_tryon_job(
         person_image=person_image,
         garment_image=garment_image,
         idempotency_key=idempotency_key,
+        charged_rupees=charged_rupees,
+        free_tryon=free_tryon,
     )

@@ -38,7 +38,8 @@ service firebase.storage {
       allow write: if signedIn() && request.auth.uid == uid && validImage();
     }
     match /dm/{convId}/{allPaths=**} {
-      allow read, write: if signedIn() && validImage();
+      allow read: if signedIn() && convId.matches('.*' + request.auth.uid + '.*');
+      allow write: if signedIn() && convId.matches('.*' + request.auth.uid + '.*') && validImage();
     }
 
     // ── PRIVATE BIOMETRIC / FIT / TRY-ON MEDIA ──────────────────────────────

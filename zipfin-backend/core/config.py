@@ -23,6 +23,13 @@ class Settings:
     INSIGHTFACE_API_KEY: str | None = os.getenv("INSIGHTFACE_API_KEY")
     FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "").strip()
 
+    # Safety Kill Switches & Cost Guards
+    AI_EMERGENCY_KILL_SWITCH: bool = os.getenv("AI_EMERGENCY_KILL_SWITCH", "").strip().lower() in ("true", "1", "yes")
+    VTO_EMERGENCY_KILL_SWITCH: bool = os.getenv("VTO_EMERGENCY_KILL_SWITCH", "").strip().lower() in ("true", "1", "yes")
+    MAX_IMAGE_DIMENSION: int = int(os.getenv("MAX_IMAGE_DIMENSION", "4096").strip() or "4096")
+    MAX_LIVE_SESSION_SECONDS: int = int(os.getenv("MAX_LIVE_SESSION_SECONDS", "1800").strip() or "1800")
+    TRYON_JOB_TIMEOUT_SECONDS: int = int(os.getenv("TRYON_JOB_TIMEOUT_SECONDS", "180").strip() or "180")
+
     # Firebase
     FIREBASE_WEB_API_KEY: str = os.getenv("FIREBASE_WEB_API_KEY", "").strip()
     FIREBASE_STORAGE_BUCKET: str = os.getenv("FIREBASE_STORAGE_BUCKET", "").strip()
@@ -75,6 +82,24 @@ class Settings:
     SENTRY_DSN: str = os.getenv("SENTRY_DSN", "").strip()
     SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT", "").strip() or os.getenv("ENV", "development").strip()
     SENTRY_RELEASE: str = os.getenv("SENTRY_RELEASE", "").strip() or "zipright-backend@1.0.0"
+
+    # Production Webhook & Admin Configuration
+    BILLING_WEBHOOK_SECRET: str = os.getenv("BILLING_WEBHOOK_SECRET", "").strip()
+    ADMIN_USER_IDS: list[str] = [uid.strip() for uid in os.getenv("ADMIN_USER_IDS", "").split(",") if uid.strip()]
+
+    def validate_production_configuration(self) -> list[str]:
+        """Validate all required secrets for production environment; returns list of missing secrets."""
+        missing = []
+        if self.ENV.lower() in ("production", "prod"):
+            if not self.BILLING_WEBHOOK_SECRET:
+                missing.append("BILLING_WEBHOOK_SECRET")
+            if self.PAYMENT_PROVIDER == "razorpay" and not self.RAZORPAY_KEY_SECRET:
+                missing.append("RAZORPAY_KEY_SECRET")
+            if not self.SENTRY_DSN:
+                missing.append("SENTRY_DSN")
+            if not self.get_firebase_credentials_dict() and not (self.FIREBASE_CREDENTIALS_PATH and self.FIREBASE_CREDENTIALS_PATH.is_file()):
+                missing.append("FIREBASE_CREDENTIALS")
+        return missing
 
     def get_firebase_credentials_dict(self) -> dict[str, str] | None:
         if self.FIREBASE_CREDENTIALS_JSON:

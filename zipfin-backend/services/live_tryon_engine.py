@@ -1,11 +1,13 @@
 import logging
 import math
 import sqlite3
+from datetime import datetime, timezone
 from threading import Lock
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 
+from core.config import settings
 from models.schema import (
     GarmentCreateRequest,
     GarmentResponse,
@@ -139,6 +141,19 @@ def create_live_tryon_session(
         ) from exc
 
 
+def _is_session_expired(created_at_str: str) -> bool:
+    if not created_at_str:
+        return False
+    try:
+        created_at = datetime.fromisoformat(created_at_str)
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - created_at).total_seconds()
+        return elapsed > getattr(settings, "MAX_LIVE_SESSION_SECONDS", 1800)
+    except Exception:
+        return False
+
+
 def estimate_live_tryon_frame(
     payload: LiveTryOnFrameRequest,
 ) -> LiveTryOnFrameResponse:
@@ -146,6 +161,11 @@ def estimate_live_tryon_frame(
         payload.session_id,
         not_found_detail=f"Session '{payload.session_id}' was not found.",
     )
+    if _is_session_expired(session_record.get("created_at", "")):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Live try-on session has expired. Maximum session duration is 30 minutes.",
+        )
     garment_record = _fetch_garment_record(
         session_record["garment_id"],
         not_found_detail=f"Garment '{session_record['garment_id']}' was not found.",
