@@ -154,8 +154,8 @@ export function startPresence(): () => void {
     const user = socialUser();
     if (!user || document.visibilityState !== 'visible') return;
     const timestamp = serverTimestamp();
-    updateDoc(doc(db, 'users', user.uid), { lastActiveAt: timestamp }).catch(() => {});
-    updateDoc(doc(db, 'publicProfiles', user.uid), { lastActiveAt: timestamp }).catch(() => {});
+    updateDoc(doc(db, 'users', user.uid), { lastActiveAt: timestamp }).catch(() => { });
+    updateDoc(doc(db, 'publicProfiles', user.uid), { lastActiveAt: timestamp }).catch(() => { });
   };
   beat();
   const id = setInterval(beat, 60_000);
@@ -224,7 +224,7 @@ export async function unfollow(targetUid: string): Promise<void> {
  * expose this collection to its owner; other profile lists go through the API. */
 export function onFollowing(cb: (uids: Set<string>) => void): () => void {
   const user = socialUser();
-  if (!user) { cb(new Set()); return () => {}; }
+  if (!user) { cb(new Set()); return () => { }; }
   return onSnapshot(collection(db, 'users', user.uid, 'following'), snap => {
     cb(new Set(snap.docs.map(d => d.id)));
   }, () => cb(new Set()));
@@ -277,7 +277,7 @@ export async function muteUser(targetUid: string, enabled = true): Promise<void>
 
 export function onBlocked(cb: (uids: Set<string>) => void): () => void {
   const user = socialUser();
-  if (!user) { cb(new Set()); return () => {}; }
+  if (!user) { cb(new Set()); return () => { }; }
   return onSnapshot(collection(db, 'users', user.uid, 'blocked'), snap => {
     cb(new Set(snap.docs.map(d => d.id)));
   }, () => cb(new Set()));

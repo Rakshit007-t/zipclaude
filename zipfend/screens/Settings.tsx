@@ -38,6 +38,7 @@ import {
   SegmentedControl,
 } from '../components/ui';
 import { openCookiePreferences } from '../services/cookieConsent';
+import notificationClient from '../services/notificationClient';
 
 // Addresses persist locally per account (no backend orders API yet)
 function addressStoreKey() {
@@ -667,7 +668,28 @@ const Settings: React.FC = () => {
       }
   };
 
-  const togglePermission = (id: string) => {
+  const togglePermission = async (id: string) => {
+    if (id === 'notifications') {
+      const currentVal = permissionsState.notifications;
+      if (!currentVal) {
+        const perm = await notificationClient.requestPermission();
+        if (perm === 'granted') {
+          await notificationClient.subscribeWebPush();
+          setPermissionsState(prev => ({ ...prev, notifications: true }));
+          localStorage.setItem('zipright_notifications', 'granted');
+          showToast('Push notifications enabled!', 'success');
+        } else {
+          setPermissionsState(prev => ({ ...prev, notifications: false }));
+          localStorage.setItem('zipright_notifications', 'denied');
+          showToast('Notification permission was not granted.', 'error');
+        }
+      } else {
+        setPermissionsState(prev => ({ ...prev, notifications: false }));
+        localStorage.setItem('zipright_notifications', 'denied');
+        showToast('Push notifications disabled.', 'info');
+      }
+      return;
+    }
     const nextVal = !permissionsState[id as keyof typeof permissionsState];
     setPermissionsState(prev => ({ ...prev, [id]: nextVal }));
     localStorage.setItem(`zipright_${id}`, nextVal ? 'granted' : 'denied');
@@ -1252,6 +1274,31 @@ const Settings: React.FC = () => {
                         </div>
                         <Toggle label="Push Notifications" on={permissionsState.notifications} onClick={() => togglePermission('notifications')} />
                     </div>
+                    {permissionsState.notifications && (
+                      <div className="flex items-center justify-between p-4 bg-surface-1 rounded-card border border-line">
+                        <div>
+                          <p className="text-[14px] font-medium text-ink">Test Notification</p>
+                          <p className="text-[12px] text-ink-soft">Send a test notification to verify browser alerts.</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            const shown = notificationClient.showNotification('ZipRIGHT Fitting Room', {
+                              body: 'Your AI try-on rendering is ready for review! 👗',
+                              icon: '/favicon.ico',
+                            });
+                            if (shown) {
+                              showToast('Test notification displayed!', 'success');
+                            } else {
+                              showToast('Could not display notification. Check permissions.', 'error');
+                            }
+                          }}
+                        >
+                          Send Test
+                        </Button>
+                      </div>
+                    )}
                 </div>
             </div>
         </div>

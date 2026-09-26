@@ -61,8 +61,8 @@ const GiftInbox: React.FC = () => {
       if (unseenGifts.length === 0) return;
       const batch = writeBatch(db);
       unseenGifts.forEach(g => batch.update(doc(db, 'gifts', g.id), { seen: true }));
-      batch.commit().catch(() => {});
-      updateDoc(doc(db, 'users', user.uid), { zipPoints: increment(5 * unseenGifts.length) }).catch(() => {});
+      batch.commit().catch(() => { });
+      updateDoc(doc(db, 'users', user.uid), { zipPoints: increment(5 * unseenGifts.length) }).catch(() => { });
     });
 
     return () => unsub();
@@ -106,7 +106,7 @@ const GiftInbox: React.FC = () => {
       // The card collapsing to "Added to cart / Saved / Liked" is the feedback;
       // only the cart action gets a toast because it carries the coin reward.
       if (action === 'carted') {
-        updateDoc(doc(db, 'users', user.uid), { zipPoints: increment(10) }).catch(() => {});
+        updateDoc(doc(db, 'users', user.uid), { zipPoints: increment(10) }).catch(() => { });
         showToast('Added to cart! +10 ZipCoins', 'success');
       }
     } catch {

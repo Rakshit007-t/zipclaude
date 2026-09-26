@@ -103,10 +103,84 @@ class FirebaseStorageProvider(StorageProvider):
             )
 
 
+class AppwriteStorageProvider(StorageProvider):
+    """Appwrite Storage provider with bucket-type segregation.
+
+    Maps public catalog media, community posts, and private biometrics
+    to their respective Appwrite buckets.
+    """
+
+    PUBLIC_FOLDERS = {"seller-logos", "seller-products", "products", "test"}
+    COMMUNITY_FOLDERS = {"profiles", "banners", "looks", "dm"}
+
+    def __init__(self, fallback: StorageProvider | None = None) -> None:
+        self._fallback = fallback or LocalStorageProvider()
+
+    def _resolve_bucket(self, folder: str) -> str:
+        from appwrite_config import appwrite_settings
+        clean_folder = folder.strip().strip("/").lower()
+        if clean_folder in self.PUBLIC_FOLDERS:
+            return appwrite_settings.BUCKET_PUBLIC
+        if clean_folder in self.COMMUNITY_FOLDERS:
+            return appwrite_settings.BUCKET_COMMUNITY
+        return appwrite_settings.BUCKET_PRIVATE
+
+    def upload_bytes(self, data: bytes, *, content_type: str, folder: str, extension: str) -> str:
+        from appwrite.input_file import InputFile
+        from appwrite_config import appwrite_settings, get_appwrite_storage
+
+        bucket_id = self._resolve_bucket(folder)
+        file_id = str(uuid.uuid4()).replace("-", "")[:32]
+        filename = f"{file_id}{extension}"
+
+        try:
+            storage = get_appwrite_storage()
+            input_file = InputFile.from_bytes(data, filename=filename, mime_type=content_type)
+            result = storage.create_file(
+                bucket_id=bucket_id,
+                file_id=file_id,
+                file=input_file,
+            )
+            created_id = getattr(result, "id", None) or getattr(result, "$id", None) or (result.get("$id", file_id) if isinstance(result, dict) else file_id)
+            endpoint = appwrite_settings.ENDPOINT
+            project_id = appwrite_settings.PROJECT_ID
+            return f"{endpoint}/storage/buckets/{bucket_id}/files/{created_id}/view?project={project_id}"
+        except Exception as exc:
+            logger.warning("Appwrite storage upload failed; falling back to local. reason=%s", exc)
+            return self._fallback.upload_bytes(
+                data, content_type=content_type, folder=folder, extension=extension
+            )
+
+    def delete_file(self, bucket_id_or_folder: str, file_id: str | None = None) -> bool:
+        from appwrite_config import get_appwrite_storage
+        try:
+            storage = get_appwrite_storage()
+            if file_id is None:
+                # If single argument provided like 'seller-logos/file_id' or bucket_id
+                parts = bucket_id_or_folder.strip("/").split("/")
+                if len(parts) >= 2:
+                    bucket_id = self._resolve_bucket(parts[0])
+                    target_file = parts[-1].split(".")[0]
+                else:
+                    bucket_id = self._resolve_bucket("test")
+                    target_file = parts[0]
+            else:
+                bucket_id = self._resolve_bucket(bucket_id_or_folder)
+                target_file = file_id.split(".")[0]
+
+            storage.delete_file(bucket_id=bucket_id, file_id=target_file)
+            return True
+        except Exception as exc:
+            logger.warning("Failed to delete Appwrite storage file: %s", exc)
+            return False
+
+
 def _build_provider() -> StorageProvider:
     provider = os.getenv("STORAGE_PROVIDER", "firebase").strip().lower()
     if provider == "local":
         return LocalStorageProvider()
+    if provider == "appwrite":
+        return AppwriteStorageProvider()
     # "firebase" (default) — extend here for s3 / r2 / gcs / azure.
     return FirebaseStorageProvider()
 

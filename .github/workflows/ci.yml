@@ -47,6 +47,7 @@ jobs:
             firebase-admin google-cloud-firestore google-api-core \
             httpx requests beautifulsoup4 pillow \
             redis fakeredis cryptography \
+            appwrite sentry-sdk numpy \
             pytest pytest-asyncio anyio
 
       - name: Run tests

@@ -103,7 +103,18 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    current_user = verify_firebase_token(token)
+    auth_provider = os.getenv("AUTH_PROVIDER", "firebase").strip().lower()
+    if auth_provider == "appwrite":
+        from services.auth_adapter import get_auth_adapter
+        appwrite_user = get_auth_adapter().verify_token(token)
+        current_user = AuthenticatedUser(
+            uid=appwrite_user.uid,
+            email=appwrite_user.email,
+            is_anonymous=False,
+        )
+    else:
+        current_user = verify_firebase_token(token)
+
     request.state.current_user = current_user
     return current_user
 

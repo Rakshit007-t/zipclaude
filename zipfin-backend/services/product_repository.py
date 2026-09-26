@@ -202,6 +202,9 @@ class SellerProductRepository:
 _REPOSITORY: SellerProductRepository | None = None
 
 
+ProductRepository = SellerProductRepository
+
+
 def get_product_repository() -> SellerProductRepository:
     """FastAPI dependency; override in tests via app.dependency_overrides."""
     global _REPOSITORY

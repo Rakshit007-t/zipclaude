@@ -48,8 +48,8 @@ class SocialRepository:
                 user_doc = self.db.collection("users").document(user_id).get()
                 if user_doc.exists:
                     udata = user_doc.to_dict() or {}
-                    user_name = udata.get("displayName", user_name)
-                    username = udata.get("username", username)
+                    user_name = udata.get("displayName") or user_name
+                    username = udata.get("username") or username
                     photo_url = udata.get("photoURL")
             except Exception as exc:
                 logger.warning("Failed to load user for post creation: %s", exc)

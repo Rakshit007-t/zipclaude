@@ -1,0 +1,76 @@
+version: '3'
+
+services:
+  appwrite:
+    image: appwrite/appwrite:1.6.0
+    container_name: zipright-appwrite
+    restart: unless-stopped
+    networks:
+      - appwrite
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - appwrite-uploads:/storage/uploads:rw
+      - appwrite-certificates:/storage/certificates:rw
+      - appwrite-functions:/storage/functions:rw
+    environment:
+      - _APP_ENV=production
+      - _APP_EDITION=community
+      - _APP_WORKER_PER_CORE=4
+      - _APP_LOCALE=en
+      - _APP_CONSOLE_WHITELIST_ROOT=disabled
+      - _APP_SYSTEM_EMAIL_NAME=ZipRIGHT Staging
+      - _APP_SYSTEM_EMAIL_ADDRESS=no-reply@zipright.in
+      - _APP_SYSTEM_SECURITY_EMAIL_ADDRESS=security@zipright.in
+      - _APP_DOMAIN=appwrite.zipright.in
+      - _APP_DOMAIN_TARGET=appwrite.zipright.in
+      - _APP_SYSTEM_RESPONSE_FORMAT=json
+      - _APP_OPTIONS_ABUSE=enabled
+      - _APP_OPTIONS_ROUTER_PROTECTION=disabled
+      - _APP_DB_HOST=mariadb
+      - _APP_DB_PORT=3306
+      - _APP_DB_SCHEMA=appwrite
+      - _APP_DB_USER=user
+      - _APP_DB_PASS=password
+      - _APP_DB_ROOT_PASS=rootsecretpassword
+      - _APP_REDIS_HOST=redis
+      - _APP_REDIS_PORT=6379
+      - _APP_STORAGE_LIMIT=104857600
+      - _APP_STORAGE_PREVIEW_LIMIT=20971520
+    depends_on:
+      - mariadb
+      - redis
+
+  mariadb:
+    image: mariadb:10.7
+    container_name: zipright-mariadb
+    restart: unless-stopped
+    networks:
+      - appwrite
+    volumes:
+      - appwrite-mariadb:/var/lib/mysql:rw
+    environment:
+      - MYSQL_DATABASE=appwrite
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_ROOT_PASSWORD=rootsecretpassword
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: zipright-redis
+    restart: unless-stopped
+    networks:
+      - appwrite
+    volumes:
+      - appwrite-redis:/data:rw
+
+networks:
+  appwrite:
+
+volumes:
+  appwrite-mariadb:
+  appwrite-redis:
+  appwrite-uploads:
+  appwrite-certificates:
+  appwrite-functions:

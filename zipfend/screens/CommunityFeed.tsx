@@ -38,7 +38,7 @@ function readIdSet(key: string): Set<string> {
   } catch { return new Set(); }
 }
 function writeIdSet(key: string, set: Set<string>) {
-  try { localStorage.setItem(key, JSON.stringify([...set])); } catch {}
+  try { localStorage.setItem(key, JSON.stringify([...set])); } catch { }
 }
 const LOCAL_LIKES_KEY = 'zr_salon_likes';
 const SAVED_LOOKS_KEY = 'zr_saved_looks';
@@ -90,7 +90,7 @@ const LookMedia: React.FC<{ look: Look; active: boolean }> = ({ look, active }) 
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (active) void v.play().catch(() => {});
+    if (active) void v.play().catch(() => { });
     else v.pause();
   }, [active]);
 
@@ -239,7 +239,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
             const look = visibleLooks[index];
             if (look && !isSeed(look) && !viewedRef.current.has(look.id)) {
               viewedRef.current.add(look.id);
-              updateDoc(doc(db, 'looks', look.id), { viewsCount: increment(1) }).catch(() => {});
+              updateDoc(doc(db, 'looks', look.id), { viewsCount: increment(1) }).catch(() => { });
             }
             // Near the end of the real posts → pull the next page
             if (hasMore && index >= looks.length - 3) fetchPage();
@@ -298,16 +298,16 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
       if (saving) data[look.id] = { id: look.id, mediaUrl: look.mediaUrl, caption: look.caption, creatorUsername: look.creatorUsername };
       else delete data[look.id];
       localStorage.setItem('zr_saved_looks_data', JSON.stringify(data));
-    } catch {}
+    } catch { }
     // Cloud mirror, best-effort, real accounts only
     const user = socialUser();
     if (user) {
       (saving
         ? setDoc(doc(db, 'users', user.uid, 'savedLooks', look.id), {
-            lookId: look.id, mediaUrl: look.mediaUrl, caption: look.caption, savedAt: serverTimestamp(),
-          })
+          lookId: look.id, mediaUrl: look.mediaUrl, caption: look.caption, savedAt: serverTimestamp(),
+        })
         : deleteDoc(doc(db, 'users', user.uid, 'savedLooks', look.id))
-      ).catch(() => {});
+      ).catch(() => { });
     }
   };
 
@@ -325,7 +325,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
           photoURL: look.creatorAvatar,
         });
       }
-    } catch {}
+    } catch { }
   };
 
   // Comments: live from Firestore for signed-in users (works for seeds too —
@@ -351,7 +351,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
     if (!user) {
       // Demo session: comment lives on this device
       const local: LookComment[] = [...readLocalComments(commentsFor.id), { id: `local-${Date.now()}`, from: 'demo', name: 'You', avatar: null, text, createdAt: null }];
-      try { localStorage.setItem(`zr_salon_comments:${commentsFor.id}`, JSON.stringify(local)); } catch {}
+      try { localStorage.setItem(`zr_salon_comments:${commentsFor.id}`, JSON.stringify(local)); } catch { }
       setComments(local);
       return;
     }
@@ -364,7 +364,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
         text,
         createdAt: serverTimestamp(),
       });
-      if (!isSeed(commentsFor)) updateDoc(doc(db, 'looks', commentsFor.id), { commentsCount: increment(1) }).catch(() => {});
+      if (!isSeed(commentsFor)) updateDoc(doc(db, 'looks', commentsFor.id), { commentsCount: increment(1) }).catch(() => { });
     } catch {
       setCommentDraft(text);
       showToast('Comment not posted. Try again.', 'error');
@@ -411,7 +411,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
     try {
       await updateDoc(doc(db, 'looks', look.id), { status: 'deleted' });
       setLooks(prev => prev.filter(l => l.id !== look.id));
-      updateDoc(doc(db, 'users', look.creatorId), { postsCount: increment(-1) }).catch(() => {});
+      updateDoc(doc(db, 'users', look.creatorId), { postsCount: increment(-1) }).catch(() => { });
     } catch {
       showToast('Could not delete. Try again.', 'error');
     }
@@ -441,7 +441,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
         await navigator.clipboard.writeText(shareUrl);
         showToast('Link copied', 'success');
       }
-    } catch {}
+    } catch { }
   };
 
   if (loading) {

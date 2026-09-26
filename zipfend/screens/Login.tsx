@@ -16,8 +16,10 @@ import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { Button, Wordmark } from '../components/ui';
 import { formatFirebaseAuthError } from '../utils/firebaseErrors';
-import { requiresEmailVerification } from '../services/authClient';
+import { authClient, requiresEmailVerification } from '../services/authClient';
 import { sanitizeText } from '../utils/sanitize';
+import { appwriteAccount, ID } from '../services/appwrite';
+import { dataClient, isAppwrite } from '../services/dataClient';
 
 declare global {
   interface Window {
@@ -147,6 +149,50 @@ const Login: React.FC = () => {
     }
   }, []);
 
+  // Detect Appwrite OAuth return redirect (/login?appwrite_oauth=1)
+  useEffect(() => {
+    if (!isAppwrite) return;
+    const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '');
+    if (urlParams.get('appwrite_oauth') === '1') {
+      (async () => {
+        try {
+          setIsLoading(true);
+          const u = await appwriteAccount.get();
+          if (u) {
+            const profileSnap = await dataClient.getDoc('users', u.$id);
+            if (!profileSnap.exists()) {
+              const defaultUsername = `user_${u.$id.replace(/[-_]/g, '').slice(0, 8).toLowerCase()}`;
+              await dataClient.setDoc('users', u.$id, {
+                uid: u.$id,
+                email: u.email || '',
+                username: defaultUsername,
+                displayName: u.name || '',
+                onboardingCompleted: true,
+                fitProfileCompleted: false,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              });
+              await dataClient.setDoc('publicProfiles', u.$id, {
+                uid: u.$id,
+                username: defaultUsername,
+                displayName: u.name || '',
+                updatedAt: new Date().toISOString(),
+              });
+              await createSessionAndNavigate(true);
+            } else {
+              const requiresProfile = !profileSnap.data()?.fitProfileCompleted;
+              await createSessionAndNavigate(requiresProfile);
+            }
+          }
+        } catch (oauthErr: any) {
+          console.error('Appwrite OAuth resolution error:', oauthErr);
+          setError(oauthErr.message || 'OAuth sign-in could not be completed.');
+          setIsLoading(false);
+        }
+      })();
+    }
+  }, []);
+
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = window.setTimeout(() => setResendCooldown(value => Math.max(0, value - 1)), 1000);
@@ -180,7 +226,9 @@ const Login: React.FC = () => {
 
   const createSessionAndNavigate = async (requiresProfile = false) => {
     // Ensure authoritative token readiness before navigation
-    if (auth.currentUser) {
+    if (isAppwrite) {
+      await authClient.notifyAuthChanged();
+    } else if (auth.currentUser) {
       try {
         await auth.currentUser.getIdToken();
       } catch (tokenErr) {
@@ -195,6 +243,12 @@ const Login: React.FC = () => {
     setError('');
     setIsLoading(true);
     try {
+      if (isAppwrite) {
+        const successUrl = `${window.location.origin}/#/login?appwrite_oauth=1`;
+        const failureUrl = `${window.location.origin}/#/login?error=oauth_failed`;
+        appwriteAccount.createOAuth2Session('google', successUrl, failureUrl);
+        return;
+      }
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
@@ -254,15 +308,23 @@ const Login: React.FC = () => {
       setIsLoading(true);
       try {
         const phoneNumber = `${selectedCountry.code}${phone}`;
+        if (isAppwrite) {
+          const token = await appwriteAccount.createPhoneToken(ID.unique(), phoneNumber);
+          setConfirmationResult({ userId: token.userId, isAppwrite: true });
+          setIsLoading(false);
+          setStep('otp');
+          return;
+        }
+
         const confirmation = await signInWithPhoneNumber(auth, phoneNumber, createRecaptchaVerifier());
         setConfirmationResult(confirmation);
         setIsLoading(false);
         setStep('otp');
       } catch (err: any) {
         console.error('SMS sending error:', err);
-        setError(firebasePhoneErrorMessage(err, 'Failed to send a verification code.'));
+        setError(err.message || firebasePhoneErrorMessage(err, 'Failed to send a verification code.'));
         setIsLoading(false);
-        clearRecaptchaVerifier();
+        if (!isAppwrite) clearRecaptchaVerifier();
       }
     } else if (authMethod === 'email') {
       const sanitizedEmail = sanitizeText(email).trim().toLowerCase();
@@ -278,6 +340,39 @@ const Login: React.FC = () => {
       }
       setIsLoading(true);
       try {
+        if (isAppwrite) {
+          if (isSignUp) {
+            const user = await appwriteAccount.create(ID.unique(), sanitizedEmail, password);
+            await appwriteAccount.createEmailPasswordSession(sanitizedEmail, password);
+            const defaultUsername = `user_${user.$id.replace(/[-_]/g, '').slice(0, 8).toLowerCase()}`;
+            await dataClient.setDoc('users', user.$id, {
+              uid: user.$id,
+              email: sanitizedEmail,
+              username: defaultUsername,
+              displayName: '',
+              onboardingCompleted: true,
+              fitProfileCompleted: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+            await dataClient.setDoc('publicProfiles', user.$id, {
+              uid: user.$id,
+              username: defaultUsername,
+              displayName: '',
+              updatedAt: new Date().toISOString(),
+            });
+            await createSessionAndNavigate(true);
+            return;
+          } else {
+            await appwriteAccount.createEmailPasswordSession(sanitizedEmail, password);
+            const user = await appwriteAccount.get();
+            const profileSnap = await dataClient.getDoc('users', user.$id);
+            const requiresProfile = profileSnap.exists() ? !profileSnap.data()?.fitProfileCompleted : true;
+            await createSessionAndNavigate(requiresProfile);
+            return;
+          }
+        }
+
         let user;
         if (isSignUp) {
           const result = await createUserWithEmailAndPassword(auth, sanitizedEmail, password);
@@ -311,7 +406,7 @@ const Login: React.FC = () => {
             bio: '',
             website: '',
             updatedAt: serverTimestamp(),
-          }, { merge: true }).catch(() => {});
+          }, { merge: true }).catch(() => { });
 
           setIsLoading(false);
           setStep('email-verify');
@@ -352,6 +447,43 @@ const Login: React.FC = () => {
         throw new Error('Request a new verification code and try again.');
       }
 
+      if (confirmationResult.isAppwrite) {
+        try {
+          await appwriteAccount.createSession(confirmationResult.userId, otpString);
+        } catch (sessionErr: any) {
+          if (!sessionErr?.message?.includes('prohibited when a session is active')) {
+            throw sessionErr;
+          }
+        }
+        const user = await appwriteAccount.get();
+        const profileSnap = await dataClient.getDoc('users', user.$id);
+        if (!profileSnap.exists()) {
+          const defaultUsername = `user_${user.$id.replace(/[-_]/g, '').slice(0, 8).toLowerCase()}`;
+          await dataClient.setDoc('users', user.$id, {
+            uid: user.$id,
+            phoneNumber: user.phone || `${selectedCountry.code}${phone}`,
+            username: defaultUsername,
+            displayName: user.name || '',
+            onboardingCompleted: true,
+            fitProfileCompleted: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          await dataClient.setDoc('publicProfiles', user.$id, {
+            uid: user.$id,
+            username: defaultUsername,
+            displayName: user.name || '',
+            updatedAt: new Date().toISOString(),
+          });
+          await createSessionAndNavigate(true);
+          return;
+        } else {
+          const requiresProfile = !profileSnap.data()?.fitProfileCompleted;
+          await createSessionAndNavigate(requiresProfile);
+          return;
+        }
+      }
+
       const result = await confirmationResult.confirm(otpString);
       const user = result.user;
 
@@ -380,7 +512,7 @@ const Login: React.FC = () => {
           bio: '',
           website: '',
           updatedAt: serverTimestamp(),
-        }, { merge: true }).catch(() => {});
+        }, { merge: true }).catch(() => { });
 
         await createSessionAndNavigate(true);
         return;
@@ -390,7 +522,7 @@ const Login: React.FC = () => {
       }
     } catch (err: any) {
       console.error('OTP verification error:', err);
-      setError(firebasePhoneErrorMessage(err, 'Invalid verification code.'));
+      setError(err.message || firebasePhoneErrorMessage(err, 'Invalid verification code.'));
       setIsLoading(false);
     }
   };
@@ -406,6 +538,15 @@ const Login: React.FC = () => {
       }
 
       const phoneNumber = `${selectedCountry.code}${phone}`;
+      if (isAppwrite) {
+        const token = await appwriteAccount.createPhoneToken(confirmationResult?.userId || ID.unique(), phoneNumber);
+        setConfirmationResult({ userId: token.userId, isAppwrite: true });
+        setResendMessage(`Verification code sent to ${selectedCountry.code} ${phone}`);
+        setResendCooldown(30);
+        setTimeout(() => setResendMessage(''), 5000);
+        return;
+      }
+
       const confirmation = await signInWithPhoneNumber(auth, phoneNumber, createRecaptchaVerifier());
       setConfirmationResult(confirmation);
       setResendMessage(`Verification code sent to ${selectedCountry.code} ${phone}`);
@@ -413,8 +554,8 @@ const Login: React.FC = () => {
       setTimeout(() => setResendMessage(''), 5000);
     } catch (err: any) {
       console.error('Resend error:', err);
-      setError(firebasePhoneErrorMessage(err, 'Failed to resend the verification code.'));
-      clearRecaptchaVerifier();
+      setError(err.message || firebasePhoneErrorMessage(err, 'Failed to resend the verification code.'));
+      if (!isAppwrite) clearRecaptchaVerifier();
     } finally {
       setIsResending(false);
     }
@@ -508,9 +649,8 @@ const Login: React.FC = () => {
                     role="tab"
                     aria-selected={authMethod === method}
                     onClick={() => setAuthMethod(method)}
-                    className={`relative pb-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors ${
-                      authMethod === method ? 'text-ink' : 'text-ink-faint'
-                    }`}
+                    className={`relative pb-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors ${authMethod === method ? 'text-ink' : 'text-ink-faint'
+                      }`}
                   >
                     {method}
                     {authMethod === method && (
@@ -899,7 +1039,7 @@ const Login: React.FC = () => {
                       if (currentUser?.emailVerified) {
                         const profileStatus = await getUserProfileStatus(currentUser);
                         const userDocRef = doc(db, 'users', currentUser.uid);
-                        await setDoc(userDocRef, { updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+                        await setDoc(userDocRef, { updatedAt: serverTimestamp() }, { merge: true }).catch(() => { });
                         const requiresProfile = profileStatus ? (!profileStatus.exists || !profileStatus.fitProfileCompleted) : false;
                         await createSessionAndNavigate(requiresProfile);
                       } else {
@@ -941,7 +1081,7 @@ const Login: React.FC = () => {
 
               <button
                 onClick={async () => {
-                  try { await auth.signOut(); } catch {}
+                  try { await auth.signOut(); } catch { }
                   setStep('input');
                 }}
                 className="mt-8 text-[12px] font-semibold text-ink-faint hover:text-ink underline underline-offset-4"

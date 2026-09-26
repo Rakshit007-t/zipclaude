@@ -168,7 +168,7 @@ export function onConversation(convId: string, cb: (conv: Conversation | null) =
 /** Live chat list for the signed-in user, newest first. Returns unsubscribe. */
 export function onConversations(cb: (convs: Conversation[]) => void): () => void {
   const user = socialUser();
-  if (!user) { cb([]); return () => {}; }
+  if (!user) { cb([]); return () => { }; }
   const q = query(
     collection(db, 'conversations'),
     where('members', 'array-contains', user.uid),
@@ -191,7 +191,7 @@ export function setTyping(convId: string): void {
   lastTypingWrite = now;
   setDoc(doc(db, 'conversations', convId), {
     typing: { [user.uid]: serverTimestamp() },
-  }, { merge: true }).catch(() => {});
+  }, { merge: true }).catch(() => { });
 }
 
 export function clearTyping(convId: string): void {
@@ -199,7 +199,7 @@ export function clearTyping(convId: string): void {
   if (!user) return;
   setDoc(doc(db, 'conversations', convId), {
     typing: { [user.uid]: null },
-  }, { merge: true }).catch(() => {});
+  }, { merge: true }).catch(() => { });
 }
 
 /** Typing is live if the other side wrote a typing timestamp in the last 6s. */
@@ -213,7 +213,7 @@ export function markRead(convId: string): void {
   if (!user) return;
   setDoc(doc(db, 'conversations', convId), {
     lastRead: { [user.uid]: serverTimestamp() },
-  }, { merge: true }).catch(() => {});
+  }, { merge: true }).catch(() => { });
 }
 
 /** Has the other participant seen this message of mine? */

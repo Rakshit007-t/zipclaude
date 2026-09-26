@@ -87,6 +87,11 @@ class Settings:
     BILLING_WEBHOOK_SECRET: str = os.getenv("BILLING_WEBHOOK_SECRET", "").strip()
     ADMIN_USER_IDS: list[str] = [uid.strip() for uid in os.getenv("ADMIN_USER_IDS", "").split(",") if uid.strip()]
 
+    # Dual-Provider Architecture (Firebase vs Appwrite)
+    DATABASE_PROVIDER: str = os.getenv("DATABASE_PROVIDER", "firebase").strip().lower()
+    AUTH_PROVIDER: str = os.getenv("AUTH_PROVIDER", "firebase").strip().lower()
+    STORAGE_PROVIDER: str = os.getenv("STORAGE_PROVIDER", "firebase").strip().lower()
+
     def validate_production_configuration(self) -> list[str]:
         """Validate all required secrets for production environment; returns list of missing secrets."""
         missing = []

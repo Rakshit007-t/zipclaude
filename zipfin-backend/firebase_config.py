@@ -20,6 +20,10 @@ FIRESTORE_DATABASE_ID = os.getenv(
 
 
 def get_firestore_client():
+    if getattr(settings, "DATABASE_PROVIDER", "firebase").strip().lower() == "appwrite":
+        from services.appwrite_firestore_proxy import get_appwrite_firestore_proxy
+        return get_appwrite_firestore_proxy()
+
     initialize_firebase()
     return firestore.client(database_id=FIRESTORE_DATABASE_ID)
 

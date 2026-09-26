@@ -33,3 +33,44 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(event.request).then((cached) => cached || Response.error()))
   );
 });
+
+// Web Push event listener
+self.addEventListener('push', (event) => {
+  let payload = { title: 'ZipRIGHT Notification', body: '' };
+  try {
+    if (event.data) {
+      payload = event.data.json();
+    }
+  } catch (e) {
+    if (event.data) {
+      payload.body = event.data.text();
+    }
+  }
+  const title = payload.title || 'ZipRIGHT Notification';
+  const options = {
+    body: payload.body || 'You have a new update from ZipRIGHT.',
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    data: payload.url || '/'
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Notification click event listener
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url === targetUrl && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+

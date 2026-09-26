@@ -38,3 +38,14 @@ cache/
 coverage/
 zipright-loop/
 scratch/
+appwrite/
+.env.appwrite.local
+backups/
+
+# Azure deployment specs & DB dumps
+*.sql
+*_app.json
+*_app_*.json
+*_replicas.json
+*_spec.yaml
+

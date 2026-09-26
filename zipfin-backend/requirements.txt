@@ -35,4 +35,5 @@ redis>=5.0.0
 fakeredis>=2.20.0
 # Error monitoring (Phase 5B)
 sentry-sdk[fastapi]>=2.0.0,<3
-
+# Appwrite Integration (Dual-Provider Architecture)
+appwrite>=6.1.0,<7.0.0

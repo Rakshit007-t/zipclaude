@@ -59,7 +59,7 @@ function read(kind: ClosetKind): ClosetItem[] {
 function write(kind: ClosetKind, items: ClosetItem[]) {
   try {
     localStorage.setItem(keyFor(kind), JSON.stringify(items));
-  } catch {}
+  } catch { }
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
@@ -82,13 +82,13 @@ function mirrorAdd(kind: ClosetKind, item: ClosetItem) {
     quantity: item.quantity || 1,
     source: 'closet',
     timestamp: new Date(),
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 function mirrorRemove(kind: ClosetKind, id: string) {
   const user = firestoreUser();
   if (!user || LOCAL_ONLY.includes(kind)) return;
-  deleteDoc(doc(db, 'users', user.uid, kind, id)).catch(() => {});
+  deleteDoc(doc(db, 'users', user.uid, kind, id)).catch(() => { });
 }
 
 export function listCloset(kind: ClosetKind): ClosetItem[] {

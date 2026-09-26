@@ -5,9 +5,8 @@ import { springs } from './components/ui/motion';
 import { getJourneySnapshot } from './services/styleJourney';
 import { ensureUserDoc, startPresence } from './services/social';
 import { onConversations, unreadConversations } from './services/messages';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth } from './firebase';
-import { requiresEmailVerification } from './services/authClient';
+import type { User } from 'firebase/auth';
+import { authClient, requiresEmailVerification } from './services/authClient';
 import { ToastProvider } from './contexts/ToastContext';
 import { UserProfileProvider, useUserProfile } from './contexts/UserProfileContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -334,7 +333,7 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
   // Authoritative Firebase user: prefers App state, but bridges the React propagation
   // gap using auth.currentUser to prevent race conditions during login navigation.
   // When signed out (auth.currentUser === null), activeUser is immediately null.
-  const currentAuthUser = auth.currentUser;
+  const currentAuthUser = authClient.currentUser;
   const activeUser = currentAuthUser ? (user?.uid === currentAuthUser.uid ? user : currentAuthUser) : null;
 
   useEffect(() => {
@@ -477,7 +476,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = authClient.onAuthStateChanged((currentUser) => {
       // #region agent log
       agentDebugLog('App.tsx:onAuthStateChanged', 'auth state', {hasUser:Boolean(currentUser),isAnonymous:Boolean(currentUser?.isAnonymous),emailVerified:Boolean(currentUser?.emailVerified),providers:(currentUser?.providerData||[]).map(p=>p.providerId)}, 'B');
       // #endregion

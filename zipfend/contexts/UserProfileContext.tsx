@@ -453,7 +453,7 @@ function removeLocalProfile(ownerId?: string | null) {
 
   try {
     window.localStorage.removeItem(key);
-  } catch {}
+  } catch { }
 }
 
 function getFitProfileId(profile: Record<string, unknown>) {
@@ -653,7 +653,7 @@ export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ childre
         },
         (err) => {
           // #region agent log
-          agentDebugLog('UserProfileContext.tsx:onSnapshot', 'profile snapshot error', {code:(err as {code?:string})?.code||'',message:err?.message||String(err)}, 'E');
+          agentDebugLog('UserProfileContext.tsx:onSnapshot', 'profile snapshot error', { code: (err as { code?: string })?.code || '', message: err?.message || String(err) }, 'E');
           // #endregion
           void refreshProfile();
         },

@@ -280,19 +280,19 @@ function readApiErrorMessage(response: Response, payload: any, defaultMessage: s
   const details = payload?.details ?? payload?.error?.details ?? payload?.detail;
   const detailMessage = Array.isArray(details)
     ? details
-        .map((item) => {
-          const field = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : null;
-          const msg = typeof item?.msg === 'string' ? item.msg : null;
-          if (field && msg) {
-            return `${field}: ${msg}`;
-          }
-          return msg || null;
-        })
-        .filter(Boolean)
-        .join(', ')
+      .map((item) => {
+        const field = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : null;
+        const msg = typeof item?.msg === 'string' ? item.msg : null;
+        if (field && msg) {
+          return `${field}: ${msg}`;
+        }
+        return msg || null;
+      })
+      .filter(Boolean)
+      .join(', ')
     : typeof details === 'string'
-    ? details
-    : null;
+      ? details
+      : null;
   const message = payload?.message || payload?.error?.message || detailMessage || defaultMessage;
   if (response.status >= 500) {
     return payload?.message || payload?.error?.message || defaultMessage;

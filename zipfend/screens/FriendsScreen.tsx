@@ -121,7 +121,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
           });
           await updateDoc(doc(db, 'accepted_friend_requests', d.id), { processed: true });
         }
-      } catch {}
+      } catch { }
     })();
 
     return () => { friendsUnsub(); inboxUnsub(); reqUnsub(); convUnsub(); };
@@ -197,7 +197,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
   const handleDeclineRequest = async (reqId: string) => {
     try {
       await deleteDoc(doc(db, 'friend_requests', reqId));
-    } catch {}
+    } catch { }
   };
 
   const handleRemoveFriend = async (friendUid: string) => {
@@ -220,7 +220,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
         reaction,
         seen: true,
       });
-    } catch {}
+    } catch { }
   };
 
   // Opening the inbox tab clears "new" state for everything visible — one batch,
@@ -233,7 +233,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ inHub, onShowSalon }) => 
     if (unseen.length === 0) return;
     const batch = writeBatch(db);
     unseen.forEach(i => batch.update(doc(db, 'users', user.uid, 'friend_inbox', i.id), { seen: true }));
-    batch.commit().catch(() => {});
+    batch.commit().catch(() => { });
   }, [activeTab, inboxItems]);
 
   const chatUnread = unreadConversations(conversations);
