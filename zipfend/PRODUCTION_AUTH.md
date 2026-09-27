@@ -19,22 +19,15 @@ The rules in `firestore.rules` permit only an authenticated user to read or
 write their own `/users/{uid}` document. The backend uses Admin credentials;
 its caller is still authenticated by a verified Firebase ID token.
 
-## Phone authentication
+## Phone / SMS Authentication (Launch Policy: ₹0 Cost — Paused)
 
-Production bundles always use Firebase Phone Authentication. The `123456` demo
-OTP exists only in Vite development mode. To test actual SMS from a development
-build, set `VITE_ENABLE_PHONE_AUTH=true`.
+SMS/DLT registration is explicitly NOT a launch blocker. No funds are committed to SmartPing, DLT, MSG91, or Twilio for launch.
+Appwrite Phone/SMS authentication is kept strictly disabled (`authPhone: False`).
+The launch authentication pillars are:
+1. **Google OAuth 2.0**: Primary social 1-click login, ₹0 additional cost, active and verified.
+2. **Email + Password**: Fully operational, ₹0 additional cost, independent of external SMS routes.
 
-In Firebase Console, verify all of the following:
-
-- Authentication → Sign-in method: Phone is enabled.
-- Authentication → Settings → SMS region policy includes every served country.
-- The project has the billing/Identity Platform configuration required for SMS.
-- Authentication → Settings → Authorized domains includes the deployed
-  ZipRIGHT domain and any staging domain.
-- The deployed origin is served over HTTPS. Firebase's invisible reCAPTCHA is
-  created for every SMS request and discarded after failures, expiry, resend,
-  and page unmount.
+Phone authentication is cleanly marked as unavailable in the frontend (`PHONE_AUTH_ENABLED = false`). When post-launch DLT registration is scheduled, SMS providers can be re-enabled without altering core application schemas.
 
 ## Password-reset email
 

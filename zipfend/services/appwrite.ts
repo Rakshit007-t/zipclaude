@@ -118,6 +118,18 @@ export class Account {
   async updateVerification(userId: string, secret: string): Promise<any> {
     return this.client.call('PUT', '/account/verification', {}, { userId, secret });
   }
+
+  async createEmailToken(userId: string, email: string): Promise<any> {
+    return this.client.call('POST', '/account/tokens/email', {}, { userId, email });
+  }
+
+  async createMagicURLToken(userId: string, email: string, url: string): Promise<any> {
+    return this.client.call('POST', '/account/tokens/magic-url', {}, { userId, email, url });
+  }
+
+  async updateMagicURLSession(userId: string, secret: string): Promise<any> {
+    return this.client.call('PUT', '/account/sessions/magic-url', {}, { userId, secret });
+  }
 }
 
 export class Databases {

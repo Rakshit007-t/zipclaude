@@ -30,7 +30,7 @@ declare global {
 
 type AuthStep = 'input' | 'otp' | 'profile' | 'forgot-password' | 'email-verify';
 
-const PHONE_AUTH_ENABLED = true;
+const PHONE_AUTH_ENABLED = false;
 
 const countryCodes = [
   { name: 'India', code: '+91', iso: 'IN', requiredLength: 10 },
@@ -47,7 +47,7 @@ const Login: React.FC = () => {
   const location = useLocation();
 
   const [step, setStep] = useState<AuthStep>('input');
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('phone');
+  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
   const [isSignUp, setIsSignUp] = useState(location.state?.isSignUp ?? false);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -149,7 +149,7 @@ const Login: React.FC = () => {
     }
   }, []);
 
-  // Detect Appwrite OAuth return redirect (/login?appwrite_oauth=1)
+  // Detect Appwrite OAuth return redirect (/login?appwrite_oauth=1) or Magic URL (/login?userId=...&secret=...)
   useEffect(() => {
     if (!isAppwrite) return;
     const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '');
@@ -187,6 +187,25 @@ const Login: React.FC = () => {
         } catch (oauthErr: any) {
           console.error('Appwrite OAuth resolution error:', oauthErr);
           setError(oauthErr.message || 'OAuth sign-in could not be completed.');
+          setIsLoading(false);
+        }
+      })();
+    } else if (urlParams.get('userId') && urlParams.get('secret')) {
+      const magicUserId = urlParams.get('userId')!;
+      const magicSecret = urlParams.get('secret')!;
+      (async () => {
+        try {
+          setIsLoading(true);
+          await appwriteAccount.updateMagicURLSession(magicUserId, magicSecret);
+          const u = await appwriteAccount.get();
+          if (u) {
+            const profileSnap = await dataClient.getDoc('users', u.$id);
+            const requiresProfile = profileSnap.exists() ? !profileSnap.data()?.fitProfileCompleted : true;
+            await createSessionAndNavigate(requiresProfile);
+          }
+        } catch (magicErr: any) {
+          console.error('Magic URL session error:', magicErr);
+          setError(magicErr.message || 'Magic URL link is invalid or expired.');
           setIsLoading(false);
         }
       })();
@@ -301,6 +320,10 @@ const Login: React.FC = () => {
   const handleContinue = async () => {
     setError('');
     if (authMethod === 'phone') {
+      if (!PHONE_AUTH_ENABLED) {
+        setError('Phone & SMS authentication is disabled for launch. Please use Google Sign-In or Email.');
+        return;
+      }
       if (!phone || phone.length !== selectedCountry.requiredLength) {
         setError(`Please enter a valid ${selectedCountry.requiredLength}-digit mobile number`);
         return;
@@ -341,9 +364,21 @@ const Login: React.FC = () => {
       setIsLoading(true);
       try {
         if (isAppwrite) {
+          const createSessionSafely = async () => {
+            try {
+              return await appwriteAccount.createEmailPasswordSession(sanitizedEmail, password);
+            } catch (sessErr: any) {
+              if (sessErr?.message?.includes('prohibited when a session is active')) {
+                await appwriteAccount.deleteSession('current').catch(() => {});
+                return await appwriteAccount.createEmailPasswordSession(sanitizedEmail, password);
+              }
+              throw sessErr;
+            }
+          };
+
           if (isSignUp) {
             const user = await appwriteAccount.create(ID.unique(), sanitizedEmail, password);
-            await appwriteAccount.createEmailPasswordSession(sanitizedEmail, password);
+            await createSessionSafely();
             const defaultUsername = `user_${user.$id.replace(/[-_]/g, '').slice(0, 8).toLowerCase()}`;
             await dataClient.setDoc('users', user.$id, {
               uid: user.$id,
@@ -364,7 +399,7 @@ const Login: React.FC = () => {
             await createSessionAndNavigate(true);
             return;
           } else {
-            await appwriteAccount.createEmailPasswordSession(sanitizedEmail, password);
+            await createSessionSafely();
             const user = await appwriteAccount.get();
             const profileSnap = await dataClient.getDoc('users', user.$id);
             const requiresProfile = profileSnap.exists() ? !profileSnap.data()?.fitProfileCompleted : true;
@@ -637,89 +672,84 @@ const Login: React.FC = () => {
               <h1 className="font-display text-[36px] leading-[1.06] font-light mb-2">
                 {isSignUp ? <>Join the <em className="font-medium">atelier.</em></> : <>Welcome <em className="font-medium">back.</em></>}
               </h1>
-              <p className="text-ink-soft text-[13.5px] mb-10">
-                {authMethod === 'phone' ? 'Enter your mobile number to begin.' : 'Sign in with your credentials.'}
+              <p className="text-ink-soft text-[13.5px] mb-8">
+                {isSignUp ? 'Create your account to experience tailored fit.' : 'Sign in with Google or your credentials.'}
               </p>
 
-              {/* Auth method tabs — sliding underline */}
-              <div className="flex gap-8 mb-8 border-b border-line" role="tablist" aria-label="Sign-in method">
-                {(['phone', 'email'] as const).map((method) => (
-                  <button
-                    key={method}
-                    role="tab"
-                    aria-selected={authMethod === method}
-                    onClick={() => setAuthMethod(method)}
-                    className={`relative pb-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors ${authMethod === method ? 'text-ink' : 'text-ink-faint'
-                      }`}
-                  >
-                    {method}
-                    {authMethod === method && (
-                      <motion.span
-                        layoutId="auth-method-underline"
-                        className="absolute -bottom-px left-0 right-0 h-[2px] bg-ink"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </button>
-                ))}
+              {/* Primary Social Login: Google OAuth */}
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                aria-label="Continue with Google"
+                className="relative flex h-[54px] w-full items-center justify-center rounded-full bg-surface-1 border border-line-strong text-ink active:scale-[0.97] transition-all disabled:opacity-50 hover:bg-surface-2 shadow-sm mb-6"
+              >
+                {/* Inline Google mark — no external image dependency */}
+                <svg className="h-5 w-5 absolute left-6" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.62v3h3.87c2.26-2.09 3.57-5.17 3.57-8.81z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.93-2.91l-3.87-3a7.24 7.24 0 0 1-10.78-3.8H1.29v3.1A12 12 0 0 0 12 24z" />
+                  <path fill="#FBBC05" d="M5.28 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.29a12 12 0 0 0 0 10.78l3.99-3.1z" />
+                  <path fill="#EA4335" d="M12 4.77c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.97 11.97 0 0 0 1.29 6.6l3.99 3.1A7.24 7.24 0 0 1 12 4.77z" />
+                </svg>
+                <span className="font-semibold uppercase tracking-[0.1em] text-[12px]">Continue with Google</span>
+              </button>
+
+              <div className="flex items-center gap-4 mb-6" aria-hidden="true">
+                <div className="h-px bg-line flex-1" />
+                <span className="eyebrow !text-[9px]">Or continue with email</span>
+                <div className="h-px bg-line flex-1" />
+              </div>
+
+              {/* Sign-in method toggle: Email (Active) & Phone (Unavailable) */}
+              <div className="flex gap-8 mb-6 border-b border-line" role="tablist" aria-label="Sign-in method">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={authMethod === 'email'}
+                  onClick={() => setAuthMethod('email')}
+                  className={`relative pb-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors ${authMethod === 'email' ? 'text-ink' : 'text-ink-faint'}`}
+                >
+                  Email
+                  {authMethod === 'email' && (
+                    <motion.span
+                      layoutId="auth-method-underline"
+                      className="absolute -bottom-px left-0 right-0 h-[2px] bg-ink"
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={authMethod === 'phone'}
+                  onClick={() => {
+                    setAuthMethod('phone');
+                    setError('Phone/SMS authentication is currently unavailable. Please use Google or Email.');
+                  }}
+                  className="relative pb-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors text-ink-faint flex items-center gap-1.5"
+                >
+                  Phone
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-surface-2 text-ink-faint font-medium">Unavailable</span>
+                </button>
               </div>
 
               {authMethod === 'phone' ? (
-                <div className={`flex gap-4 mb-10 h-14 ${underlineField}`}>
-                  <div className="relative w-20">
-                    <button
-                      onClick={() => setShowCountryPicker(!showCountryPicker)}
-                      aria-label={`Country code ${selectedCountry.code} ${selectedCountry.name}. Tap to change`}
-                      aria-expanded={showCountryPicker}
-                      className="flex h-full w-full items-center justify-start gap-1 bg-transparent text-[18px] font-medium text-ink"
-                    >
-                      {selectedCountry.code}
-                      <span className="material-symbols-outlined text-[16px] text-ink-faint" aria-hidden="true">expand_more</span>
-                    </button>
-
-                    {showCountryPicker && (
-                      <div
-                        className="fixed inset-0 z-40"
-                        aria-hidden="true"
-                        onClick={() => setShowCountryPicker(false)}
-                      />
-                    )}
-                    {showCountryPicker && (
-                      <div className="absolute top-full left-0 w-56 mt-2 z-50 bg-surface-1 border border-line rounded-2xl overflow-hidden shadow-float max-h-52 overflow-y-auto no-scrollbar">
-                        {countryCodes.map(c => (
-                          <button
-                            key={c.iso}
-                            onClick={() => { setSelectedCountry(c); setShowCountryPicker(false); }}
-                            className="w-full text-left px-4 py-3.5 border-b border-line last:border-none flex items-center gap-3 hover:bg-surface-2"
-                          >
-                            <span className="text-ink font-medium text-[14px]">{c.code}</span>
-                            <span className="text-ink-faint text-[12px]">{c.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1">
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      autoComplete="tel-national"
-                      aria-label="Mobile number"
-                      value={phone}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        if (val.length <= selectedCountry.requiredLength) {
-                          setPhone(val);
-                        }
-                      }}
-                      placeholder="Mobile number"
-                      className="h-full w-full bg-transparent font-medium outline-none placeholder:text-ink-faint text-ink text-[18px] tracking-wide"
-                    />
-                  </div>
+                <div className="p-5 rounded-2xl bg-surface-1 border border-line text-center mb-8">
+                  <span className="material-symbols-outlined text-[28px] text-ink-faint mb-2 block" aria-hidden="true">phone_disabled</span>
+                  <p className="text-[13px] font-medium text-ink mb-1">Phone sign-in is disabled</p>
+                  <p className="text-[12px] text-ink-soft leading-relaxed mb-4">
+                    SMS and Phone OTP authentication is paused for launch. Please use Google 1-Click Login or Email & Password.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMethod('email'); setError(''); }}
+                    className="text-[12px] font-semibold text-ink underline underline-offset-4"
+                  >
+                    Switch to Email login
+                  </button>
                 </div>
               ) : (
-                <div className="flex flex-col gap-6 mb-10">
+                <div className="flex flex-col gap-6 mb-8">
                   <div className={underlineField}>
                     <input
                       type="email"
@@ -749,7 +779,7 @@ const Login: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => { setError(''); setPasswordResetMessage(''); setStep('forgot-password'); }}
-                  className="-mt-5 mb-7 block ml-auto text-[12px] font-semibold text-ink underline underline-offset-4"
+                  className="-mt-4 mb-7 block ml-auto text-[12px] font-semibold text-ink underline underline-offset-4"
                 >
                   Forgot Password?
                 </button>
@@ -765,32 +795,12 @@ const Login: React.FC = () => {
                 size="lg"
                 fullWidth
                 loading={isLoading}
+                disabled={authMethod === 'phone'}
                 onClick={handleContinue}
                 className="mb-8"
               >
                 {isSignUp ? 'Create account' : 'Sign in'}
               </Button>
-
-              <div className="flex items-center gap-4 mb-8" aria-hidden="true">
-                <div className="h-px bg-line flex-1" />
-                <span className="eyebrow !text-[9px]">Or continue with</span>
-                <div className="h-px bg-line flex-1" />
-              </div>
-
-              <button
-                onClick={handleGoogleLogin}
-                disabled={isLoading}
-                className="relative flex h-[54px] w-full items-center justify-center rounded-full bg-surface-1 border border-line-strong text-ink active:scale-[0.97] transition-transform disabled:opacity-50 hover:bg-surface-2"
-              >
-                {/* Inline Google mark — no external image dependency */}
-                <svg className="h-5 w-5 absolute left-7" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.62v3h3.87c2.26-2.09 3.57-5.17 3.57-8.81z" />
-                  <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.93-2.91l-3.87-3a7.24 7.24 0 0 1-10.78-3.8H1.29v3.1A12 12 0 0 0 12 24z" />
-                  <path fill="#FBBC05" d="M5.28 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.29a12 12 0 0 0 0 10.78l3.99-3.1z" />
-                  <path fill="#EA4335" d="M12 4.77c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.97 11.97 0 0 0 1.29 6.6l3.99 3.1A7.24 7.24 0 0 1 12 4.77z" />
-                </svg>
-                <span className="font-semibold uppercase tracking-[0.1em] text-[12px]">Continue with Google</span>
-              </button>
 
               <div className="mt-10 text-center">
                 <p className="text-[13px] text-ink-soft">
