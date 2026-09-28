@@ -121,9 +121,12 @@ def _load_pipeline():
             from huggingface_hub import snapshot_download
             from model.pipeline import CatVTONPipeline  # noqa: E501 (vendored)
 
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
             attn_path = snapshot_download(
                 repo_id=ATTN_REPO,
                 allow_patterns=["mix-48k-1024/attention/*"],
+                local_files_only=True,
             )
             logger.info("Loading CatVTON pipeline (base=%s)...", BASE_MODEL_REPO)
             pipeline = CatVTONPipeline(
@@ -207,20 +210,14 @@ def _person_silhouette(person_bgr: np.ndarray) -> np.ndarray | None:
 
 
 def _clip_to_silhouette(mask: np.ndarray, silhouette: np.ndarray, w: int, h: int) -> np.ndarray | None:
-    """Confine the repaint region to the person (plus a thin blending halo).
+    """Confine the repaint region strictly to the person silhouette.
 
-    Any background inside the mask comes back as regenerated pixels and shows
-    up as a visible seam after compositing; clipping keeps the mask boundary
-    on the person, where generated garment meets original garment/skin.
-    Returns None when the intersection is too small to be trusted.
+    Prevents mask dilation into the background, which causes blurry halo
+    artifacts and corrupted background pixels around the subject.
     """
-    halo = max(int(min(w, h) * 0.012), 4)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * halo + 1, 2 * halo + 1))
-    clipped = cv2.bitwise_and(mask, cv2.dilate(silhouette, kernel))
+    clipped = cv2.bitwise_and(mask, silhouette)
     if int((clipped > 0).sum()) < 0.02 * w * h:
         return None
-    clipped = cv2.GaussianBlur(clipped, (15, 15), 0)
-    _, clipped = cv2.threshold(clipped, 127, 255, cv2.THRESH_BINARY)
     return clipped
 
 
@@ -391,8 +388,30 @@ def _protect_identity_regions(
             0, 0, 360, 0, -1,
         )
 
+        # Defect 3 Fix: Protect anatomical neck column connecting chin to clavicle collar line
+        # so real neck skin is preserved and collar transitions smoothly without a harsh horizontal line
+        ls, rs = _pt(lm, 11, w, h), _pt(lm, 12, w, h)
+        if ls is not None and rs is not None:
+            collar_y = (ls[1] + rs[1]) / 2.0
+            collar_x = (ls[0] + rs[0]) / 2.0
+            neck_bot_y = collar_y - shoulder_w * 0.04
+            if neck_bot_y > chin_y:
+                top_w = half_w * 0.60
+                bot_w = shoulder_w * 0.20
+                neck_poly = np.array(
+                    [
+                        [center_x - top_w, chin_y - 2],
+                        [center_x + top_w, chin_y - 2],
+                        [collar_x + bot_w, neck_bot_y],
+                        [collar_x - bot_w, neck_bot_y],
+                    ],
+                    dtype=np.int32,
+                )
+                cv2.fillPoly(mask, [neck_poly], 0)
+
     for wrist_index, elbow_index, knuckle_indices in ((15, 13, (19, 17, 21)), (16, 14, (20, 18, 22))):
         wrist = _pt(lm, wrist_index, w, h)
+        elbow = _pt(lm, elbow_index, w, h)
         if wrist is None:
             continue
         knuckles = [p for i in knuckle_indices if (p := _pt(lm, i, w, h)) is not None]
@@ -400,8 +419,8 @@ def _protect_identity_regions(
             knuckle_x = sum(p[0] for p in knuckles) / len(knuckles)
             knuckle_y = sum(p[1] for p in knuckles) / len(knuckles)
             center = ((wrist[0] + 2 * knuckle_x) / 3, (wrist[1] + 2 * knuckle_y) / 3)
+            hand_r = int(shoulder_w * 0.25)
         else:
-            elbow = _pt(lm, elbow_index, w, h)
             if elbow is not None:
                 # Extrapolate past the wrist along the forearm; keeps the
                 # cuff area paintable while covering the palm and fingers.
@@ -411,7 +430,24 @@ def _protect_identity_regions(
                 )
             else:
                 center = wrist
-        cv2.circle(mask, (int(center[0]), int(center[1])), int(shoulder_w * 0.22), 0, -1)
+            hand_r = int(shoulder_w * 0.22)
+        cv2.circle(mask, (int(center[0]), int(center[1])), hand_r, 0, -1)
+
+        # Defect 1 Fix: Protect forearm from mid-forearm to wrist so short/medium sleeves
+        # terminate naturally without phantom sleeve fabric, deformed arms, or arm-across-chest occlusion errors.
+        if elbow is not None:
+            p_start = (
+                elbow[0] + (wrist[0] - elbow[0]) * 0.40,
+                elbow[1] + (wrist[1] - elbow[1]) * 0.40,
+            )
+            forearm_thickness = int(shoulder_w * 0.24)
+            cv2.line(
+                mask,
+                (int(p_start[0]), int(p_start[1])),
+                (int(wrist[0]), int(wrist[1])),
+                0,
+                thickness=max(forearm_thickness, 12),
+            )
 
     if cloth_type in {"lower_body", "dress"}:
         for heel_index, toe_index in ((29, 31), (30, 32)):
@@ -513,7 +549,13 @@ def _crop_window(array: np.ndarray, window: tuple[int, int, int, int], *, fill: 
     )
 
 
-def _composite_result_full_res(person_pil, result_pil, mask_array: np.ndarray, window: tuple[int, int, int, int]):
+def _composite_result_full_res(
+    person_pil,
+    result_pil,
+    mask_array: np.ndarray,
+    window: tuple[int, int, int, int],
+    silhouette: np.ndarray | None = None,
+):
     """Paste the generated garment region back onto the original photo.
 
     The pipeline VAE-decodes the whole frame, so face, hands and background
@@ -538,8 +580,16 @@ def _composite_result_full_res(person_pil, result_pil, mask_array: np.ndarray, w
     result_valid = result_up[vy0 - y0 : vy1 - y0, vx0 - x0 : vx1 - x0]
 
     mask_valid = mask_array[vy0:vy1, vx0:vx1].astype(np.float32) / 255.0
-    feather_sigma = max(2.0, (x1 - x0) / 256.0)
+    # Defect 3 Fix: Adaptive smooth feathering for interior garment seams
+    feather_sigma = max(4.5, (x1 - x0) / 110.0)
     alpha = cv2.GaussianBlur(mask_valid, (0, 0), feather_sigma)[..., None]
+
+    if silhouette is not None:
+        # Strictly zero out any alpha in the background outside the person silhouette
+        # to eliminate halo artifacts and guarantee background pixels remain pixel-original.
+        sil_valid = (silhouette[vy0:vy1, vx0:vx1] > 0).astype(np.float32)
+        sil_edge = cv2.GaussianBlur(sil_valid, (3, 3), 0)[..., None]
+        alpha = np.minimum(alpha, sil_edge)
 
     region = person_np[vy0:vy1, vx0:vx1]
     person_np[vy0:vy1, vx0:vx1] = alpha * result_valid + (1.0 - alpha) * region
@@ -654,7 +704,7 @@ def generate_local_tryon(
     if repaint and window is not None:
         if progress_callback:
             progress_callback(0.97, "Blending with your photo")
-        result = _composite_result_full_res(person_pil, result, mask_array, window)
+        result = _composite_result_full_res(person_pil, result, mask_array, window, silhouette=silhouette)
 
     buffer = io.BytesIO()
     result.save(buffer, format="PNG")
