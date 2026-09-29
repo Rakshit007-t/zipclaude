@@ -135,8 +135,9 @@ def run_benchmark(run_label: str = "baseline"):
 
         # Pre-calculate silhouette
         person_bgr = cv2.cvtColor(np.array(person_img), cv2.COLOR_RGB2BGR)
+        garment_img = Image.open(case["garment"]).convert("RGB")
         silhouette = _person_silhouette(person_bgr)
-        mask = build_garment_mask(person_bgr, case["cloth_type"], silhouette=silhouette)
+        mask = build_garment_mask(person_bgr, case["cloth_type"], silhouette=silhouette, garment_pil=garment_img)
 
         torch.cuda.reset_peak_memory_stats()
         t0 = time.perf_counter()

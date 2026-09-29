@@ -221,10 +221,68 @@ def _clip_to_silhouette(mask: np.ndarray, silhouette: np.ndarray, w: int, h: int
     return clipped
 
 
+def _is_sleeveless_garment(garment_pil) -> bool:
+    """True if target garment has no lateral sleeves (vest, tank, strap dress, sleeveless gown)."""
+    if garment_pil is None:
+        return False
+    try:
+        arr = np.array(garment_pil)
+        if arr.ndim == 3:
+            gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = arr
+        fg = gray < 240
+        ys, xs = np.nonzero(fg)
+        if len(xs) == 0:
+            return False
+        h, w = arr.shape[:2]
+        top_y, bot_y = ys.min(), ys.max()
+        left_x, right_x = xs.min(), xs.max()
+        total_h = max(bot_y - top_y, 1)
+        total_w = right_x - left_x
+        fill_w = total_w / w
+        chest_mask = fg[int(top_y + total_h * 0.15) : int(top_y + total_h * 0.35), :]
+        chest_xs = np.nonzero(chest_mask)[1]
+        chest_fill = (chest_xs.max() - chest_xs.min()) / w if len(chest_xs) > 0 else fill_w
+        return fill_w < 0.80 or chest_fill < 0.72
+    except Exception:
+        return False
+
+
+def _is_forearm_bare_skin(person_bgr: np.ndarray, lm, w: int, h: int) -> bool:
+    """True if the person's forearms already consist of bare human skin (not clothing sleeves)."""
+    try:
+        nose = lm[0]
+        face_roi = person_bgr[max(0, int(nose.y * h) - 8) : min(h, int(nose.y * h) + 8), max(0, int(nose.x * w) - 8) : min(w, int(nose.x * w) + 8)]
+        if face_roi.size == 0:
+            return True
+        face_ycrcb = cv2.cvtColor(face_roi, cv2.COLOR_BGR2YCrCb).mean(axis=(0, 1))
+
+        for el_i, wr_i in ((13, 15), (14, 16)):
+            el, wr = lm[el_i], lm[wr_i]
+            if (el.visibility or 1.0) < 0.3 or (wr.visibility or 1.0) < 0.3:
+                continue
+            fx, fy = int((el.x + wr.x) / 2 * w), int((el.y + wr.y) / 2 * h)
+            fore_roi = person_bgr[max(0, fy - 8) : min(h, fy + 8), max(0, fx - 8) : min(w, fx + 8)]
+            if fore_roi.size == 0:
+                continue
+            fore_ycrcb = cv2.cvtColor(fore_roi, cv2.COLOR_BGR2YCrCb).mean(axis=(0, 1))
+            cr_diff = abs(face_ycrcb[1] - fore_ycrcb[1])
+            cb_diff = abs(face_ycrcb[2] - fore_ycrcb[2])
+            chroma_dist = np.sqrt(cr_diff**2 + cb_diff**2)
+            in_skin = (128 <= fore_ycrcb[1] <= 178) and (75 <= fore_ycrcb[2] <= 132)
+            if not in_skin or chroma_dist > 18.0:
+                return False
+        return True
+    except Exception:
+        return True
+
+
 def build_garment_mask(
     person_bgr: np.ndarray,
     cloth_type: str,
     silhouette: np.ndarray | None = None,
+    garment_pil=None,
 ) -> np.ndarray:
     """Binary mask (uint8, 255 = repaint region) for the garment area.
 
@@ -268,6 +326,12 @@ def build_garment_mask(
     neck_y = min(ls[1], rs[1]) - shoulder_w * 0.35
     pad_x = shoulder_w * 0.45
 
+    sleeveless = _is_sleeveless_garment(garment_pil)
+    bare_forearms = _is_forearm_bare_skin(person_bgr, lm, w, h) if lm is not None else True
+    # Protect forearms only when target garment has sleeves AND source person already has bare skin.
+    # When target garment is sleeveless OR source person is wearing long sleeves, forearms must be repainted into skin.
+    protect_forearms = (not sleeveless) and bare_forearms
+
     if silhouette is not None:
         # Full-width bands at garment height; the silhouette clip confines
         # them to the person, so generosity costs nothing.
@@ -276,6 +340,11 @@ def build_garment_mask(
             # Hips out of frame => close-up shot: the garment runs to the
             # bottom edge.
             band_bottom = hip_y + shoulder_w * 0.25 if hips_visible else h
+            if not protect_forearms:
+                wr_pts = [_pt(lm, 15, w, h), _pt(lm, 16, w, h)]
+                valid_wr = [p[1] for p in wr_pts if p is not None]
+                if valid_wr:
+                    band_bottom = max(band_bottom, max(valid_wr) + 5)
             cv2.rectangle(band, (0, int(max(neck_y, 0))), (w, int(min(band_bottom, h))), 255, -1)
         if cloth_type in {"lower_body", "dress"}:
             la, ra = _pt(lm, 27, w, h), _pt(lm, 28, w, h)
@@ -290,8 +359,9 @@ def build_garment_mask(
         clipped = _clip_to_silhouette(band, silhouette, w, h)
         if clipped is not None:
             if _flag("VTON_PROTECT_FACE_HANDS"):
-                _protect_identity_regions(clipped, lm, w, h, shoulder_w, cloth_type)
+                _protect_identity_regions(clipped, lm, w, h, shoulder_w, cloth_type, protect_forearms=protect_forearms)
             return clipped
+
 
     left_x = min(ls[0], rs[0]) - pad_x
     right_x = max(ls[0], rs[0]) + pad_x
@@ -344,7 +414,7 @@ def build_garment_mask(
     mask = cv2.GaussianBlur(mask, (31, 31), 0)
     _, mask = cv2.threshold(mask, 32, 255, cv2.THRESH_BINARY)
     if _flag("VTON_PROTECT_FACE_HANDS"):
-        _protect_identity_regions(mask, lm, w, h, shoulder_w, cloth_type)
+        _protect_identity_regions(mask, lm, w, h, shoulder_w, cloth_type, protect_forearms=protect_forearms)
     return mask
 
 
@@ -355,6 +425,7 @@ def _protect_identity_regions(
     h: int,
     shoulder_w: float,
     cloth_type: str,
+    protect_forearms: bool = True,
 ) -> None:
     """Zero out face, hands and feet so diffusion never repaints them.
 
@@ -435,7 +506,7 @@ def _protect_identity_regions(
 
         # Defect 1 Fix: Protect forearm from mid-forearm to wrist so short/medium sleeves
         # terminate naturally without phantom sleeve fabric, deformed arms, or arm-across-chest occlusion errors.
-        if elbow is not None:
+        if protect_forearms and elbow is not None:
             p_start = (
                 elbow[0] + (wrist[0] - elbow[0]) * 0.40,
                 elbow[1] + (wrist[1] - elbow[1]) * 0.40,
@@ -634,7 +705,7 @@ def generate_local_tryon(
 
     person_bgr = cv2.cvtColor(np.array(person_pil), cv2.COLOR_RGB2BGR)
     silhouette = _person_silhouette(person_bgr) if _flag("VTON_CLIP_TO_SILHOUETTE") else None
-    mask_array = build_garment_mask(person_bgr, cloth_type, silhouette=silhouette)
+    mask_array = build_garment_mask(person_bgr, cloth_type, silhouette=silhouette, garment_pil=garment_pil)
 
     repaint = _flag("VTON_REPAINT")
     if repaint:
