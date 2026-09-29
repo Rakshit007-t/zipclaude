@@ -587,9 +587,9 @@ def _composite_result_full_res(
     if silhouette is not None:
         # Strictly zero out any alpha in the background outside the person silhouette
         # to eliminate halo artifacts and guarantee background pixels remain pixel-original.
-        sil_valid = (silhouette[vy0:vy1, vx0:vx1] > 0).astype(np.float32)
-        sil_edge = cv2.GaussianBlur(sil_valid, (3, 3), 0)[..., None]
-        alpha = np.minimum(alpha, sil_edge)
+        sil_binary = (silhouette[vy0:vy1, vx0:vx1] > 0).astype(np.float32)[..., None]
+        sil_edge = cv2.GaussianBlur(sil_binary, (3, 3), 0)[..., None]
+        alpha = np.minimum(alpha, sil_edge) * sil_binary
 
     region = person_np[vy0:vy1, vx0:vx1]
     person_np[vy0:vy1, vx0:vx1] = alpha * result_valid + (1.0 - alpha) * region

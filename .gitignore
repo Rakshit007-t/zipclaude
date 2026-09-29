@@ -48,4 +48,7 @@ backups/
 *_app_*.json
 *_replicas.json
 *_spec.yaml
+
+# Benchmark test artifacts
+benchmark_results/
 
