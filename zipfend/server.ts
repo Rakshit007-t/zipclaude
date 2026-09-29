@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import net from "net";
 import fs from "fs";
+import https from "https";
 
 function canUsePort(port: number) {
   return new Promise<boolean>((resolve) => {
@@ -40,6 +41,42 @@ async function startServer() {
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=()");
     next();
+  });
+
+  // Transparent Appwrite proxy for staging to bypass certificate authority mismatch
+  app.use("/appwrite-v1", (req, res) => {
+    const options = {
+      hostname: "ca-zipright-appwrite.calmfield-d6fa58ac.centralindia.azurecontainerapps.io",
+      port: 443,
+      path: "/v1" + req.url,
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: "appwrite.zipright.in",
+      },
+      rejectUnauthorized: false,
+    };
+    const proxyReq = https.request(options, (proxyRes) => {
+      const headers = { ...proxyRes.headers };
+      if (headers["set-cookie"]) {
+        const rawCookies = Array.isArray(headers["set-cookie"])
+          ? headers["set-cookie"]
+          : [headers["set-cookie"]];
+        headers["set-cookie"] = rawCookies.map((cookie: string) =>
+          cookie
+            .replace(/domain=[^;]+;?\s*/gi, "")
+            .replace(/secure;?\s*/gi, "")
+            .replace(/samesite=none;?\s*/gi, "SameSite=Lax;")
+        );
+      }
+      res.writeHead(proxyRes.statusCode || 500, headers);
+      proxyRes.pipe(res, { end: true });
+    });
+    proxyReq.on("error", (err) => {
+      console.error("Appwrite proxy error:", err);
+      res.status(502).json({ message: "Appwrite proxy error" });
+    });
+    req.pipe(proxyReq, { end: true });
   });
 
   // API routes FIRST

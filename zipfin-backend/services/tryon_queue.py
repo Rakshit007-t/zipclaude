@@ -128,12 +128,15 @@ class TryOnJobQueue:
         try:
             db = get_firestore_client()
             firestore_data = {
+                "job_id": job.job_id,
+                "user_id": job.user_id,
                 "jobId": job.job_id,
                 "userId": job.user_id,
                 "status": job.status,
                 "progress": job.progress,
                 "stage": job.stage,
                 "engine": job.engine,
+                "result_url": job.result_url,
                 "resultUrl": job.result_url,
                 "error": job.error,
                 "retryCount": job.retry_count,
