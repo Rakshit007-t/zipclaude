@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { categoryToClothType, type ClothType } from '../services/tryonService';
+import { demoProducts } from '../services/demoProducts';
+import { useAppNavigation } from '../utils/useAppNavigation';
 
 // Landmark indices (MediaPipe Pose)
 const L_SHOULDER = 11;
@@ -812,16 +814,29 @@ function prepareGarmentSprite(image: HTMLImageElement): HTMLCanvasElement | HTML
 const LiveTryOn: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Garment catalog integration: check navigation state, URL params, or canonical catalog
   const incomingProduct = location.state?.product;
-  const defaultProduct = {
-    id: 'live-default-1',
-    brand: 'Studio',
-    category: 'upper_body',
-    image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=800&auto=format&fit=crop',
-  };
-  const product = incomingProduct || defaultProduct;
+  const initialCatalogProduct = (() => {
+    if (incomingProduct) return incomingProduct;
+    const searchParams = new URLSearchParams(location.search);
+    const paramId = searchParams.get('id') || searchParams.get('productId');
+    if (paramId) {
+      const found = demoProducts.find(p => p.id === paramId);
+      if (found) return found;
+    }
+    // Default to canonical catalog apparel item
+    return demoProducts.find(p => p.type === 'shirt' || p.type === 'tshirt' || p.type === 'jacket') || demoProducts[0];
+  })();
+
+  const [product, setProduct] = useState<any>(initialCatalogProduct);
   const garmentUrl: string | undefined = product?.image;
-  const clothType: ClothType = categoryToClothType(product?.category);
+  const clothType: ClothType = categoryToClothType(product?.category || product?.type);
+
+  const productRef = useRef(product);
+  const clothTypeRef = useRef(clothType);
+  const spriteRef = useRef<HTMLCanvasElement | HTMLImageElement | null>(null);
+  const spriteRatioRef = useRef<number>(1.3);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -842,6 +857,11 @@ const LiveTryOn: React.FC = () => {
   const statusRef = useRef(status);
 
   useEffect(() => {
+    productRef.current = product;
+    clothTypeRef.current = categoryToClothType(product?.category || product?.type);
+  }, [product]);
+
+  useEffect(() => {
     opacityRef.current = opacity;
   }, [opacity]);
 
@@ -849,17 +869,55 @@ const LiveTryOn: React.FC = () => {
     statusRef.current = status;
   }, [status]);
 
-  useEffect(() => {
-    if (!garmentUrl) {
-      setStatus('error');
-      setErrorMessage('No garment selected. Open a product first.');
-      return;
-    }
+  const loadGarmentSprite = (url: string): Promise<{ sprite: HTMLCanvasElement | HTMLImageElement; ratio: number }> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const sprite = prepareGarmentSprite(img);
+        const ratio = img.naturalHeight / Math.max(img.naturalWidth, 1);
+        resolve({ sprite, ratio });
+      };
+      img.onerror = () => {
+        const plain = new Image();
+        plain.decoding = 'async';
+        plain.onload = () => {
+          const ratio = plain.naturalHeight / Math.max(plain.naturalWidth, 1);
+          resolve({ sprite: plain, ratio });
+        };
+        plain.onerror = () => reject(new Error('Could not load the garment image.'));
+        plain.src = url;
+      };
+      img.src = url;
+    });
 
+  // Hot-swap garment texture when user selects another catalog item
+  useEffect(() => {
+    if (!garmentUrl) return;
+    let cancelled = false;
+    loadGarmentSprite(garmentUrl)
+      .then(({ sprite, ratio }) => {
+        if (cancelled) return;
+        spriteRef.current = sprite;
+        spriteRatioRef.current = ratio;
+        const canvas = canvasRef.current;
+        if (canvas && canvas.width && canvas.height) {
+          warpRendererRef.current?.destroy();
+          warpRendererRef.current = createWarpMeshRenderer(canvas.width, canvas.height, sprite);
+        }
+      })
+      .catch((err) => {
+        console.warn('Live try-on garment sprite swap warning:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [garmentUrl]);
+
+  useEffect(() => {
     let landmarker: PoseLandmarker | null = null;
     let stream: MediaStream | null = null;
-    let sprite: HTMLCanvasElement | HTMLImageElement | null = null;
-    let spriteRatio = 1.3; // height / width fallback
     let cancelled = false;
     let lastVideoTime = -1;
     let lastPoseInferenceAt = Number.NEGATIVE_INFINITY;
@@ -910,34 +968,17 @@ const LiveTryOn: React.FC = () => {
       }
     };
 
-    const loadGarment = () =>
-      new Promise<void>((resolve, reject) => {
-        const img = new Image();
-        img.decoding = 'async';
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          sprite = prepareGarmentSprite(img);
-          spriteRatio = img.naturalHeight / Math.max(img.naturalWidth, 1);
-          resolve();
-        };
-        img.onerror = () => {
-          // Retry without CORS (sprite will be tainted but still drawable).
-          const plain = new Image();
-          plain.decoding = 'async';
-          plain.onload = () => {
-            sprite = plain;
-            spriteRatio = plain.naturalHeight / Math.max(plain.naturalWidth, 1);
-            resolve();
-          };
-          plain.onerror = () => reject(new Error('Could not load the garment image.'));
-          plain.src = garmentUrl;
-        };
-        img.src = garmentUrl;
-      });
-
     const setup = async () => {
       try {
-        await loadGarment();
+        if (!spriteRef.current && garmentUrl) {
+          try {
+            const { sprite, ratio } = await loadGarmentSprite(garmentUrl);
+            spriteRef.current = sprite;
+            spriteRatioRef.current = ratio;
+          } catch (e) {
+            console.warn('Initial garment load warning:', e);
+          }
+        }
         if (cancelled) return;
 
         const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL);
@@ -954,8 +995,6 @@ const LiveTryOn: React.FC = () => {
           landmarker = await createLandmarker('GPU');
         } catch (gpuError) {
           if (cancelled) return;
-          // A usable CPU tracker is preferable to failing the complete try-on
-          // experience on devices without a compatible WebGL delegate.
           console.warn('Live try-on GPU tracker unavailable; using CPU fallback.', gpuError);
           landmarker = await createLandmarker('CPU');
         }
@@ -992,8 +1031,8 @@ const LiveTryOn: React.FC = () => {
         context.imageSmoothingQuality = 'high';
         syncCanvasSize(canvas, video);
 
-        if (sprite) {
-          warpRendererRef.current = createWarpMeshRenderer(canvas.width, canvas.height, sprite);
+        if (spriteRef.current) {
+          warpRendererRef.current = createWarpMeshRenderer(canvas.width, canvas.height, spriteRef.current);
         }
 
         statusRef.current = 'tracking';
@@ -1029,7 +1068,10 @@ const LiveTryOn: React.FC = () => {
       const midX = (ls.x + rs.x) / 2;
       const midY = (ls.y + rs.y) / 2;
 
-      if (clothType === 'lower_body') {
+      const currentClothType = clothTypeRef.current;
+      const currentSpriteRatio = spriteRatioRef.current;
+
+      if (currentClothType === 'lower_body') {
         if (!visible(L_HIP) || !visible(R_HIP)) return null;
         const lh = { x: mirrored(lm[L_HIP].x) * w, y: lm[L_HIP].y * h };
         const rh = { x: mirrored(lm[R_HIP].x) * w, y: lm[R_HIP].y * h };
@@ -1043,7 +1085,7 @@ const LiveTryOn: React.FC = () => {
         return { cx: hipX, cy: hipY + height * 0.48, width, height, angle };
       }
 
-      if (clothType === 'dress') {
+      if (currentClothType === 'dress') {
         const ankleY = visible(L_ANKLE) && visible(R_ANKLE)
           ? (lm[L_ANKLE].y * h + lm[R_ANKLE].y * h) / 2
           : midY + shoulderWidth * 4;
@@ -1053,7 +1095,7 @@ const LiveTryOn: React.FC = () => {
 
       // upper_body / auto: hang from the shoulders
       const width = shoulderWidth * 2.25;
-      const height = width * spriteRatio;
+      const height = width * currentSpriteRatio;
       return { cx: midX, cy: midY + height * 0.38, width, height, angle };
     };
 
@@ -1126,6 +1168,7 @@ const LiveTryOn: React.FC = () => {
         lastLandmarks = result.landmarks?.[0] ?? null;
       }
 
+      const sprite = spriteRef.current;
       if (lastLandmarks && sprite) {
         const target = computeAnchor(lastLandmarks, canvas.width, canvas.height);
         if (target) {
@@ -1139,7 +1182,7 @@ const LiveTryOn: React.FC = () => {
               canvas.height,
               anchor,
               smoothedMeshRef,
-              clothType
+              clothTypeRef.current
             );
 
             if (warpMesh && warpRendererRef.current) {
@@ -1207,14 +1250,14 @@ const LiveTryOn: React.FC = () => {
       if (videoRef.current) videoRef.current.srcObject = null;
       landmarker?.close();
       renderContextRef.current = null;
-      sprite = null;
+      spriteRef.current = null;
       smoothedArmLandmarksRef.current = null;
       smoothedMeshRef.current = null;
       warpRendererRef.current?.destroy();
       warpRendererRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [garmentUrl, clothType]);
+  }, []);
 
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-hidden font-sans select-none">
@@ -1223,15 +1266,18 @@ const LiveTryOn: React.FC = () => {
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/70 to-transparent">
-        <button aria-label="Go back"
+        <button
+          aria-label="Go back"
           onClick={() => navigate(-1)}
           className="h-10 w-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 active:scale-95 transition-all"
         >
           <span className="material-symbols-outlined text-[18px] text-brand">arrow_back</span>
         </button>
-        <div className="flex flex-col items-center">
-          <span className="text-[11px] font-bold text-gray-300">{product?.brand || 'Live'}</span>
-          <span className="text-[11px] font-bold tracking-tight text-white">Live Try-On</span>
+        <div className="flex flex-col items-center max-w-[200px]">
+          <span className="text-[11px] font-bold text-gray-300">{product?.brand || 'ZipRIGHT'}</span>
+          <span className="text-[11px] font-bold tracking-tight text-white truncate text-center">
+            {product?.title || 'Live Try-On'}
+          </span>
         </div>
         <div className="h-10 px-3 flex items-center justify-center rounded-full bg-black/40 border border-white/10">
           <span className="text-[12px] font-bold text-brand">{fps} FPS</span>
@@ -1267,9 +1313,35 @@ const LiveTryOn: React.FC = () => {
 
       {/* Bottom controls */}
       {status === 'tracking' || status === 'no-person' ? (
-        <div className="absolute bottom-0 left-0 right-0 z-50 p-6 bg-gradient-to-t from-black/80 to-transparent">
-          <div className="max-w-md mx-auto flex items-center gap-4">
-            <span className="material-symbols-outlined text-[18px] text-brand">opacity</span>
+        <div className="absolute bottom-0 left-0 right-0 z-50 p-4 sm:p-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex flex-col gap-3">
+          {/* Real ZipRIGHT Catalog Garment Selector */}
+          <div className="max-w-md mx-auto w-full">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {demoProducts
+                .filter((p) => p.image && (p.category === 'Men' || p.category === 'Women' || p.type === 'shirt' || p.type === 'tshirt' || p.type === 'jacket' || p.type === 'kurta' || p.type === 'jeans'))
+                .map((item) => {
+                  const isSelected = item.id === product?.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setProduct(item)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all shrink-0 active:scale-95 ${
+                        isSelected
+                          ? 'bg-brand/25 border-brand text-white shadow-glow'
+                          : 'bg-black/50 border-white/10 text-gray-300 hover:text-white hover:border-white/30'
+                      }`}
+                    >
+                      <img src={item.image} alt={item.title} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                      <span className="text-[11px] font-medium whitespace-nowrap">{item.title}</span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+
+          {/* Opacity slider */}
+          <div className="max-w-md mx-auto w-full flex items-center gap-4">
+            <span className="material-symbols-outlined text-[18px] text-brand shrink-0">opacity</span>
             <input
               type="range"
               min={0.4}
@@ -1279,6 +1351,7 @@ const LiveTryOn: React.FC = () => {
               onChange={(e) => setOpacity(Number(e.target.value))}
               className="flex-1 accent-brand"
             />
+            <span className="text-[11px] font-mono text-gray-400 w-8 text-right">{Math.round(opacity * 100)}%</span>
           </div>
         </div>
       ) : null}
