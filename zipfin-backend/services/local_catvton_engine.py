@@ -459,16 +459,16 @@ def _protect_identity_regions(
             0, 0, 360, 0, -1,
         )
 
-        # Defect 3 Fix: Protect anatomical neck column connecting chin to clavicle collar line
-        # so real neck skin is preserved and collar transitions smoothly without a harsh horizontal line
+        # Anatomical neck column connecting chin to clavicle collar line
+        # Refined to anatomical width (0.13 of shoulder_w) so collar wings and crewneck bands render cleanly
         ls, rs = _pt(lm, 11, w, h), _pt(lm, 12, w, h)
         if ls is not None and rs is not None:
             collar_y = (ls[1] + rs[1]) / 2.0
             collar_x = (ls[0] + rs[0]) / 2.0
-            neck_bot_y = collar_y - shoulder_w * 0.04
+            neck_bot_y = collar_y - shoulder_w * 0.05
             if neck_bot_y > chin_y:
-                top_w = half_w * 0.60
-                bot_w = shoulder_w * 0.20
+                top_w = half_w * 0.45
+                bot_w = shoulder_w * 0.13
                 neck_poly = np.array(
                     [
                         [center_x - top_w, chin_y - 2],
