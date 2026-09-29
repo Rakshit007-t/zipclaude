@@ -45,14 +45,16 @@ async function startServer() {
 
   // Transparent Appwrite proxy for staging to bypass certificate authority mismatch
   app.use("/appwrite-v1", (req, res) => {
+    const upstreamHost = process.env.APPWRITE_UPSTREAM_HOSTNAME || "ca-zipright-appwrite.calmfield-d6fa58ac.centralindia.azurecontainerapps.io";
+    const hostHeader = process.env.APPWRITE_UPSTREAM_HOST_HEADER || "appwrite.zipright.in";
     const options = {
-      hostname: "ca-zipright-appwrite.calmfield-d6fa58ac.centralindia.azurecontainerapps.io",
-      port: 443,
+      hostname: upstreamHost,
+      port: Number(process.env.APPWRITE_UPSTREAM_PORT) || 443,
       path: "/v1" + req.url,
       method: req.method,
       headers: {
         ...req.headers,
-        host: "appwrite.zipright.in",
+        host: hostHeader,
       },
       rejectUnauthorized: false,
     };
