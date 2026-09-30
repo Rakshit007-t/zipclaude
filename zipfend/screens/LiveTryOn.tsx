@@ -893,6 +893,7 @@ const LiveTryOn: React.FC = () => {
   const aiCameraStreamRef = useRef<MediaStream | null>(null);
   const aiSessionRef = useRef<DecartRealtimeSession | null>(null);
   const aiTimerIntervalRef = useRef<number | null>(null);
+  const isConnectingRef = useRef<boolean>(false);
 
   // Check backend Decart status on mount
   useEffect(() => {
@@ -900,15 +901,15 @@ const LiveTryOn: React.FC = () => {
     getDecartStatus()
       .then((cfg) => {
         if (!mounted) return;
-        setIsAiAvailable(cfg.enabled);
         if (cfg.model) setAiModelName(cfg.model);
         if (cfg.max_session_seconds) {
           setAiMaxDuration(cfg.max_session_seconds);
           setAiTimeRemaining(cfg.max_session_seconds);
         }
         if (cfg.enabled) {
-          setVtoMode('ai');
+          setIsAiAvailable(true);
         } else {
+          setIsAiAvailable(false);
           setVtoMode('ar');
           setAiStatus('error');
           setAiErrorMessage('AI Live Try-On is currently disabled. Using AR Live instead.');
@@ -970,6 +971,7 @@ const LiveTryOn: React.FC = () => {
   const restartAiSession = async () => {
     stopAiSession();
     await releaseDecartSession();
+    await new Promise((r) => setTimeout(r, 200));
     setAiStatus('requesting-camera');
     setAiSessionTrigger((prev) => prev + 1);
   };
@@ -984,10 +986,12 @@ const LiveTryOn: React.FC = () => {
     if (isAiAvailable === null) return;
 
     let cancelled = false;
-    const session = new DecartRealtimeSession();
-    aiSessionRef.current = session;
+    let sessionInstance: DecartRealtimeSession | null = null;
+    let debounceTimer: number | null = null;
 
     async function initAiLive() {
+      if (isConnectingRef.current) return;
+      isConnectingRef.current = true;
       try {
         setAiStatus('requesting-camera');
         setAiErrorMessage('');
@@ -1043,7 +1047,10 @@ const LiveTryOn: React.FC = () => {
         const maxSeconds = tokenData.max_session_seconds || 60;
         setAiTimeRemaining(maxSeconds);
 
-        await session.start(
+        sessionInstance = new DecartRealtimeSession();
+        aiSessionRef.current = sessionInstance;
+
+        await sessionInstance.start(
           stream,
           tokenData,
           productRef.current,
@@ -1067,6 +1074,13 @@ const LiveTryOn: React.FC = () => {
             },
             onError: (err) => {
               if (cancelled) return;
+              if (err?.message?.includes('unpublish') || err?.message?.includes('Stale connect')) {
+                console.warn('Transient connect cancellation in onError, auto-recovering in 300ms...');
+                setTimeout(() => {
+                  if (!cancelled) setAiSessionTrigger((prev) => prev + 1);
+                }, 300);
+                return;
+              }
               setAiStatus('error');
               setAiErrorMessage(err.message || 'Decart realtime connection error.');
               stopAiSession();
@@ -1082,13 +1096,25 @@ const LiveTryOn: React.FC = () => {
         startCountdownTimer(maxSeconds);
       } catch (err: any) {
         if (cancelled) return;
+        if (err?.message?.includes('unpublish') || err?.message?.includes('Stale connect')) {
+          console.warn('Transient connect cancellation in catch, auto-recovering in 300ms...');
+          setTimeout(() => {
+            if (!cancelled) setAiSessionTrigger((prev) => prev + 1);
+          }, 300);
+          return;
+        }
         setAiStatus('error');
         setAiErrorMessage(err.message || 'Failed to start AI Live Try-On.');
         stopAiSession();
+      } finally {
+        isConnectingRef.current = false;
       }
     }
 
-    initAiLive();
+    // Debounce by 150ms so React 18/19 StrictMode mount-unmount-remount doesn't cause unpublish collisions
+    debounceTimer = window.setTimeout(() => {
+      initAiLive();
+    }, 150);
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -1101,18 +1127,36 @@ const LiveTryOn: React.FC = () => {
 
     return () => {
       cancelled = true;
+      isConnectingRef.current = false;
+      if (debounceTimer) {
+        window.clearTimeout(debounceTimer);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      stopAiSession();
+      if (sessionInstance) {
+        sessionInstance.disconnect();
+      }
+      if (aiCameraStreamRef.current) {
+        aiCameraStreamRef.current.getTracks().forEach((t) => t.stop());
+        aiCameraStreamRef.current = null;
+      }
+      if (localCameraVideoRef.current) {
+        localCameraVideoRef.current.srcObject = null;
+      }
+      if (aiVideoRef.current) {
+        aiVideoRef.current.srcObject = null;
+      }
+      setHasRemoteFrame(false);
+      setAiSessionActive(false);
       releaseDecartSession();
     };
   }, [vtoMode, isAiAvailable, aiSessionTrigger]);
 
-  // Dynamic garment update in AI mode
+  // Dynamic garment update in AI mode: only fire when actively streaming
   useEffect(() => {
-    if (vtoMode === 'ai' && aiSessionRef.current?.isActive() && product) {
+    if (vtoMode === 'ai' && aiStatus === 'streaming' && aiSessionRef.current?.isActive() && product) {
       aiSessionRef.current.updateGarment(product);
     }
-  }, [product, vtoMode]);
+  }, [product, vtoMode, aiStatus]);
 
   useEffect(() => {
     productRef.current = product;
