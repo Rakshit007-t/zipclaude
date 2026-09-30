@@ -109,8 +109,20 @@ const BottomNav = ({ zipPoints, unreadFriends, profileImage }: { zipPoints: numb
   }, [isZMenuOpen]);
 
   // Show on specific routes
-  const hiddenRoutes = ['/login', '/welcome', '/splash', '/fit-profile', '/smart-fit-scan', '/seller/add-product', '/seller/edit-product', '/developer'];
+  const hiddenRoutes = [
+    '/login',
+    '/welcome',
+    '/splash',
+    '/fit-profile',
+    '/smart-fit-scan',
+    '/seller/add-product',
+    '/seller/edit-product',
+    '/developer',
+    '/live-tryon',
+    '/live',
+  ];
   const showNav = !hiddenRoutes.some(r => location.pathname.startsWith(r));
+
 
   if (!showNav) return null;
 
@@ -378,8 +390,10 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
   // Full-bleed mobile shell: single container, overflow-x clipped so no
   // decorative element (shadows, stamps, transforms) can ever create
   // horizontal scroll on any phone width.
+  const isLiveTryOn = location.pathname.startsWith('/live-tryon') || location.pathname.startsWith('/live');
+
   return (
-    <div className="w-full max-w-[430px] mx-auto min-h-screen min-h-dvh bg-surface-0 relative overflow-x-hidden border-x border-line/50 transition-colors duration-300 shadow-2xl">
+    <div className={`w-full ${isLiveTryOn ? 'max-w-[1240px] border-none' : 'max-w-[430px] border-x border-line/50'} mx-auto min-h-screen min-h-dvh bg-surface-0 relative overflow-x-hidden transition-all duration-300 shadow-2xl`}>
         <SEOManager />
         <OfflineBanner />
         <Suspense fallback={<ScreenFallback />}>

@@ -882,11 +882,14 @@ const LiveTryOn: React.FC = () => {
   const [aiErrorMessage, setAiErrorMessage] = useState<string>('');
   const [aiTimeRemaining, setAiTimeRemaining] = useState<number>(60);
   const [aiMaxDuration, setAiMaxDuration] = useState<number>(60);
-  const [aiMirror, setAiMirror] = useState<boolean>(true);
+  const [aiMirror, setAiMirror] = useState<boolean>(false);
   const [aiSessionActive, setAiSessionActive] = useState<boolean>(false);
   const [aiSessionTrigger, setAiSessionTrigger] = useState<number>(0);
+  const [hasRemoteFrame, setHasRemoteFrame] = useState<boolean>(false);
+  const [showFramingGuide, setShowFramingGuide] = useState<boolean>(true);
 
   const aiVideoRef = useRef<HTMLVideoElement>(null);
+  const localCameraVideoRef = useRef<HTMLVideoElement>(null);
   const aiCameraStreamRef = useRef<MediaStream | null>(null);
   const aiSessionRef = useRef<DecartRealtimeSession | null>(null);
   const aiTimerIntervalRef = useRef<number | null>(null);
@@ -934,9 +937,13 @@ const LiveTryOn: React.FC = () => {
       aiCameraStreamRef.current.getTracks().forEach((track) => track.stop());
       aiCameraStreamRef.current = null;
     }
+    if (localCameraVideoRef.current) {
+      localCameraVideoRef.current.srcObject = null;
+    }
     if (aiVideoRef.current) {
       aiVideoRef.current.srcObject = null;
     }
+    setHasRemoteFrame(false);
     setAiSessionActive(false);
   };
 
@@ -984,6 +991,7 @@ const LiveTryOn: React.FC = () => {
       try {
         setAiStatus('requesting-camera');
         setAiErrorMessage('');
+        setHasRemoteFrame(false);
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -1000,6 +1008,28 @@ const LiveTryOn: React.FC = () => {
           return;
         }
         aiCameraStreamRef.current = stream;
+
+        // Camera distance assist: reset native camera zoom to minimum if supported
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack && typeof videoTrack.getCapabilities === 'function') {
+          try {
+            const caps: any = videoTrack.getCapabilities();
+            if (caps && 'zoom' in caps && caps.zoom) {
+              const minZoom = caps.zoom.min ?? 1.0;
+              await videoTrack.applyConstraints({
+                advanced: [{ zoom: minZoom } as any],
+              });
+            }
+          } catch (zoomErr) {
+            console.warn('Native camera zoom constraint skipped:', zoomErr);
+          }
+        }
+
+        // Show local camera in preview stage immediately while connecting to lower perceived latency
+        if (localCameraVideoRef.current) {
+          localCameraVideoRef.current.srcObject = stream;
+          localCameraVideoRef.current.play().catch(() => {});
+        }
 
         setAiStatus('connecting');
 
@@ -1020,10 +1050,15 @@ const LiveTryOn: React.FC = () => {
           {
             onRemoteStream: (remoteStream) => {
               if (cancelled) return;
+              // Detach local camera preview video immediately to ensure NO double-rendering
+              if (localCameraVideoRef.current) {
+                localCameraVideoRef.current.srcObject = null;
+              }
               if (aiVideoRef.current) {
                 aiVideoRef.current.srcObject = remoteStream;
                 aiVideoRef.current.play().catch((err) => console.warn('AI video play warning:', err));
               }
+              setHasRemoteFrame(true);
               setAiStatus('streaming');
               setAiSessionActive(true);
             },
@@ -1484,38 +1519,38 @@ const LiveTryOn: React.FC = () => {
   }, [vtoMode]);
 
   return (
-    <div className="relative h-screen w-full bg-black text-white overflow-hidden font-sans select-none">
-      {/* ── Visual Viewports ── */}
-      {vtoMode === 'ar' ? (
-        <>
-          <video ref={videoRef} className="hidden" playsInline muted />
-          <canvas ref={canvasRef} className="absolute inset-0 h-full w-full object-cover" />
-        </>
-      ) : (
-        <div className="absolute inset-0 h-full w-full overflow-hidden bg-zinc-950">
-          <video
-            ref={aiVideoRef}
-            autoPlay
-            playsInline
-            muted={false}
-            className={`h-full w-full object-cover ${aiMirror ? '-scale-x-100' : ''}`}
-          />
-        </div>
-      )}
-
+    <div className="relative min-h-screen w-full bg-[#0a0a0c] text-white flex flex-col justify-between font-sans select-none overflow-hidden">
       {/* ── Top Bar ── */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 py-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
-        {/* Left: Back Button */}
-        <button
-          aria-label="Go back"
-          onClick={() => {
-            stopAiSession();
-            navigate(-1);
-          }}
-          className="h-10 w-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 backdrop-blur-md active:scale-95 transition-all text-white hover:border-white/30"
-        >
-          <span className="material-symbols-outlined text-[18px] text-brand">arrow_back</span>
-        </button>
+      <div className="w-full max-w-[1240px] mx-auto px-4 py-3 flex items-center justify-between shrink-0 z-50">
+        {/* Left: Back Button & Mode Status */}
+        <div className="flex items-center gap-2">
+          <button
+            aria-label="Go back"
+            onClick={() => {
+              stopAiSession();
+              navigate(-1);
+            }}
+            className="h-10 w-10 flex items-center justify-center rounded-full bg-black/60 border border-white/10 backdrop-blur-md active:scale-95 transition-all text-white hover:border-white/30"
+          >
+            <span className="material-symbols-outlined text-[18px] text-brand">arrow_back</span>
+          </button>
+
+          {/* Active AI Stream Badge & Recommended Size */}
+          {vtoMode === 'ai' && aiStatus === 'streaming' && (
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 border border-emerald-500/40 backdrop-blur-md text-[11px] font-bold text-emerald-300 shadow-glow">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                <span className="tracking-wide">AI LIVE • {aiModelName.toUpperCase()}</span>
+              </div>
+              {recommendedSize && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-brand/50 backdrop-blur-md text-[11px] font-bold text-white shadow-glow">
+                  <span className="text-brand uppercase text-[10px]">Size:</span>
+                  <span className="font-mono text-brand">{recommendedSize}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Center: Mode Switcher (AI LIVE vs AR LIVE) */}
         <div className="flex items-center rounded-full bg-black/60 p-1 border border-white/10 backdrop-blur-md shadow-2xl">
@@ -1559,7 +1594,7 @@ const LiveTryOn: React.FC = () => {
                 <>
                   {/* Cost Protection Session Timer */}
                   <div
-                    className={`h-10 px-3 flex items-center gap-1.5 rounded-full border backdrop-blur-md ${
+                    className={`h-9 px-3 flex items-center gap-1.5 rounded-full border backdrop-blur-md ${
                       aiTimeRemaining <= 15
                         ? 'bg-red-500/20 border-red-500/50 text-red-400 animate-pulse'
                         : 'bg-black/50 border-white/10 text-white/90'
@@ -1578,7 +1613,7 @@ const LiveTryOn: React.FC = () => {
                       setAiStatus('stopped');
                     }}
                     title="Stop AI Live session"
-                    className="h-10 px-3 flex items-center gap-1 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 active:scale-95 transition-all text-xs font-bold"
+                    className="h-9 px-3 flex items-center gap-1 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 active:scale-95 transition-all text-xs font-bold"
                   >
                     <span className="material-symbols-outlined text-[16px]">stop</span>
                     <span className="hidden sm:inline">Stop</span>
@@ -1586,179 +1621,250 @@ const LiveTryOn: React.FC = () => {
                 </>
               ) : null}
 
+              {/* Guide silhouette toggle */}
+              <button
+                onClick={() => setShowFramingGuide((g) => !g)}
+                title={showFramingGuide ? 'Hide framing silhouette' : 'Show framing silhouette'}
+                className={`h-9 w-9 flex items-center justify-center rounded-full border backdrop-blur-md active:scale-95 transition-all ${
+                  showFramingGuide
+                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                    : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[17px]">accessibility_new</span>
+              </button>
+
               {/* Mirror toggle */}
               <button
                 onClick={() => setAiMirror((m) => !m)}
-                title={aiMirror ? 'Disable mirror' : 'Enable mirror'}
-                className="h-10 w-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 backdrop-blur-md active:scale-95 transition-all text-gray-300 hover:text-white"
+                title={aiMirror ? 'Switch to Natural orientation' : 'Switch to Mirrored orientation'}
+                className={`h-9 w-9 flex items-center justify-center rounded-full border backdrop-blur-md active:scale-95 transition-all ${
+                  aiMirror
+                    ? 'bg-white/20 border-white/30 text-white'
+                    : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'
+                }`}
               >
-                <span className="material-symbols-outlined text-[18px]">flip_camera_android</span>
+                <span className="material-symbols-outlined text-[17px]">flip_camera_android</span>
               </button>
             </>
           ) : (
-            <div className="h-10 px-3 flex items-center justify-center rounded-full bg-black/40 border border-white/10 backdrop-blur-md">
+            <div className="h-9 px-3 flex items-center justify-center rounded-full bg-black/40 border border-white/10 backdrop-blur-md">
               <span className="text-[12px] font-bold text-brand">{fps} FPS</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Active AI Stream Badge ── */}
-      {/* ── Active AI Stream Badge & Recommended Size ── */}
-      {vtoMode === 'ai' && aiStatus === 'streaming' && (
-        <div className="absolute top-20 left-4 sm:left-6 z-40 flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 border border-emerald-500/40 backdrop-blur-md text-[11px] font-bold text-emerald-300 shadow-glow">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-            <span className="tracking-wide">AI REALTIME • {aiModelName.toUpperCase()}</span>
-          </div>
-          {recommendedSize && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-brand/50 backdrop-blur-md text-[11px] font-bold text-white shadow-glow">
-              <span className="text-brand uppercase text-[10px]">Recommended Size:</span>
-              <span className="font-mono text-brand">{recommendedSize}</span>
+      {/* ── Responsive 16:9 Video Stage (Centered) ── */}
+      <div className="flex-1 w-full max-w-[1240px] mx-auto px-2 sm:px-4 flex items-center justify-center min-h-0 relative">
+        <div className="relative w-full max-w-[1100px] xl:max-w-[1200px] aspect-video max-h-[calc(100vh-175px)] bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex items-center justify-center">
+          {/* Mobile Status Badge inside stage */}
+          {vtoMode === 'ai' && aiStatus === 'streaming' && (
+            <div className="sm:hidden absolute top-3 left-3 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 border border-emerald-500/40 backdrop-blur-md text-[10px] font-bold text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>AI LIVE</span>
             </div>
+          )}
+
+          {vtoMode === 'ar' ? (
+            <>
+              <video ref={videoRef} className="hidden" playsInline muted />
+              <canvas ref={canvasRef} className="w-full h-full object-contain" />
+            </>
+          ) : (
+            <>
+              {/* Local Camera Preview: shown during connection to eliminate perceived latency */}
+              <video
+                ref={localCameraVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-contain -scale-x-100 transition-opacity duration-300 ${
+                  !hasRemoteFrame && (aiStatus === 'requesting-camera' || aiStatus === 'connecting')
+                    ? 'opacity-85 block'
+                    : 'opacity-0 hidden'
+                }`}
+              />
+
+              {/* Primary Decart Remote Stream */}
+              <video
+                ref={aiVideoRef}
+                autoPlay
+                playsInline
+                muted={false}
+                className={`w-full h-full object-contain transition-opacity duration-500 ${
+                  aiMirror ? '-scale-x-100' : ''
+                } ${hasRemoteFrame && aiStatus === 'streaming' ? 'opacity-100 block' : 'opacity-0 hidden'}`}
+              />
+
+              {/* Framing Silhouette Guide (subtle, non-intrusive) */}
+              {showFramingGuide && (aiStatus === 'connecting' || aiStatus === 'streaming') && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-25 transition-opacity duration-500">
+                  <svg
+                    className="w-auto h-[82%] max-w-[48%] stroke-emerald-400"
+                    viewBox="0 0 200 300"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    {/* Head Guide */}
+                    <ellipse cx="100" cy="52" rx="24" ry="30" strokeWidth="1.2" strokeDasharray="4 4" />
+                    {/* Neck */}
+                    <path d="M92 82V98 M108 82V98" strokeWidth="1.2" strokeDasharray="4 4" />
+                    {/* Shoulders & Torso Outline */}
+                    <path
+                      d="M92 98C76 102 46 114 40 140L36 215 M108 98C124 102 154 114 160 140L164 215"
+                      strokeWidth="1.2"
+                      strokeDasharray="4 4"
+                    />
+                    {/* Waist Boundary */}
+                    <path d="M58 260H142" strokeWidth="1.2" strokeDasharray="4 4" />
+                  </svg>
+                </div>
+              )}
+
+              {/* Floating Framing Prompt Pill */}
+              {aiStatus === 'streaming' && (
+                <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-medium text-gray-200 shadow-md">
+                  <span className="material-symbols-outlined text-[13px] text-emerald-400">accessibility_new</span>
+                  <span>Step back until your upper body fits inside the frame</span>
+                </div>
+              )}
+
+              {/* Connecting Overlay (with live camera underneath) */}
+              {(aiStatus === 'checking' || aiStatus === 'requesting-camera' || aiStatus === 'connecting') && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/40 backdrop-blur-[2px] p-6 text-center">
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/80 border border-emerald-500/40 backdrop-blur-md shadow-2xl">
+                    <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin shrink-0" />
+                    <span className="text-xs font-bold tracking-wide text-emerald-300">
+                      {aiStatus === 'requesting-camera'
+                        ? 'Requesting Camera...'
+                        : aiStatus === 'connecting'
+                        ? 'Connecting AI LIVE...'
+                        : 'Checking AI Service...'}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-gray-300/80 bg-black/50 px-3 py-1 rounded-full">
+                    Position your head and shoulders inside the guide
+                  </span>
+                </div>
+              )}
+
+              {/* Session Stopped Overlay */}
+              {aiStatus === 'stopped' && (
+                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/90 backdrop-blur-md p-6 text-center">
+                  <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <span className="material-symbols-outlined text-2xl">timer</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1 max-w-sm">
+                    <h3 className="text-base font-bold text-white">AI Live Session Completed</h3>
+                    <p className="text-xs text-gray-400">
+                      Realtime stream stopped after reaching the session limit ({aiMaxDuration}s) to preserve AI credits.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
+                    <button
+                      onClick={restartAiSession}
+                      className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold text-xs active:scale-95 transition-all shadow-glow"
+                    >
+                      Restart AI Live
+                    </button>
+                    <button
+                      onClick={() => setVtoMode('ar')}
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs active:scale-95 transition-all border border-white/10"
+                    >
+                      Use AR Live
+                    </button>
+                    <button
+                      onClick={() => navigate('/tryon-studio', { state: { product, recommendedSize } })}
+                      className="px-4 py-2 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand border border-brand/40 font-bold text-xs active:scale-95 transition-all"
+                    >
+                      Try Image VTO
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Overlay */}
+              {aiStatus === 'error' && (
+                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/90 backdrop-blur-md p-6 text-center">
+                  <div className="h-12 w-12 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                    <span className="material-symbols-outlined text-2xl">videocam_off</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1 max-w-sm">
+                    <span className="text-sm font-bold text-white">Live AI Try-On is temporarily unavailable</span>
+                    <p className="text-xs text-gray-400">{aiErrorMessage || 'Decart Lucy VTON service is not currently accessible.'}</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
+                    <button
+                      onClick={restartAiSession}
+                      className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold text-xs active:scale-95 transition-all shadow-glow"
+                    >
+                      Retry AI Live
+                    </button>
+                    <button
+                      onClick={() => setVtoMode('ar')}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs active:scale-95 transition-all shadow-lg"
+                    >
+                      Use AR Live
+                    </button>
+                    <button
+                      onClick={() => navigate('/tryon-studio', { state: { product, recommendedSize } })}
+                      className="px-4 py-2 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand border border-brand/40 font-bold text-xs active:scale-95 transition-all"
+                    >
+                      Try Image VTO
+                    </button>
+                    <button
+                      onClick={() => navigate(-1)}
+                      className="px-4 py-2 rounded-xl bg-white/10 text-white/80 font-bold text-xs active:scale-95 transition-all border border-white/10"
+                    >
+                      Go Back
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* AR LIVE Status Overlays */}
+          {vtoMode === 'ar' && (
+            <>
+              {status === 'loading' && (
+                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/80 backdrop-blur-sm">
+                  <div className="h-10 w-10 rounded-full border-2 border-brand border-t-transparent animate-spin"></div>
+                  <span className="text-[12px] font-bold text-brand">Starting AR tracker & camera</span>
+                </div>
+              )}
+              {status === 'no-person' && (
+                <div className="absolute top-4 left-0 right-0 z-40 flex justify-center">
+                  <div className="px-4 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[11px] font-medium text-white/90">
+                    Step back so your upper body is visible
+                  </div>
+                </div>
+              )}
+              {status === 'error' && (
+                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/90 p-6 text-center">
+                  <span className="material-symbols-outlined text-4xl text-red-500">videocam_off</span>
+                  <p className="text-xs text-white/80 max-w-xs">{errorMessage}</p>
+                  <button
+                    onClick={() => navigate(-1)}
+                    className="mt-2 px-6 py-2 bg-brand text-white font-bold text-xs rounded-xl active:scale-95 transition-all"
+                  >
+                    Go Back
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
-      )}
+      </div>
 
-      {/* ── AI LIVE Status Overlays ── */}
-      {vtoMode === 'ai' && (
-        <>
-          {(aiStatus === 'checking' || aiStatus === 'requesting-camera' || aiStatus === 'connecting') && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/85 backdrop-blur-md p-6 text-center">
-              <div className="relative">
-                <div className="h-14 w-14 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-emerald-400 text-lg">auto_awesome</span>
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold mb-0.5">AI LIVE TRY-ON</span>
-                <span className="text-base font-bold text-white tracking-wide">
-                  See the selected outfit on you in real time.
-                </span>
-                <span className="text-[12px] text-gray-400 max-w-xs mt-1">
-                  {aiStatus === 'requesting-camera'
-                    ? 'Requesting Camera Access...'
-                    : aiStatus === 'connecting'
-                    ? 'Connecting to Decart Lucy 3.5 Realtime...'
-                    : 'Checking AI Service Availability...'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {aiStatus === 'stopped' && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/90 backdrop-blur-md p-6 text-center">
-              <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                <span className="material-symbols-outlined text-2xl">timer</span>
-              </div>
-              <div className="flex flex-col items-center gap-1 max-w-sm">
-                <h3 className="text-base font-bold text-white">AI Live Session Completed</h3>
-                <p className="text-xs text-gray-400">
-                  Realtime stream stopped after reaching the session limit ({aiMaxDuration}s) to preserve AI credits.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
-                <button
-                  onClick={restartAiSession}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold text-xs active:scale-95 transition-all shadow-glow"
-                >
-                  Restart AI Live
-                </button>
-                <button
-                  onClick={() => setVtoMode('ar')}
-                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs active:scale-95 transition-all border border-white/10"
-                >
-                  Use AR Live
-                </button>
-                <button
-                  onClick={() => navigate('/tryon-studio', { state: { product, recommendedSize } })}
-                  className="px-4 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand border border-brand/40 font-bold text-xs active:scale-95 transition-all"
-                >
-                  Try Image VTO
-                </button>
-              </div>
-            </div>
-          )}
-
-          {aiStatus === 'error' && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/90 backdrop-blur-md p-6 text-center">
-              <div className="h-12 w-12 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-                <span className="material-symbols-outlined text-2xl">videocam_off</span>
-              </div>
-              <div className="flex flex-col items-center gap-1 max-w-sm">
-                <span className="text-sm font-bold text-white">Live AI Try-On is temporarily unavailable</span>
-                <p className="text-xs text-gray-400">{aiErrorMessage || 'Decart Lucy VTON service is not currently accessible.'}</p>
-              </div>
-              <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
-                <button
-                  onClick={restartAiSession}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold text-xs active:scale-95 transition-all shadow-glow"
-                >
-                  Retry AI Live
-                </button>
-                <button
-                  onClick={() => setVtoMode('ar')}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs active:scale-95 transition-all shadow-lg"
-                >
-                  Use AR Live
-                </button>
-                <button
-                  onClick={() => navigate('/tryon-studio', { state: { product, recommendedSize } })}
-                  className="px-4 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand border border-brand/40 font-bold text-xs active:scale-95 transition-all"
-                >
-                  Try Image VTO
-                </button>
-                <button
-                  onClick={() => navigate(-1)}
-                  className="px-4 py-2.5 rounded-xl bg-white/10 text-white/80 font-bold text-xs active:scale-95 transition-all border border-white/10"
-                >
-                  Go Back
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── AR LIVE Status Overlays ── */}
-      {vtoMode === 'ar' && (
-        <>
-          {status === 'loading' && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/80 backdrop-blur-sm">
-              <div className="h-12 w-12 rounded-full border-2 border-brand border-t-transparent animate-spin"></div>
-              <span className="text-[12px] font-bold text-brand">Starting AR tracker & camera</span>
-            </div>
-          )}
-          {status === 'no-person' && (
-            <div className="absolute top-24 left-0 right-0 z-40 flex justify-center">
-              <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
-                <span className="text-[12px] font-bold text-white/80">Step back so your upper body is visible</span>
-              </div>
-            </div>
-          )}
-          {status === 'error' && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/90 p-8 text-center">
-              <span className="material-symbols-outlined text-5xl text-red-500">videocam_off</span>
-              <p className="text-sm text-white/80 max-w-xs">{errorMessage}</p>
-              <button
-                onClick={() => navigate(-1)}
-                className="mt-2 px-8 py-3 bg-brand text-white font-bold text-xs rounded-xl active:scale-95 transition-all"
-              >
-                Go Back
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Bottom Controls & Garment Selector ── */}
+      {/* ── Bottom Controls & Compact Garment Selector ── */}
       {((vtoMode === 'ar' && (status === 'tracking' || status === 'no-person')) ||
-        (vtoMode === 'ai' && aiStatus === 'streaming')) && (
-        <div className="absolute bottom-0 left-0 right-0 z-50 p-4 sm:p-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent flex flex-col gap-3">
+        (vtoMode === 'ai' && (aiStatus === 'streaming' || aiStatus === 'connecting' || aiStatus === 'requesting-camera'))) && (
+        <div className="w-full max-w-[1240px] mx-auto px-4 py-2.5 shrink-0 z-50 flex flex-col gap-2">
           {/* Active Product Title & Brand */}
-          <div className="max-w-md mx-auto w-full flex items-center justify-between text-xs px-1">
-            <span className="font-bold text-white truncate max-w-[240px]">
+          <div className="w-full flex items-center justify-between text-xs px-1">
+            <span className="font-bold text-white truncate max-w-[280px]">
               {product?.title || 'Selected Garment'}
             </span>
             <span className="text-[11px] text-gray-400 font-mono">
@@ -1767,7 +1873,7 @@ const LiveTryOn: React.FC = () => {
           </div>
 
           {/* Curated Demo Garment Selector */}
-          <div className="max-w-md mx-auto w-full">
+          <div className="w-full">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               {[
                 ...CURATED_DEMO_GARMENTS,
@@ -1811,7 +1917,7 @@ const LiveTryOn: React.FC = () => {
           {/* Mode-specific Sub-controls */}
           {vtoMode === 'ar' ? (
             /* Opacity slider for AR Live */
-            <div className="max-w-md mx-auto w-full flex items-center gap-4">
+            <div className="w-full flex items-center gap-4">
               <span className="material-symbols-outlined text-[18px] text-brand shrink-0">opacity</span>
               <input
                 type="range"
@@ -1826,8 +1932,8 @@ const LiveTryOn: React.FC = () => {
             </div>
           ) : (
             /* AI Live Prompt Notification Pill */
-            <div className="max-w-md mx-auto w-full flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/50 border border-white/10 backdrop-blur-sm text-[11px] text-gray-300">
-              <span className="material-symbols-outlined text-[14px] text-emerald-400 shrink-0">auto_awesome</span>
+            <div className="w-full flex items-center gap-2 px-3 py-1 rounded-xl bg-black/50 border border-white/10 backdrop-blur-sm text-[11px] text-gray-300">
+              <span className="material-symbols-outlined text-[13px] text-emerald-400 shrink-0">auto_awesome</span>
               <span className="truncate">{buildGarmentTryonPrompt(product)}</span>
             </div>
           )}
