@@ -8,6 +8,7 @@ import { useAppNavigation } from '../utils/useAppNavigation';
 import { recordJourneyEvent } from '../services/styleJourney';
 import { saveFitProfile, type FitProfilePayload } from '../services/ziprightApi';
 import { AppBar, Badge, Button, Chip, Eyebrow, Modal, SegmentedControl, Sheet, Spinner } from '../components/ui';
+import { DEMO_PRESET_PROFILE, CURATED_DEMO_GARMENTS } from '../services/demoMode';
 
 interface FitData {
   gender: string;
@@ -720,6 +721,28 @@ const FitProfile: React.FC = () => {
     goBack('/manage-profiles');
   };
 
+  const handleQuickDemoFill = () => {
+    setProfileName(DEMO_PRESET_PROFILE.profileName);
+    setFitData(prev => ({
+      ...prev,
+      gender: DEMO_PRESET_PROFILE.gender,
+      brand: DEMO_PRESET_PROFILE.brand,
+      topSize: DEMO_PRESET_PROFILE.topSize,
+      heightUnit: DEMO_PRESET_PROFILE.heightUnit,
+      heightFt: DEMO_PRESET_PROFILE.heightFt,
+      heightIn: DEMO_PRESET_PROFILE.heightIn,
+      heightCm: DEMO_PRESET_PROFILE.heightCm,
+      weight: DEMO_PRESET_PROFILE.weight,
+      waistSize: DEMO_PRESET_PROFILE.waistSize,
+      chestSize: DEMO_PRESET_PROFILE.chestSize,
+      bustSize: DEMO_PRESET_PROFILE.bustSize,
+      hipsSize: DEMO_PRESET_PROFILE.hipsSize,
+      bodyShape: DEMO_PRESET_PROFILE.bodyShape,
+      fitPreference: DEMO_PRESET_PROFILE.fitPreference,
+    }));
+    showToast('Demo profile measurements loaded!', 'success');
+  };
+
   const handleSave = async () => {
     const validation = getProfileValidation(profileName, fitData);
     if (!validation.isComplete) {
@@ -872,8 +895,19 @@ const FitProfile: React.FC = () => {
       if (completeness >= 100) {
         recordJourneyEvent('profile_completed');
       }
-      // Saving a profile completes onboarding. Redirect to Home Dashboard.
-      navigate('/home', { replace: true });
+      // Primary Demo Journey: After saving Fit Profile, route directly to real size recommendation
+      const demoGarment = CURATED_DEMO_GARMENTS[0];
+      navigate('/recommendation', {
+        state: {
+          product: {
+            ...demoGarment,
+            source: 'fit_profile',
+          },
+          productUrl: demoGarment.url,
+          source: 'fit_profile',
+        },
+        replace: true,
+      });
     } catch (e) {
       console.error('[FitProfile] Save failed:', e);
       showToast(
@@ -947,6 +981,24 @@ const FitProfile: React.FC = () => {
               ></div>
             </div>
           </div>
+        </div>
+
+        {/* Quick Demo Preset for Event Showcases */}
+        <div className="mb-6 p-4 rounded-xl border border-brand/40 bg-brand-soft/20 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-brand text-[22px]">bolt</span>
+            <div>
+              <p className="text-[13px] font-semibold text-ink">NIT Demo Quick-Fill</p>
+              <p className="text-[11px] text-ink-soft">1-tap physically consistent measurements</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleQuickDemoFill}
+            className="px-3.5 py-1.5 rounded-full bg-brand text-on-brand text-[11px] font-bold uppercase tracking-wider shadow-glow active:scale-95 transition-all shrink-0 cursor-pointer"
+          >
+            Quick Fill
+          </button>
         </div>
 
         {/* 1. Profile Name */}
@@ -1273,8 +1325,9 @@ const FitProfile: React.FC = () => {
           loading={saving}
           disabled={!isComplete || saving}
           onClick={handleSave}
+          trailingIcon="arrow_forward"
         >
-          Save profile
+          Get My Size
         </Button>
         {!isComplete && (
           <p className="text-[11px] text-ink-faint text-center mt-3">Complete the required fields to save your profile.</p>

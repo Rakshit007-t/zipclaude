@@ -91,23 +91,23 @@ const Welcome: React.FC = () => {
       {/* Manifesto headline */}
       <div className="relative z-10 px-8 mt-12">
         <motion.p {...enter(0.1)} className="eyebrow mb-4">
-          The Fit Atelier
+          NIT Event Demo Showcase
         </motion.p>
         <motion.h1
           {...enter(0.18)}
-          className="font-display text-[54px] leading-[1.04] text-ink font-light"
+          className="font-display text-[44px] sm:text-[50px] leading-[1.04] text-ink font-light tracking-tight"
         >
-          Fit is
+          FIND YOUR SIZE.
           <br />
-          <em className="font-medium text-brand">everything.</em>
+          <em className="font-medium text-brand">SEE IT ON YOU.</em>
         </motion.h1>
-        <motion.p {...enter(0.3)} className="mt-6 max-w-[300px] text-[15px] leading-relaxed text-ink-soft">
-          Try clothes on your own photo, get your true size in any brand, and dress with a stylist that knows you.
+        <motion.p {...enter(0.3)} className="mt-5 max-w-[320px] text-[15px] leading-relaxed text-ink-soft">
+          AI-powered fit intelligence + realtime virtual try-on.
         </motion.p>
       </div>
 
       {/* Value-prop carousel */}
-      <motion.div {...enter(0.42)} className="relative z-10 mt-auto pt-10">
+      <motion.div {...enter(0.42)} className="relative z-10 mt-auto pt-8">
         <div
           ref={scrollerRef}
           onScroll={onScroll}
@@ -151,17 +151,17 @@ const Welcome: React.FC = () => {
           size="lg"
           fullWidth
           trailingIcon="arrow_forward"
-          onClick={() => navigate('/login', { state: { isSignUp: true } })}
+          onClick={() => navigate('/login', { state: { redirectTo: '/fit-profile' } })}
         >
-          Get started
+          TRY ZIPRIGHT
         </Button>
         <Button
           size="lg"
           fullWidth
           variant="ghost"
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/login', { state: { redirectTo: '/fit-profile' } })}
         >
-          I already have an account
+          Explore Fit Profile
         </Button>
         <p className="mt-2 text-center text-[11px] leading-relaxed text-ink-faint">
           By continuing you agree to our{' '}

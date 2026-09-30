@@ -235,10 +235,6 @@ export class DecartRealtimeSession {
    * Disconnect the active WebRTC stream and free all resources.
    */
   disconnect(): void {
-    if (!this.active && !this.realtimeClient) return;
-
-    this.active = false;
-
     if (this.realtimeClient) {
       try {
         this.realtimeClient.disconnect();
@@ -248,6 +244,7 @@ export class DecartRealtimeSession {
       this.realtimeClient = null;
     }
 
+    this.active = false;
     this.client = null;
     this.cameraStream = null;
 

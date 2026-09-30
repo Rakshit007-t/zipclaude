@@ -258,6 +258,48 @@ const Home: React.FC = () => {
         </h1>
       </div>
 
+      {/* NIT Event Showcase: Primary Demo Journey */}
+      <div className="px-6 pt-4 pb-2">
+        <div className="relative overflow-hidden rounded-2xl border border-brand/40 bg-gradient-to-br from-surface-1 via-surface-1 to-brand-soft/20 p-5 shadow-lift">
+          <div className="flex items-center justify-between mb-3">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand text-on-brand shadow-glow">
+              <span className="material-symbols-outlined text-[13px]">bolt</span>
+              NIT Event Demo
+            </span>
+            <span className="text-[10px] font-mono text-ink-faint">
+              LUCY-VTON-3.5
+            </span>
+          </div>
+
+          <h2 className="font-display text-[22px] font-light leading-tight text-ink">
+            FIND YOUR SIZE. <span className="font-medium text-brand">SEE IT ON YOU.</span>
+          </h2>
+          <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
+            AI-powered fit intelligence + realtime virtual try-on.
+          </p>
+
+          <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
+            <Button
+              size="md"
+              className="flex-1 font-semibold"
+              trailingIcon="arrow_forward"
+              onClick={() => navigate('/fit-profile')}
+            >
+              Create Fit Profile
+            </Button>
+            <Button
+              size="md"
+              variant="outline"
+              className="flex-1 font-semibold border-brand/40 text-brand hover:bg-brand-soft"
+              icon="view_in_ar"
+              onClick={() => navigate('/live-tryon', { state: { startMode: 'ai' } })}
+            >
+              Start AI Live
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {products.length === 0 ? (
         <EmptyState
           icon="inventory_2"

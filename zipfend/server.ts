@@ -49,6 +49,7 @@ async function startServer() {
     const hostHeader = process.env.APPWRITE_UPSTREAM_HOST_HEADER || "appwrite.zipright.in";
     const options = {
       hostname: upstreamHost,
+      servername: upstreamHost,
       port: Number(process.env.APPWRITE_UPSTREAM_PORT) || 443,
       path: "/v1" + req.url,
       method: req.method,
@@ -85,6 +86,18 @@ async function startServer() {
   app.use(express.json({ limit: "200kb" }));
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.use((req, res, next) => {
+    if (req.path.endsWith("/frame-metadata-worker.js")) {
+      const workerPath = path.join(
+        process.cwd(),
+        "node_modules/@decartai/sdk/dist/realtime/browser/frame-metadata-worker.js"
+      );
+      res.setHeader("Content-Type", "application/javascript");
+      return res.sendFile(workerPath);
+    }
+    next();
   });
 
   // Vite middleware for development

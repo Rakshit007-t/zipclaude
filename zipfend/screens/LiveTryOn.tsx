@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { categoryToClothType, type ClothType } from '../services/tryonService';
 import { demoProducts } from '../services/demoProducts';
+import { CURATED_DEMO_GARMENTS } from '../services/demoMode';
+import { useUserProfile } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
 import {
   getDecartStatus,
@@ -821,9 +823,16 @@ function prepareGarmentSprite(image: HTMLImageElement): HTMLCanvasElement | HTML
 const LiveTryOn: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { userProfile } = useUserProfile();
 
   // Garment catalog integration: check navigation state, URL params, or canonical catalog
   const incomingProduct = location.state?.product;
+  const recommendedSize =
+    location.state?.recommendedSize ||
+    incomingProduct?.recommendedSize ||
+    userProfile?.baseSize ||
+    userProfile?.usualSize ||
+    'M';
   const initialCatalogProduct = (() => {
     if (incomingProduct) return incomingProduct;
     const searchParams = new URLSearchParams(location.search);
@@ -832,8 +841,8 @@ const LiveTryOn: React.FC = () => {
       const found = demoProducts.find(p => p.id === paramId);
       if (found) return found;
     }
-    // Default to canonical catalog apparel item
-    return demoProducts.find(p => p.type === 'shirt' || p.type === 'tshirt' || p.type === 'jacket') || demoProducts[0];
+    // Default to primary curated demo garment: Roadster Checked Casual Shirt
+    return CURATED_DEMO_GARMENTS[0] || demoProducts[0];
   })();
 
   const [product, setProduct] = useState<any>(initialCatalogProduct);
@@ -951,8 +960,9 @@ const LiveTryOn: React.FC = () => {
     }, 1000);
   };
 
-  const restartAiSession = () => {
+  const restartAiSession = async () => {
     stopAiSession();
+    await releaseDecartSession();
     setAiStatus('requesting-camera');
     setAiSessionTrigger((prev) => prev + 1);
   };
@@ -996,6 +1006,7 @@ const LiveTryOn: React.FC = () => {
         const tokenData = await fetchDecartClientToken(aiMaxDuration);
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
+          releaseDecartSession();
           return;
         }
 
@@ -1057,6 +1068,7 @@ const LiveTryOn: React.FC = () => {
       cancelled = true;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       stopAiSession();
+      releaseDecartSession();
     };
   }, [vtoMode, isAiAvailable, aiSessionTrigger]);
 
@@ -1592,10 +1604,19 @@ const LiveTryOn: React.FC = () => {
       </div>
 
       {/* ── Active AI Stream Badge ── */}
+      {/* ── Active AI Stream Badge & Recommended Size ── */}
       {vtoMode === 'ai' && aiStatus === 'streaming' && (
-        <div className="absolute top-20 left-4 sm:left-6 z-40 flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 border border-emerald-500/40 backdrop-blur-md text-[11px] font-bold text-emerald-300 shadow-glow">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-          <span className="tracking-wide">AI REALTIME • {aiModelName.toUpperCase()}</span>
+        <div className="absolute top-20 left-4 sm:left-6 z-40 flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 border border-emerald-500/40 backdrop-blur-md text-[11px] font-bold text-emerald-300 shadow-glow">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            <span className="tracking-wide">AI REALTIME • {aiModelName.toUpperCase()}</span>
+          </div>
+          {recommendedSize && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-brand/50 backdrop-blur-md text-[11px] font-bold text-white shadow-glow">
+              <span className="text-brand uppercase text-[10px]">Recommended Size:</span>
+              <span className="font-mono text-brand">{recommendedSize}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -1611,15 +1632,16 @@ const LiveTryOn: React.FC = () => {
                 </div>
               </div>
               <div className="flex flex-col items-center gap-1">
-                <span className="text-sm font-bold text-white tracking-wide">
+                <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold mb-0.5">AI LIVE TRY-ON</span>
+                <span className="text-base font-bold text-white tracking-wide">
+                  See the selected outfit on you in real time.
+                </span>
+                <span className="text-[12px] text-gray-400 max-w-xs mt-1">
                   {aiStatus === 'requesting-camera'
                     ? 'Requesting Camera Access...'
                     : aiStatus === 'connecting'
                     ? 'Connecting to Decart Lucy 3.5 Realtime...'
                     : 'Checking AI Service Availability...'}
-                </span>
-                <span className="text-[12px] text-gray-400 max-w-xs">
-                  Low-latency neural garment synthesis over WebRTC
                 </span>
               </div>
             </div>
@@ -1636,18 +1658,24 @@ const LiveTryOn: React.FC = () => {
                   Realtime stream stopped after reaching the session limit ({aiMaxDuration}s) to preserve AI credits.
                 </p>
               </div>
-              <div className="flex items-center gap-3 mt-2">
+              <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
                 <button
                   onClick={restartAiSession}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold text-xs active:scale-95 transition-all shadow-glow"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold text-xs active:scale-95 transition-all shadow-glow"
                 >
                   Restart AI Live
                 </button>
                 <button
                   onClick={() => setVtoMode('ar')}
-                  className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs active:scale-95 transition-all border border-white/10"
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs active:scale-95 transition-all border border-white/10"
                 >
-                  Switch to AR Live
+                  Use AR Live
+                </button>
+                <button
+                  onClick={() => navigate('/tryon-studio', { state: { product, recommendedSize } })}
+                  className="px-4 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand border border-brand/40 font-bold text-xs active:scale-95 transition-all"
+                >
+                  Try Image VTO
                 </button>
               </div>
             </div>
@@ -1659,19 +1687,31 @@ const LiveTryOn: React.FC = () => {
                 <span className="material-symbols-outlined text-2xl">videocam_off</span>
               </div>
               <div className="flex flex-col items-center gap-1 max-w-sm">
-                <span className="text-sm font-bold text-white">AI Live Try-On is temporarily unavailable</span>
+                <span className="text-sm font-bold text-white">Live AI Try-On is temporarily unavailable</span>
                 <p className="text-xs text-gray-400">{aiErrorMessage || 'Decart Lucy VTON service is not currently accessible.'}</p>
               </div>
-              <div className="flex items-center gap-3 mt-2">
+              <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
+                <button
+                  onClick={restartAiSession}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold text-xs active:scale-95 transition-all shadow-glow"
+                >
+                  Retry AI Live
+                </button>
                 <button
                   onClick={() => setVtoMode('ar')}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs active:scale-95 transition-all shadow-lg"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs active:scale-95 transition-all shadow-lg"
                 >
-                  Use AR Live Instead
+                  Use AR Live
+                </button>
+                <button
+                  onClick={() => navigate('/tryon-studio', { state: { product, recommendedSize } })}
+                  className="px-4 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand border border-brand/40 font-bold text-xs active:scale-95 transition-all"
+                >
+                  Try Image VTO
                 </button>
                 <button
                   onClick={() => navigate(-1)}
-                  className="px-5 py-2.5 rounded-xl bg-white/10 text-white/80 font-bold text-xs active:scale-95 transition-all border border-white/10"
+                  className="px-4 py-2.5 rounded-xl bg-white/10 text-white/80 font-bold text-xs active:scale-95 transition-all border border-white/10"
                 >
                   Go Back
                 </button>
@@ -1726,12 +1766,14 @@ const LiveTryOn: React.FC = () => {
             </span>
           </div>
 
-          {/* Real ZipRIGHT Catalog Garment Selector */}
+          {/* Curated Demo Garment Selector */}
           <div className="max-w-md mx-auto w-full">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {demoProducts
-                .filter(
+              {[
+                ...CURATED_DEMO_GARMENTS,
+                ...demoProducts.filter(
                   (p) =>
+                    !CURATED_DEMO_GARMENTS.some((c) => c.id === p.id) &&
                     p.image &&
                     (p.category === 'Men' ||
                       p.category === 'Women' ||
@@ -1740,26 +1782,29 @@ const LiveTryOn: React.FC = () => {
                       p.type === 'jacket' ||
                       p.type === 'kurta' ||
                       p.type === 'jeans')
-                )
-                .map((item) => {
-                  const isSelected = item.id === product?.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setProduct(item)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all shrink-0 active:scale-95 ${
-                        isSelected
-                          ? vtoMode === 'ai'
-                            ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-glow'
-                            : 'bg-brand/25 border-brand text-white shadow-glow'
-                          : 'bg-black/50 border-white/10 text-gray-300 hover:text-white hover:border-white/30'
-                      }`}
-                    >
-                      <img src={item.image} alt={item.title} className="w-5 h-5 rounded-full object-cover shrink-0" />
-                      <span className="text-[11px] font-medium whitespace-nowrap">{item.title}</span>
-                    </button>
-                  );
-                })}
+                ),
+              ].map((item) => {
+                const isSelected = item.id === product?.id;
+                const isCurated = CURATED_DEMO_GARMENTS.some((c) => c.id === item.id);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setProduct(item)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all shrink-0 active:scale-95 ${
+                      isSelected
+                        ? vtoMode === 'ai'
+                          ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-glow'
+                          : 'bg-brand/25 border-brand text-white shadow-glow'
+                        : isCurated
+                        ? 'bg-white/5 border-emerald-500/30 text-gray-200 hover:border-emerald-400/60'
+                        : 'bg-black/50 border-white/10 text-gray-300 hover:text-white hover:border-white/30'
+                    }`}
+                  >
+                    <img src={item.image} alt={item.title} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                    <span className="text-[11px] font-medium whitespace-nowrap">{item.title}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

@@ -320,8 +320,16 @@ def test_11_decart_status_endpoint(client, monkeypatch):
     assert resp2.json()["max_session_seconds"] == 60
 
 
-def test_12_existing_live_tryon_routes_unaffected(client):
+def test_12_existing_live_tryon_routes_unaffected(client, monkeypatch):
     """Existing /tryon-live/garments endpoint works as before without regressions."""
-    resp = client.get("/tryon-live/garments", headers=AUTH_HEADERS)
-    assert resp.status_code == status.HTTP_200_OK
-    assert isinstance(resp.json(), list)
+    user = make_auth_user()
+    app.dependency_overrides[get_current_user] = lambda: user
+    monkeypatch.setattr("routes.tryon_live.list_garments", lambda: [])
+    try:
+        resp = client.get("/tryon-live/garments", headers=AUTH_HEADERS)
+        assert resp.status_code == status.HTTP_200_OK
+        assert isinstance(resp.json(), list)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+

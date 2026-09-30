@@ -31,6 +31,8 @@ import {
   trackSizeReturned,
 } from '../services/recommendationAnalytics';
 import { AppBar, Button, IconButton, Eyebrow, Skeleton, Spinner } from '../components/ui';
+import { CURATED_DEMO_GARMENTS, DEMO_PRESET_PROFILE, isDemoMode } from '../services/demoMode';
+
 
 interface Member {
   id: string;
@@ -224,11 +226,33 @@ function getRecordMeasurements(record: Record<string, unknown>, fallback: any) {
 
 function buildRecommendationMembers(profile: any): Member[] {
   const profileRecords = Array.isArray(profile.fitProfiles) ? profile.fitProfiles : [];
+  const fallbackDemo = isDemoMode()
+    ? [
+        {
+          profileId: 'demo-alex',
+          profileName: DEMO_PRESET_PROFILE.profileName,
+          gender: DEMO_PRESET_PROFILE.gender,
+          preferredBrand: DEMO_PRESET_PROFILE.brand,
+          usualSize: DEMO_PRESET_PROFILE.topSize,
+          height: Number(DEMO_PRESET_PROFILE.heightCm),
+          weight: Number(DEMO_PRESET_PROFILE.weight),
+          bodyShape: DEMO_PRESET_PROFILE.bodyShape,
+          fitPreference: 'regular',
+          measurements: {
+            chest: Math.round(Number(DEMO_PRESET_PROFILE.chestSize) * 2.54),
+            waist: Math.round(Number(DEMO_PRESET_PROFILE.waistSize) * 2.54),
+            hips: Math.round(Number(DEMO_PRESET_PROFILE.hipsSize) * 2.54),
+            shoulders: Math.round(Number(DEMO_PRESET_PROFILE.chestSize) * 2.54 * 0.45),
+          },
+        },
+      ]
+    : [];
   const records = profileRecords.length
     ? profileRecords
     : profile.profileName
       ? [profile as Record<string, unknown>]
-      : [];
+      : fallbackDemo;
+
 
   return records.map((rawRecord, index) => {
     const record = rawRecord as Record<string, unknown>;
@@ -288,15 +312,22 @@ function normalizeBrand(brand?: string) {
   return brand?.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function normalizeCategory(category?: string) {
-  const c = category?.toLowerCase() || '';
+function normalizeCategory(category?: string, type?: string, title?: string) {
+  const c = `${category || ''} ${type || ''} ${title || ''}`.toLowerCase();
 
-  if (c.includes('shirt')) return 'tshirt';
-  if (c.includes('tshirt')) return 'tshirt';
-  if (c.includes('coat') || c.includes('jacket')) return 'jacket';
+  if (c.includes('shirt') || c.includes('tshirt') || c.includes('polo') || c.includes('kurta') || c.includes('top')) {
+    return 'tshirt';
+  }
+  if (c.includes('coat') || c.includes('jacket') || c.includes('hoodie') || c.includes('blazer')) {
+    return 'jacket';
+  }
+  if (c.includes('jean') || c.includes('pant') || c.includes('trouser') || c.includes('bottom')) {
+    return 'jeans';
+  }
 
-  return '';
+  return 'tshirt';
 }
+
 
 function normalizeSizeChart(sizeChart: unknown): Record<string, number> | undefined {
   return normalizeProductSizeChart(sizeChart);
@@ -453,8 +484,11 @@ const Recommendation: React.FC = () => {
   const [returnedSize, setReturnedSize] = useState('');
   const [returnReason, setReturnReason] = useState('');
 
-  const product = location.state?.product || storedRecommendationRef.current?.product;
-  const source = location.state?.source || storedRecommendationRef.current?.source;
+  const product =
+    location.state?.product ||
+    storedRecommendationRef.current?.product ||
+    (isDemoMode() ? CURATED_DEMO_GARMENTS[0] : undefined);
+  const source = location.state?.source || storedRecommendationRef.current?.source || 'fit_profile';
 
   useEffect(() => {
     if (!product && !hasShownMissingProductToastRef.current) {
@@ -463,6 +497,7 @@ const Recommendation: React.FC = () => {
       navigate('/home');
     }
   }, [product, navigate, showToast]);
+
 
   const displayProduct = product;
   const productUrl = location.state?.productUrl || storedRecommendationRef.current?.productUrl || product?.url;
@@ -616,7 +651,11 @@ const Recommendation: React.FC = () => {
     (async () => {
       try {
         setLoadingStage(2);
-        const normalizedCategory = normalizeCategory(displayProduct.category);
+        const normalizedCategory = normalizeCategory(
+          displayProduct.category,
+          displayProduct.type,
+          displayProduct.title,
+        );
         if (!displayProduct.title || !displayProduct.brand || !input.url || !normalizedCategory) {
           throw new Error('Product data is incomplete. Please try another product.');
         }
@@ -984,6 +1023,17 @@ const Recommendation: React.FC = () => {
     navigate('/home', { replace: true });
   };
 
+  const handleStartAiLive = () => {
+    navigate('/live-tryon', {
+      state: {
+        product: displayProduct,
+        recommendedSize: visibleAiResult?.recommendedSize || displayProduct.recommendedSize || 'M',
+        confidence: visibleAiResult?.confidence,
+        startMode: 'ai',
+      },
+    });
+  };
+
   if (!displayProduct) return null;
 
   const getDirectionTone = (dir: string) => {
@@ -1183,7 +1233,7 @@ const Recommendation: React.FC = () => {
                             >
                                 {/* The size — set like a cover masthead */}
                                 <div className="flex flex-col items-center">
-                                    <Eyebrow className="mb-2">Your size</Eyebrow>
+                                    <Eyebrow className="mb-2 !text-[11px] font-bold text-brand uppercase tracking-[0.16em]">Your Recommended Size</Eyebrow>
                                     <div className="relative">
                                         <motion.h2
                                             initial={{ scale: 0.7, opacity: 0 }}
@@ -1265,6 +1315,48 @@ const Recommendation: React.FC = () => {
                                                 Engine · {visibleAiResult.alternativeSize}
                                             </div>
                                         )}
+                                    </div>
+
+                                    {/* WHY explanation matching Section 3 */}
+                                    <div className="mt-4 pt-4 border-t border-line/50">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-brand mb-1">
+                                            Why
+                                        </p>
+                                        <p className="text-[13px] text-ink-soft leading-relaxed">
+                                            Based on your Fit Profile + product size chart
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Recommended for You Product & VTO Bridge matching Section 4 */}
+                                <div className="w-full rounded-2xl bg-gradient-to-r from-brand/15 via-surface-2 to-brand/10 border border-brand/40 p-4 text-left shadow-sm">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3.5 min-w-0">
+                                            <img
+                                                src={displayProduct.image}
+                                                alt={displayProduct.title}
+                                                className="w-14 h-18 object-cover rounded-xl border border-line shrink-0"
+                                            />
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-brand">
+                                                    Recommended for You
+                                                </p>
+                                                <p className="text-[14px] font-medium text-ink truncate">
+                                                    {displayProduct.title}
+                                                </p>
+                                                <p className="text-[12px] text-ink-soft mt-0.5">
+                                                    Recommended size: <strong className="text-brand font-bold text-[13.5px]">{visibleAiResult.recommendedSize}</strong>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            trailingIcon="view_in_ar"
+                                            onClick={handleStartAiLive}
+                                            className="shrink-0 font-bold shadow-glow bg-brand text-on-brand"
+                                        >
+                                            Try It On
+                                        </Button>
                                     </div>
                                 </div>
 
@@ -1454,25 +1546,36 @@ const Recommendation: React.FC = () => {
       </div>
 
       {/* Bottom Actions */}
-      <div className="fixed bottom-0 inset-x-0 w-full z-50 p-6 pb-8 bg-gradient-to-t from-surface-0 via-surface-0/92 to-transparent phone-fixed-bottom">
+      <div className="fixed bottom-0 inset-x-0 w-full z-50 p-6 pb-8 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
         <div className="flex flex-col gap-3">
           <Button
             size="lg"
             fullWidth
-            trailingIcon="open_in_new"
+            trailingIcon="view_in_ar"
             loading={loadingStage > 0}
             disabled={loadingStage > 0}
-            onClick={source === 'marketplace' ? handleBuyNow : handleExternalBuy}
+            onClick={handleStartAiLive}
+            className="font-bold shadow-glow bg-brand text-on-brand text-[15px]"
           >
-            Open product
+            TRY THIS ON
           </Button>
 
           <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" icon="favorite" onClick={toggleWishlist}>
-              {likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? 'In wishlist' : 'Wishlist'}
+            <Button
+              variant="outline"
+              className="flex-1 text-[13px]"
+              icon="open_in_new"
+              onClick={source === 'marketplace' ? handleBuyNow : handleExternalBuy}
+            >
+              Open retailer
             </Button>
-            <Button variant="ghost" className="flex-1" onClick={handleExploreMore}>
-              Explore more
+            <Button
+              variant="ghost"
+              className="flex-1 text-[13px]"
+              icon="favorite"
+              onClick={toggleWishlist}
+            >
+              {likedMap[displayProduct.id || displayProduct.title.replace(/\s+/g, '-').toLowerCase()] ? 'In wishlist' : 'Wishlist'}
             </Button>
           </div>
         </div>

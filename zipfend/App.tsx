@@ -411,7 +411,9 @@ const AppContent: React.FC<{ user: User | null; loading: boolean }> = ({ user, l
           <Route path="/avatar-view" element={isAuthenticated ? <AvatarView /> : <Navigate to="/login" replace />} />
           <Route path="/fashion-studio" element={isAuthenticated ? <FashionStudio /> : <Navigate to="/login" replace />} />
           <Route path="/live-tryon" element={isAuthenticated ? <LiveTryOn /> : <Navigate to="/login" replace />} />
+          <Route path="/live" element={isAuthenticated ? <Navigate to="/live-tryon" replace /> : <Navigate to="/login" replace />} />
           <Route path="/tryon-studio" element={isAuthenticated ? <TryOnStudio /> : <Navigate to="/login" replace />} />
+          <Route path="/tryon" element={isAuthenticated ? <Navigate to="/tryon-studio" replace /> : <Navigate to="/login" replace />} />
           <Route path="/ai-studio" element={isAuthenticated ? <AIStudio /> : <Navigate to="/login" replace />} />
           <Route path="/voice-assistant" element={<ComingSoon featureName="Voice Assistant" />} />
           <Route path="/video-lookbook" element={<ComingSoon featureName="Video Lookbook" />} />
