@@ -4,6 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from pydantic import ValidationError
 
 from models.schema import (
+    DecartSessionEndRequest,
+    DecartTokenRequest,
+    DecartTokenResponse,
     GarmentCreateRequest,
     GarmentResponse,
     LiveTryOnFrameRequest,
@@ -11,6 +14,13 @@ from models.schema import (
     LiveTryOnSessionCreateRequest,
     LiveTryOnSessionResponse,
 )
+from core.config import settings
+from services.decart_vto import (
+    is_decart_enabled,
+    mint_decart_client_token,
+    release_decart_session,
+)
+from services.request_rate_limiter import enforce_rate_limit
 from services.live_tryon_engine import (
     _fetch_session_record,
     create_live_tryon_session,
@@ -219,3 +229,82 @@ async def _send_websocket_error(
         )
     except (RuntimeError, WebSocketDisconnect):
         return
+
+
+@router.get(
+    "/tryon-live/decart/status",
+    status_code=status.HTTP_200_OK,
+)
+async def get_decart_status() -> dict[str, object]:
+    """Public status endpoint to check if AI Live Try-On is available."""
+    enabled = is_decart_enabled() and bool(settings.DECART_API_KEY)
+    return {
+        "enabled": enabled,
+        "model": settings.DECART_VTO_MODEL,
+        "max_session_seconds": settings.DECART_VTO_MAX_SESSION_SECONDS,
+    }
+
+
+@router.post(
+    "/tryon-live/decart/token",
+    response_model=DecartTokenResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def create_decart_token(
+    payload: DecartTokenRequest | None = None,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> DecartTokenResponse:
+    """Issue a short-lived Decart client token for real-time AI VTO.
+
+    Enforces authentication, rate limits, feature flags, and anti-duplication guards.
+    Never returns DECART_API_KEY.
+    """
+    logger.info("Decart token requested by user_id=%s", current_user.uid)
+
+    # Check feature flag early
+    if not is_decart_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "message": "AI Live Try-On is currently disabled.",
+                "details": {"code": "decart_vto_disabled"},
+            },
+        )
+
+    if not settings.DECART_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "message": "Decart realtime VTO service is not configured.",
+                "details": {"code": "decart_not_configured"},
+            },
+        )
+
+    # Rate limit: 5 token requests per minute per authenticated user
+    enforce_rate_limit(
+        key=f"decart_token:{current_user.uid}",
+        max_requests=5,
+        window_seconds=60,
+        detail="Too many Decart session requests. Please wait a moment.",
+    )
+
+    requested_duration = payload.requested_duration_seconds if payload else None
+    return mint_decart_client_token(
+        user_id=current_user.uid,
+        requested_duration=requested_duration,
+    )
+
+
+@router.post(
+    "/tryon-live/decart/session/end",
+    status_code=status.HTTP_200_OK,
+)
+async def end_decart_session(
+    payload: DecartSessionEndRequest | None = None,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, str]:
+    """Release active Decart session slot when user stops or leaves."""
+    logger.info("Decart session end requested for user_id=%s", current_user.uid)
+    release_decart_session(current_user.uid)
+    return {"status": "released"}
+

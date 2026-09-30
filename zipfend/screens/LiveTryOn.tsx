@@ -4,6 +4,13 @@ import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { categoryToClothType, type ClothType } from '../services/tryonService';
 import { demoProducts } from '../services/demoProducts';
 import { useAppNavigation } from '../utils/useAppNavigation';
+import {
+  getDecartStatus,
+  fetchDecartClientToken,
+  releaseDecartSession,
+  buildGarmentTryonPrompt,
+  DecartRealtimeSession,
+} from '../services/decartVtoService';
 
 // Landmark indices (MediaPipe Pose)
 const L_SHOULDER = 11;
@@ -856,6 +863,210 @@ const LiveTryOn: React.FC = () => {
   const [fps, setFps] = useState(0);
   const statusRef = useRef(status);
 
+  // Mode selection: AI LIVE (Decart Lucy 3.5 WebRTC) vs AR LIVE (MediaPipe/WebGL overlay)
+  const [vtoMode, setVtoMode] = useState<'ai' | 'ar'>('ai');
+  const [isAiAvailable, setIsAiAvailable] = useState<boolean | null>(null);
+  const [aiModelName, setAiModelName] = useState<string>('lucy-vton-3.5');
+  const [aiStatus, setAiStatus] = useState<
+    'checking' | 'requesting-camera' | 'connecting' | 'streaming' | 'stopped' | 'error'
+  >('checking');
+  const [aiErrorMessage, setAiErrorMessage] = useState<string>('');
+  const [aiTimeRemaining, setAiTimeRemaining] = useState<number>(60);
+  const [aiMaxDuration, setAiMaxDuration] = useState<number>(60);
+  const [aiMirror, setAiMirror] = useState<boolean>(true);
+  const [aiSessionActive, setAiSessionActive] = useState<boolean>(false);
+  const [aiSessionTrigger, setAiSessionTrigger] = useState<number>(0);
+
+  const aiVideoRef = useRef<HTMLVideoElement>(null);
+  const aiCameraStreamRef = useRef<MediaStream | null>(null);
+  const aiSessionRef = useRef<DecartRealtimeSession | null>(null);
+  const aiTimerIntervalRef = useRef<number | null>(null);
+
+  // Check backend Decart status on mount
+  useEffect(() => {
+    let mounted = true;
+    getDecartStatus()
+      .then((cfg) => {
+        if (!mounted) return;
+        setIsAiAvailable(cfg.enabled);
+        if (cfg.model) setAiModelName(cfg.model);
+        if (cfg.max_session_seconds) {
+          setAiMaxDuration(cfg.max_session_seconds);
+          setAiTimeRemaining(cfg.max_session_seconds);
+        }
+        if (cfg.enabled) {
+          setVtoMode('ai');
+        } else {
+          setVtoMode('ar');
+          setAiStatus('error');
+          setAiErrorMessage('AI Live Try-On is currently disabled. Using AR Live instead.');
+        }
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setIsAiAvailable(false);
+        setVtoMode('ar');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const stopAiSession = () => {
+    if (aiTimerIntervalRef.current) {
+      window.clearInterval(aiTimerIntervalRef.current);
+      aiTimerIntervalRef.current = null;
+    }
+    if (aiSessionRef.current) {
+      aiSessionRef.current.disconnect();
+      aiSessionRef.current = null;
+    }
+    if (aiCameraStreamRef.current) {
+      aiCameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      aiCameraStreamRef.current = null;
+    }
+    if (aiVideoRef.current) {
+      aiVideoRef.current.srcObject = null;
+    }
+    setAiSessionActive(false);
+  };
+
+  const startCountdownTimer = (initialSeconds: number) => {
+    if (aiTimerIntervalRef.current) {
+      window.clearInterval(aiTimerIntervalRef.current);
+    }
+    let remaining = initialSeconds;
+    setAiTimeRemaining(remaining);
+    aiTimerIntervalRef.current = window.setInterval(() => {
+      remaining -= 1;
+      setAiTimeRemaining(remaining);
+      if (remaining <= 0) {
+        if (aiTimerIntervalRef.current) {
+          window.clearInterval(aiTimerIntervalRef.current);
+          aiTimerIntervalRef.current = null;
+        }
+        stopAiSession();
+        setAiStatus('stopped');
+      }
+    }, 1000);
+  };
+
+  const restartAiSession = () => {
+    stopAiSession();
+    setAiStatus('requesting-camera');
+    setAiSessionTrigger((prev) => prev + 1);
+  };
+
+  useEffect(() => {
+    if (vtoMode !== 'ai') return;
+    if (isAiAvailable === false) {
+      setAiStatus('error');
+      setAiErrorMessage('AI Live Try-On is currently disabled. Use AR Live instead.');
+      return;
+    }
+    if (isAiAvailable === null) return;
+
+    let cancelled = false;
+    const session = new DecartRealtimeSession();
+    aiSessionRef.current = session;
+
+    async function initAiLive() {
+      try {
+        setAiStatus('requesting-camera');
+        setAiErrorMessage('');
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30, max: 30 },
+          },
+          audio: false,
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        aiCameraStreamRef.current = stream;
+
+        setAiStatus('connecting');
+
+        const tokenData = await fetchDecartClientToken(aiMaxDuration);
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        const maxSeconds = tokenData.max_session_seconds || 60;
+        setAiTimeRemaining(maxSeconds);
+
+        await session.start(
+          stream,
+          tokenData,
+          productRef.current,
+          {
+            onRemoteStream: (remoteStream) => {
+              if (cancelled) return;
+              if (aiVideoRef.current) {
+                aiVideoRef.current.srcObject = remoteStream;
+                aiVideoRef.current.play().catch((err) => console.warn('AI video play warning:', err));
+              }
+              setAiStatus('streaming');
+              setAiSessionActive(true);
+            },
+            onConnectionChange: (state) => {
+              console.log('Decart connection state:', state);
+            },
+            onError: (err) => {
+              if (cancelled) return;
+              setAiStatus('error');
+              setAiErrorMessage(err.message || 'Decart realtime connection error.');
+              stopAiSession();
+            },
+            onEnded: () => {
+              if (cancelled) return;
+              setAiStatus('stopped');
+              stopAiSession();
+            },
+          }
+        );
+
+        startCountdownTimer(maxSeconds);
+      } catch (err: any) {
+        if (cancelled) return;
+        setAiStatus('error');
+        setAiErrorMessage(err.message || 'Failed to start AI Live Try-On.');
+        stopAiSession();
+      }
+    }
+
+    initAiLive();
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopAiSession();
+        setAiStatus('stopped');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopAiSession();
+    };
+  }, [vtoMode, isAiAvailable, aiSessionTrigger]);
+
+  // Dynamic garment update in AI mode
+  useEffect(() => {
+    if (vtoMode === 'ai' && aiSessionRef.current?.isActive() && product) {
+      aiSessionRef.current.updateGarment(product);
+    }
+  }, [product, vtoMode]);
+
   useEffect(() => {
     productRef.current = product;
     clothTypeRef.current = categoryToClothType(product?.category || product?.type);
@@ -892,9 +1103,9 @@ const LiveTryOn: React.FC = () => {
       img.src = url;
     });
 
-  // Hot-swap garment texture when user selects another catalog item
+  // Hot-swap garment texture when user selects another catalog item (AR mode only)
   useEffect(() => {
-    if (!garmentUrl) return;
+    if (!garmentUrl || vtoMode !== 'ar') return;
     let cancelled = false;
     loadGarmentSprite(garmentUrl)
       .then(({ sprite, ratio }) => {
@@ -913,9 +1124,11 @@ const LiveTryOn: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [garmentUrl]);
+  }, [garmentUrl, vtoMode]);
 
   useEffect(() => {
+    if (vtoMode !== 'ar') return;
+
     let landmarker: PoseLandmarker | null = null;
     let stream: MediaStream | null = null;
     let cancelled = false;
@@ -1254,71 +1467,280 @@ const LiveTryOn: React.FC = () => {
       smoothedArmLandmarksRef.current = null;
       smoothedMeshRef.current = null;
       warpRendererRef.current?.destroy();
-      warpRendererRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [vtoMode]);
 
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-hidden font-sans select-none">
-      <video ref={videoRef} className="hidden" playsInline muted />
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full object-cover" />
+      {/* ── Visual Viewports ── */}
+      {vtoMode === 'ar' ? (
+        <>
+          <video ref={videoRef} className="hidden" playsInline muted />
+          <canvas ref={canvasRef} className="absolute inset-0 h-full w-full object-cover" />
+        </>
+      ) : (
+        <div className="absolute inset-0 h-full w-full overflow-hidden bg-zinc-950">
+          <video
+            ref={aiVideoRef}
+            autoPlay
+            playsInline
+            muted={false}
+            className={`h-full w-full object-cover ${aiMirror ? '-scale-x-100' : ''}`}
+          />
+        </div>
+      )}
 
-      {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/70 to-transparent">
+      {/* ── Top Bar ── */}
+      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 py-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+        {/* Left: Back Button */}
         <button
           aria-label="Go back"
-          onClick={() => navigate(-1)}
-          className="h-10 w-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 active:scale-95 transition-all"
+          onClick={() => {
+            stopAiSession();
+            navigate(-1);
+          }}
+          className="h-10 w-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 backdrop-blur-md active:scale-95 transition-all text-white hover:border-white/30"
         >
           <span className="material-symbols-outlined text-[18px] text-brand">arrow_back</span>
         </button>
-        <div className="flex flex-col items-center max-w-[200px]">
-          <span className="text-[11px] font-bold text-gray-300">{product?.brand || 'ZipRIGHT'}</span>
-          <span className="text-[11px] font-bold tracking-tight text-white truncate text-center">
-            {product?.title || 'Live Try-On'}
-          </span>
+
+        {/* Center: Mode Switcher (AI LIVE vs AR LIVE) */}
+        <div className="flex items-center rounded-full bg-black/60 p-1 border border-white/10 backdrop-blur-md shadow-2xl">
+          <button
+            onClick={() => {
+              if (vtoMode !== 'ai') {
+                setVtoMode('ai');
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
+              vtoMode === 'ai'
+                ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-black shadow-glow'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${vtoMode === 'ai' ? 'bg-black animate-pulse' : 'bg-emerald-400'}`} />
+            AI LIVE
+          </button>
+          <button
+            onClick={() => {
+              if (vtoMode !== 'ar') {
+                stopAiSession();
+                setVtoMode('ar');
+              }
+            }}
+            className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
+              vtoMode === 'ar'
+                ? 'bg-white/20 text-white'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            AR LIVE
+          </button>
         </div>
-        <div className="h-10 px-3 flex items-center justify-center rounded-full bg-black/40 border border-white/10">
-          <span className="text-[12px] font-bold text-brand">{fps} FPS</span>
+
+        {/* Right: Actions based on mode */}
+        <div className="flex items-center gap-2">
+          {vtoMode === 'ai' ? (
+            <>
+              {aiStatus === 'streaming' ? (
+                <>
+                  {/* Cost Protection Session Timer */}
+                  <div
+                    className={`h-10 px-3 flex items-center gap-1.5 rounded-full border backdrop-blur-md ${
+                      aiTimeRemaining <= 15
+                        ? 'bg-red-500/20 border-red-500/50 text-red-400 animate-pulse'
+                        : 'bg-black/50 border-white/10 text-white/90'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">timer</span>
+                    <span className="text-[12px] font-mono font-bold">
+                      {Math.floor(aiTimeRemaining / 60)}:{(aiTimeRemaining % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+
+                  {/* Explicit Stop Button */}
+                  <button
+                    onClick={() => {
+                      stopAiSession();
+                      setAiStatus('stopped');
+                    }}
+                    title="Stop AI Live session"
+                    className="h-10 px-3 flex items-center gap-1 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 active:scale-95 transition-all text-xs font-bold"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">stop</span>
+                    <span className="hidden sm:inline">Stop</span>
+                  </button>
+                </>
+              ) : null}
+
+              {/* Mirror toggle */}
+              <button
+                onClick={() => setAiMirror((m) => !m)}
+                title={aiMirror ? 'Disable mirror' : 'Enable mirror'}
+                className="h-10 w-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 backdrop-blur-md active:scale-95 transition-all text-gray-300 hover:text-white"
+              >
+                <span className="material-symbols-outlined text-[18px]">flip_camera_android</span>
+              </button>
+            </>
+          ) : (
+            <div className="h-10 px-3 flex items-center justify-center rounded-full bg-black/40 border border-white/10 backdrop-blur-md">
+              <span className="text-[12px] font-bold text-brand">{fps} FPS</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Status overlays */}
-      {status === 'loading' && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/80">
-          <div className="h-12 w-12 rounded-full border-2 border-brand border-t-transparent animate-spin"></div>
-          <span className="text-[12px] font-bold text-brand">Starting camera & tracker</span>
-        </div>
-      )}
-      {status === 'no-person' && (
-        <div className="absolute top-24 left-0 right-0 z-40 flex justify-center">
-          <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
-            <span className="text-[12px] font-bold text-white/80">Step back so your upper body is visible</span>
-          </div>
-        </div>
-      )}
-      {status === 'error' && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/90 p-8 text-center">
-          <span className="material-symbols-outlined text-5xl text-red-500">videocam_off</span>
-          <p className="text-sm text-white/80 max-w-xs">{errorMessage}</p>
-          <button
-            onClick={() => navigate(-1)}
-            className="mt-2 px-8 py-3 bg-brand text-white font-bold text-xs rounded-xl active:scale-95 transition-all"
-          >
-            Go Back
-          </button>
+      {/* ── Active AI Stream Badge ── */}
+      {vtoMode === 'ai' && aiStatus === 'streaming' && (
+        <div className="absolute top-20 left-4 sm:left-6 z-40 flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 border border-emerald-500/40 backdrop-blur-md text-[11px] font-bold text-emerald-300 shadow-glow">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+          <span className="tracking-wide">AI REALTIME • {aiModelName.toUpperCase()}</span>
         </div>
       )}
 
-      {/* Bottom controls */}
-      {status === 'tracking' || status === 'no-person' ? (
-        <div className="absolute bottom-0 left-0 right-0 z-50 p-4 sm:p-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex flex-col gap-3">
+      {/* ── AI LIVE Status Overlays ── */}
+      {vtoMode === 'ai' && (
+        <>
+          {(aiStatus === 'checking' || aiStatus === 'requesting-camera' || aiStatus === 'connecting') && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/85 backdrop-blur-md p-6 text-center">
+              <div className="relative">
+                <div className="h-14 w-14 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-emerald-400 text-lg">auto_awesome</span>
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-sm font-bold text-white tracking-wide">
+                  {aiStatus === 'requesting-camera'
+                    ? 'Requesting Camera Access...'
+                    : aiStatus === 'connecting'
+                    ? 'Connecting to Decart Lucy 3.5 Realtime...'
+                    : 'Checking AI Service Availability...'}
+                </span>
+                <span className="text-[12px] text-gray-400 max-w-xs">
+                  Low-latency neural garment synthesis over WebRTC
+                </span>
+              </div>
+            </div>
+          )}
+
+          {aiStatus === 'stopped' && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/90 backdrop-blur-md p-6 text-center">
+              <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <span className="material-symbols-outlined text-2xl">timer</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 max-w-sm">
+                <h3 className="text-base font-bold text-white">AI Live Session Completed</h3>
+                <p className="text-xs text-gray-400">
+                  Realtime stream stopped after reaching the session limit ({aiMaxDuration}s) to preserve AI credits.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={restartAiSession}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold text-xs active:scale-95 transition-all shadow-glow"
+                >
+                  Restart AI Live
+                </button>
+                <button
+                  onClick={() => setVtoMode('ar')}
+                  className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs active:scale-95 transition-all border border-white/10"
+                >
+                  Switch to AR Live
+                </button>
+              </div>
+            </div>
+          )}
+
+          {aiStatus === 'error' && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/90 backdrop-blur-md p-6 text-center">
+              <div className="h-12 w-12 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                <span className="material-symbols-outlined text-2xl">videocam_off</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 max-w-sm">
+                <span className="text-sm font-bold text-white">AI Live Try-On is temporarily unavailable</span>
+                <p className="text-xs text-gray-400">{aiErrorMessage || 'Decart Lucy VTON service is not currently accessible.'}</p>
+              </div>
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={() => setVtoMode('ar')}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs active:scale-95 transition-all shadow-lg"
+                >
+                  Use AR Live Instead
+                </button>
+                <button
+                  onClick={() => navigate(-1)}
+                  className="px-5 py-2.5 rounded-xl bg-white/10 text-white/80 font-bold text-xs active:scale-95 transition-all border border-white/10"
+                >
+                  Go Back
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── AR LIVE Status Overlays ── */}
+      {vtoMode === 'ar' && (
+        <>
+          {status === 'loading' && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/80 backdrop-blur-sm">
+              <div className="h-12 w-12 rounded-full border-2 border-brand border-t-transparent animate-spin"></div>
+              <span className="text-[12px] font-bold text-brand">Starting AR tracker & camera</span>
+            </div>
+          )}
+          {status === 'no-person' && (
+            <div className="absolute top-24 left-0 right-0 z-40 flex justify-center">
+              <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
+                <span className="text-[12px] font-bold text-white/80">Step back so your upper body is visible</span>
+              </div>
+            </div>
+          )}
+          {status === 'error' && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/90 p-8 text-center">
+              <span className="material-symbols-outlined text-5xl text-red-500">videocam_off</span>
+              <p className="text-sm text-white/80 max-w-xs">{errorMessage}</p>
+              <button
+                onClick={() => navigate(-1)}
+                className="mt-2 px-8 py-3 bg-brand text-white font-bold text-xs rounded-xl active:scale-95 transition-all"
+              >
+                Go Back
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Bottom Controls & Garment Selector ── */}
+      {((vtoMode === 'ar' && (status === 'tracking' || status === 'no-person')) ||
+        (vtoMode === 'ai' && aiStatus === 'streaming')) && (
+        <div className="absolute bottom-0 left-0 right-0 z-50 p-4 sm:p-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent flex flex-col gap-3">
+          {/* Active Product Title & Brand */}
+          <div className="max-w-md mx-auto w-full flex items-center justify-between text-xs px-1">
+            <span className="font-bold text-white truncate max-w-[240px]">
+              {product?.title || 'Selected Garment'}
+            </span>
+            <span className="text-[11px] text-gray-400 font-mono">
+              {product?.brand || 'ZipRIGHT'}
+            </span>
+          </div>
+
           {/* Real ZipRIGHT Catalog Garment Selector */}
           <div className="max-w-md mx-auto w-full">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               {demoProducts
-                .filter((p) => p.image && (p.category === 'Men' || p.category === 'Women' || p.type === 'shirt' || p.type === 'tshirt' || p.type === 'jacket' || p.type === 'kurta' || p.type === 'jeans'))
+                .filter(
+                  (p) =>
+                    p.image &&
+                    (p.category === 'Men' ||
+                      p.category === 'Women' ||
+                      p.type === 'shirt' ||
+                      p.type === 'tshirt' ||
+                      p.type === 'jacket' ||
+                      p.type === 'kurta' ||
+                      p.type === 'jeans')
+                )
                 .map((item) => {
                   const isSelected = item.id === product?.id;
                   return (
@@ -1327,7 +1749,9 @@ const LiveTryOn: React.FC = () => {
                       onClick={() => setProduct(item)}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all shrink-0 active:scale-95 ${
                         isSelected
-                          ? 'bg-brand/25 border-brand text-white shadow-glow'
+                          ? vtoMode === 'ai'
+                            ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-glow'
+                            : 'bg-brand/25 border-brand text-white shadow-glow'
                           : 'bg-black/50 border-white/10 text-gray-300 hover:text-white hover:border-white/30'
                       }`}
                     >
@@ -1339,22 +1763,31 @@ const LiveTryOn: React.FC = () => {
             </div>
           </div>
 
-          {/* Opacity slider */}
-          <div className="max-w-md mx-auto w-full flex items-center gap-4">
-            <span className="material-symbols-outlined text-[18px] text-brand shrink-0">opacity</span>
-            <input
-              type="range"
-              min={0.4}
-              max={1}
-              step={0.02}
-              value={opacity}
-              onChange={(e) => setOpacity(Number(e.target.value))}
-              className="flex-1 accent-brand"
-            />
-            <span className="text-[11px] font-mono text-gray-400 w-8 text-right">{Math.round(opacity * 100)}%</span>
-          </div>
+          {/* Mode-specific Sub-controls */}
+          {vtoMode === 'ar' ? (
+            /* Opacity slider for AR Live */
+            <div className="max-w-md mx-auto w-full flex items-center gap-4">
+              <span className="material-symbols-outlined text-[18px] text-brand shrink-0">opacity</span>
+              <input
+                type="range"
+                min={0.4}
+                max={1}
+                step={0.02}
+                value={opacity}
+                onChange={(e) => setOpacity(Number(e.target.value))}
+                className="flex-1 accent-brand"
+              />
+              <span className="text-[11px] font-mono text-gray-400 w-8 text-right">{Math.round(opacity * 100)}%</span>
+            </div>
+          ) : (
+            /* AI Live Prompt Notification Pill */
+            <div className="max-w-md mx-auto w-full flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/50 border border-white/10 backdrop-blur-sm text-[11px] text-gray-300">
+              <span className="material-symbols-outlined text-[14px] text-emerald-400 shrink-0">auto_awesome</span>
+              <span className="truncate">{buildGarmentTryonPrompt(product)}</span>
+            </div>
+          )}
         </div>
-      ) : null}
+      )}
     </div>
   );
 };

@@ -530,6 +530,24 @@ class LiveTryOnFrameResponse(BaseModel):
     transform: GarmentTransform | None
 
 
+class DecartTokenRequest(BaseModel):
+    requested_duration_seconds: int | None = Field(default=None, ge=10, le=300)
+
+
+class DecartTokenResponse(BaseModel):
+    client_token: str
+    model: str
+    expires_at: str | None = None
+    max_session_seconds: int = 60
+    fps: int = 30
+    width: int = 1280
+    height: int = 720
+
+
+class DecartSessionEndRequest(BaseModel):
+    session_id: str | None = None
+
+
 # --- Future-Proof Database Models ---
 
 class UserRecord(BaseModel):

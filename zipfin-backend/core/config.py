@@ -23,6 +23,13 @@ class Settings:
     INSIGHTFACE_API_KEY: str | None = os.getenv("INSIGHTFACE_API_KEY")
     FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "").strip()
 
+    # Decart Realtime AI VTO Integration (Lucy VTON)
+    DECART_VTO_ENABLED: bool = os.getenv("DECART_VTO_ENABLED", "false").strip().lower() in ("true", "1", "yes")
+    DECART_API_KEY: str = os.getenv("DECART_API_KEY", "").strip()
+    DECART_VTO_MODEL: str = os.getenv("DECART_VTO_MODEL", "lucy-vton-3.5").strip() or "lucy-vton-3.5"
+    DECART_VTO_MAX_SESSION_SECONDS: int = int(os.getenv("DECART_VTO_MAX_SESSION_SECONDS", "60").strip() or "60")
+    DECART_API_BASE_URL: str = os.getenv("DECART_API_BASE_URL", "https://api.decart.ai").strip() or "https://api.decart.ai"
+
     # Safety Kill Switches & Cost Guards
     AI_EMERGENCY_KILL_SWITCH: bool = os.getenv("AI_EMERGENCY_KILL_SWITCH", "").strip().lower() in ("true", "1", "yes")
     VTO_EMERGENCY_KILL_SWITCH: bool = os.getenv("VTO_EMERGENCY_KILL_SWITCH", "").strip().lower() in ("true", "1", "yes")
