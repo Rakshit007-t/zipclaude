@@ -60,6 +60,20 @@ const TryOnStudio: React.FC = () => {
   const location = useLocation();
   const { showToast } = useToast();
   const incomingProduct = location.state?.product;
+  const initialRecommendedSize = (() => {
+    if (location.state?.recommendedSize) return location.state.recommendedSize;
+    if (incomingProduct?.recommendedSize) return incomingProduct.recommendedSize;
+    try {
+      const raw = sessionStorage.getItem('zr_active_recommendation');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.recommendedSize) return parsed.recommendedSize;
+      }
+    } catch {
+      // ignore
+    }
+    return 'M';
+  })();
 
   const [personPreview, setPersonPreview] = useState<string | null>(null);
   const [garmentPreview, setGarmentPreview] = useState<string | null>(
@@ -76,7 +90,7 @@ const TryOnStudio: React.FC = () => {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [hintIndex, setHintIndex] = useState(0);
   const [loadingPresets, setLoadingPresets] = useState(false);
-  const [selectedSize, setSelectedSize] = useState('M');
+  const [selectedSize, setSelectedSize] = useState(initialRecommendedSize);
   const passedProduct = incomingProduct;
 
   const loadDemoPresets = async () => {
@@ -344,7 +358,7 @@ const TryOnStudio: React.FC = () => {
                   <div className="absolute inset-x-0 bottom-0 p-4 pt-12 bg-gradient-to-t from-black via-black/95 to-transparent flex flex-col gap-3 text-white">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-on-media">Recommended size · M</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-on-media">Recommended size · {initialRecommendedSize}</p>
                         <h3 className="font-display text-[19px] font-medium text-white line-clamp-1">
                           {passedProduct?.title || passedProduct?.brand || 'Luxury Tailored Piece'}
                         </h3>

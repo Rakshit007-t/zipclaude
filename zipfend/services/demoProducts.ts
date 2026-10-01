@@ -9,6 +9,7 @@ export interface DemoProduct {
   url: string;
   affiliateLink?: string;
   description?: string;
+  color?: string;
   fit_hint?: string | null;
   size_chart?: Record<string, number> | null;
   available_sizes?: string[] | null;
@@ -26,6 +27,18 @@ export const demoProducts: DemoProduct[] = [
     type: 'shirt',
     url: 'https://zipright.ai/demo/checked-casual-shirt',
     description: 'Everyday casual shirt demo with shoulder, chest, and sleeve fit guidance.',
+  },
+  {
+    id: 'demo-casual-red-shirt',
+    title: 'Casual Red Shirt',
+    brand: 'Urban Ridge',
+    price: 'Rs. 1,499',
+    image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1080&q=85',
+    category: 'Men',
+    type: 'shirt',
+    color: 'Red',
+    url: 'https://zipright.ai/demo/casual-red-shirt',
+    description: 'Casual red button-down shirt reference for real-time AI live try-on.',
   },
   {
     id: 'demo-mango-kurta',

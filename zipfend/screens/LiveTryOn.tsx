@@ -820,19 +820,34 @@ function prepareGarmentSprite(image: HTMLImageElement): HTMLCanvasElement | HTML
   }
 }
 
+const ACTIVE_RECOMMENDATION_KEY = 'zr_active_recommendation';
+
+function readActiveRecommendation(): {
+  product?: any;
+  productUrl?: string;
+  selectedProfileId?: string;
+  source?: string;
+  recommendedSize?: string;
+  confidence?: number;
+} | null {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_RECOMMENDATION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 const LiveTryOn: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { userProfile } = useUserProfile();
 
-  // Garment catalog integration: check navigation state, URL params, or canonical catalog
-  const incomingProduct = location.state?.product;
-  const recommendedSize =
-    location.state?.recommendedSize ||
-    incomingProduct?.recommendedSize ||
-    userProfile?.baseSize ||
-    userProfile?.usualSize ||
-    'M';
+  // Read active session recommendation from sessionStorage as reliable state fallback
+  const activeRec = readActiveRecommendation();
+
+  // Garment catalog integration: check navigation state, active session, URL params, or canonical catalog
+  const incomingProduct = location.state?.product || activeRec?.product;
   const initialCatalogProduct = (() => {
     if (incomingProduct) return incomingProduct;
     const searchParams = new URLSearchParams(location.search);
@@ -846,6 +861,23 @@ const LiveTryOn: React.FC = () => {
   })();
 
   const [product, setProduct] = useState<any>(initialCatalogProduct);
+
+  const recommendedProduct = location.state?.recommendedProduct || location.state?.product || activeRec?.product;
+  const recommendedSize =
+    location.state?.recommendedSize ||
+    location.state?.product?.recommendedSize ||
+    activeRec?.recommendedSize ||
+    activeRec?.product?.recommendedSize ||
+    incomingProduct?.recommendedSize ||
+    userProfile?.baseSize ||
+    userProfile?.usualSize;
+
+  const isRecommendedProduct = Boolean(
+    product &&
+    recommendedProduct &&
+    (product.id === recommendedProduct.id ||
+      (product.title && product.title === recommendedProduct.title && product.brand === recommendedProduct.brand))
+  );
   const garmentUrl: string | undefined = product?.image;
   const clothType: ClothType = categoryToClothType(product?.category || product?.type);
 
@@ -894,6 +926,7 @@ const LiveTryOn: React.FC = () => {
   const aiSessionRef = useRef<DecartRealtimeSession | null>(null);
   const aiTimerIntervalRef = useRef<number | null>(null);
   const isConnectingRef = useRef<boolean>(false);
+  const autoRetryCountRef = useRef<number>(0);
 
   // Check backend Decart status on mount
   useEffect(() => {
@@ -1579,19 +1612,19 @@ const LiveTryOn: React.FC = () => {
             <span className="material-symbols-outlined text-[18px] text-brand">arrow_back</span>
           </button>
 
-          {/* Active AI Stream Badge & Recommended Size */}
+          {/* Active AI Stream Badge */}
           {vtoMode === 'ai' && aiStatus === 'streaming' && (
-            <div className="hidden sm:flex items-center gap-2">
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 border border-emerald-500/40 backdrop-blur-md text-[11px] font-bold text-emerald-300 shadow-glow">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-                <span className="tracking-wide">AI LIVE • {aiModelName.toUpperCase()}</span>
-              </div>
-              {recommendedSize && (
-                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-brand/50 backdrop-blur-md text-[11px] font-bold text-white shadow-glow">
-                  <span className="text-brand uppercase text-[10px]">Size:</span>
-                  <span className="font-mono text-brand">{recommendedSize}</span>
-                </div>
-              )}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 border border-emerald-500/40 backdrop-blur-md text-[11px] font-bold text-emerald-300 shadow-glow">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+              <span className="tracking-wide">AI LIVE • {aiModelName.toUpperCase()}</span>
+            </div>
+          )}
+
+          {/* Recommended Size Badge (Header) */}
+          {isRecommendedProduct && recommendedSize && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-brand/50 backdrop-blur-md text-[11px] font-bold text-white shadow-glow">
+              <span className="text-brand uppercase text-[10px] tracking-wider font-semibold">RECOMMENDED SIZE:</span>
+              <span className="font-mono text-brand font-bold">{recommendedSize}</span>
             </div>
           )}
         </div>
@@ -1703,12 +1736,20 @@ const LiveTryOn: React.FC = () => {
       <div className="flex-1 w-full max-w-[1240px] mx-auto px-2 sm:px-4 flex items-center justify-center min-h-0 relative">
         <div className="relative w-full max-w-[1100px] xl:max-w-[1200px] aspect-video max-h-[calc(100vh-175px)] bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex items-center justify-center">
           {/* Mobile Status Badge inside stage */}
-          {vtoMode === 'ai' && aiStatus === 'streaming' && (
-            <div className="sm:hidden absolute top-3 left-3 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 border border-emerald-500/40 backdrop-blur-md text-[10px] font-bold text-emerald-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <span>AI LIVE</span>
-            </div>
-          )}
+          <div className="sm:hidden absolute top-3 left-3 z-30 flex items-center gap-1.5 flex-wrap">
+            {vtoMode === 'ai' && aiStatus === 'streaming' && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 border border-emerald-500/40 backdrop-blur-md text-[10px] font-bold text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span>AI LIVE</span>
+              </div>
+            )}
+            {isRecommendedProduct && recommendedSize && (
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 border border-brand/50 backdrop-blur-md text-[10px] font-bold text-brand">
+                <span className="text-[9px] uppercase tracking-wider">RECOMMENDED SIZE:</span>
+                <span className="font-mono font-bold">{recommendedSize}</span>
+              </div>
+            )}
+          </div>
 
           {vtoMode === 'ar' ? (
             <>
@@ -1908,10 +1949,17 @@ const LiveTryOn: React.FC = () => {
         <div className="w-full max-w-[1240px] mx-auto px-4 py-2.5 shrink-0 z-50 flex flex-col gap-2">
           {/* Active Product Title & Brand */}
           <div className="w-full flex items-center justify-between text-xs px-1">
-            <span className="font-bold text-white truncate max-w-[280px]">
-              {product?.title || 'Selected Garment'}
-            </span>
-            <span className="text-[11px] text-gray-400 font-mono">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="font-bold text-white truncate max-w-[200px] sm:max-w-[320px]">
+                {product?.title || 'Selected Garment'}
+              </span>
+              {isRecommendedProduct && recommendedSize && (
+                <span className="px-2 py-0.5 rounded-full bg-brand/20 border border-brand/40 text-[10px] font-bold text-brand uppercase tracking-wider shrink-0">
+                  RECOMMENDED SIZE: {recommendedSize}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] text-gray-400 font-mono shrink-0">
               {product?.brand || 'ZipRIGHT'}
             </span>
           </div>
@@ -1936,6 +1984,11 @@ const LiveTryOn: React.FC = () => {
               ].map((item) => {
                 const isSelected = item.id === product?.id;
                 const isCurated = CURATED_DEMO_GARMENTS.some((c) => c.id === item.id);
+                const isItemRecommended = Boolean(
+                  recommendedProduct &&
+                  (item.id === recommendedProduct.id ||
+                    (item.title && item.title === recommendedProduct.title && item.brand === recommendedProduct.brand))
+                );
                 return (
                   <button
                     key={item.id}
@@ -1945,6 +1998,8 @@ const LiveTryOn: React.FC = () => {
                         ? vtoMode === 'ai'
                           ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-glow'
                           : 'bg-brand/25 border-brand text-white shadow-glow'
+                        : isItemRecommended
+                        ? 'bg-brand/10 border-brand/40 text-brand hover:border-brand/70'
                         : isCurated
                         ? 'bg-white/5 border-emerald-500/30 text-gray-200 hover:border-emerald-400/60'
                         : 'bg-black/50 border-white/10 text-gray-300 hover:text-white hover:border-white/30'
@@ -1952,6 +2007,11 @@ const LiveTryOn: React.FC = () => {
                   >
                     <img src={item.image} alt={item.title} className="w-5 h-5 rounded-full object-cover shrink-0" />
                     <span className="text-[11px] font-medium whitespace-nowrap">{item.title}</span>
+                    {isItemRecommended && recommendedSize && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand/30 text-brand font-bold uppercase">
+                        Size {recommendedSize}
+                      </span>
+                    )}
                   </button>
                 );
               })}

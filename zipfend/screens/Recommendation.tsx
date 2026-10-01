@@ -415,6 +415,8 @@ function readActiveRecommendation(): {
   productUrl?: string;
   selectedProfileId?: string;
   source?: string;
+  recommendedSize?: string;
+  confidence?: number;
 } | null {
   try {
     const raw = sessionStorage.getItem(ACTIVE_RECOMMENDATION_KEY);
@@ -635,10 +637,24 @@ const Recommendation: React.FC = () => {
     const key = getCacheKey(input);
 
     if (cacheRef.current[key]) {
-      setAiResult(cacheRef.current[key]);
+      const cached = cacheRef.current[key];
+      setAiResult(cached);
       setResultKey(key);
       setEngineError(null);
       setLoadingStage(0);
+      writeActiveRecommendation({
+        product: {
+          ...displayProduct,
+          recommendationId: cached.recommendationId,
+          recommendedSize: cached.recommendedSize,
+          confidence: cached.confidence,
+        },
+        productUrl,
+        selectedProfileId: selectedMemberId || userProfile.selectedProfileId || userProfile.profileId,
+        source,
+        recommendedSize: cached.recommendedSize,
+        confidence: cached.confidence,
+      });
       return;
     }
 
@@ -769,14 +785,19 @@ const Recommendation: React.FC = () => {
           }
         }
 
-        if (!displayProduct.recommendationId) {
-          writeActiveRecommendation({
-            product: { ...displayProduct, recommendationId },
-            productUrl,
-            selectedProfileId: selectedMemberId || userProfile.selectedProfileId || userProfile.profileId,
-            source,
-          });
-        }
+        writeActiveRecommendation({
+          product: {
+            ...displayProduct,
+            recommendationId,
+            recommendedSize: mappedResult.recommendedSize,
+            confidence: mappedResult.confidence,
+          },
+          productUrl,
+          selectedProfileId: selectedMemberId || userProfile.selectedProfileId || userProfile.profileId,
+          source,
+          recommendedSize: mappedResult.recommendedSize,
+          confidence: mappedResult.confidence,
+        });
 
         setAiResult(mappedResult);
         setResultKey(key);
@@ -1024,11 +1045,44 @@ const Recommendation: React.FC = () => {
   };
 
   const handleStartAiLive = () => {
+    const finalRecommendedSize =
+      visibleAiResult?.recommendedSize ||
+      aiResult?.recommendedSize ||
+      displayProduct?.recommendedSize ||
+      readActiveRecommendation()?.recommendedSize;
+
+    const finalConfidence =
+      visibleAiResult?.confidence ??
+      aiResult?.confidence ??
+      displayProduct?.confidence ??
+      readActiveRecommendation()?.confidence;
+
+    if (!finalRecommendedSize) {
+      showToast('Calculating size recommendation...', 'info');
+      return;
+    }
+
+    const payloadProduct = {
+      ...displayProduct,
+      recommendedSize: finalRecommendedSize,
+      confidence: finalConfidence,
+    };
+
+    writeActiveRecommendation({
+      product: payloadProduct,
+      productUrl,
+      selectedProfileId: selectedMemberId || userProfile.selectedProfileId || userProfile.profileId,
+      source,
+      recommendedSize: finalRecommendedSize,
+      confidence: finalConfidence,
+    });
+
     navigate('/live-tryon', {
       state: {
-        product: displayProduct,
-        recommendedSize: visibleAiResult?.recommendedSize || displayProduct.recommendedSize || 'M',
-        confidence: visibleAiResult?.confidence,
+        product: payloadProduct,
+        recommendedProduct: payloadProduct,
+        recommendedSize: finalRecommendedSize,
+        confidence: finalConfidence,
         startMode: 'ai',
       },
     });
@@ -1345,7 +1399,7 @@ const Recommendation: React.FC = () => {
                                                     {displayProduct.title}
                                                 </p>
                                                 <p className="text-[12px] text-ink-soft mt-0.5">
-                                                    Recommended size: <strong className="text-brand font-bold text-[13.5px]">{visibleAiResult.recommendedSize}</strong>
+                                                    RECOMMENDED SIZE: <strong className="text-brand font-bold text-[13.5px]">{visibleAiResult.recommendedSize}</strong>
                                                 </p>
                                             </div>
                                         </div>

@@ -38,9 +38,10 @@ export function isDemoMode(): boolean {
  */
 export const CURATED_DEMO_GARMENTS: DemoProduct[] = [
   demoProducts.find((p) => p.id === 'demo-roadster-shirt') || demoProducts[0],
-  demoProducts.find((p) => p.id === 'demo-mango-kurta') || demoProducts[1],
-  demoProducts.find((p) => p.id === 'demo-polo-tee') || demoProducts[2],
+  demoProducts.find((p) => p.id === 'demo-mango-kurta') || demoProducts[2],
+  demoProducts.find((p) => p.id === 'demo-polo-tee') || demoProducts[3],
   demoProducts.find((p) => p.id === 'demo-women-denim-jacket') || demoProducts[4],
+  demoProducts.find((p) => p.id === 'demo-casual-red-shirt') || demoProducts[1],
 ];
 
 /**

@@ -32,7 +32,24 @@ const FashionStudio: React.FC = () => {
   const { showToast } = useToast();
   const { userProfile } = useUserProfile();
 
-  const [size, setSize] = useState('M');
+  // Product Data from Location
+  const incomingProduct = location.state?.product;
+  const initialRecommendedSize = (() => {
+    if (location.state?.recommendedSize) return location.state.recommendedSize;
+    if (incomingProduct?.recommendedSize) return incomingProduct.recommendedSize;
+    try {
+      const raw = sessionStorage.getItem('zr_active_recommendation');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.recommendedSize) return parsed.recommendedSize;
+      }
+    } catch {
+      // ignore
+    }
+    return userProfile?.baseSize || userProfile?.usualSize || 'M';
+  })();
+
+  const [size, setSize] = useState(initialRecommendedSize);
   const [isZoomed, setIsZoomed] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [lighting, setLighting] = useState<'Studio' | 'Outdoor' | 'Night'>('Studio');
@@ -40,8 +57,6 @@ const FashionStudio: React.FC = () => {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [tryOnError, setTryOnError] = useState<string | null>(null);
 
-  // Product Data from Location
-  const incomingProduct = location.state?.product;
   const product = {
     id: incomingProduct?.id || 'wool-coat-1',
     name: incomingProduct?.title || 'Structured Wool Coat',
@@ -49,7 +64,7 @@ const FashionStudio: React.FC = () => {
     price: incomingProduct?.price || '₹24,500',
     image: incomingProduct?.image || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
     url: incomingProduct?.url || 'https://www.therow.com/',
-    recommendedSize: incomingProduct?.recommendedSize || 'M',
+    recommendedSize: initialRecommendedSize,
   };
 
   // Try-On Generation
@@ -247,7 +262,14 @@ const FashionStudio: React.FC = () => {
       onClick: () => setIsZoomed(z => !z) },
     { key: 'max', label: 'Max quality', icon: 'auto_awesome', onClick: () => runTryOn('2k') },
     { key: 'live', label: 'Go live', icon: 'videocam',
-      onClick: () => navigate('/live-tryon', { state: { product: incomingProduct || product } }) },
+      onClick: () => navigate('/live-tryon', {
+        state: {
+          product: incomingProduct || product,
+          recommendedProduct: incomingProduct || product,
+          recommendedSize: initialRecommendedSize,
+          confidence: location.state?.confidence,
+        }
+      }) },
   ];
 
   return (
