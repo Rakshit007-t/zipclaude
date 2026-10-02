@@ -11,6 +11,7 @@ import React, {
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { deleteField, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { authClient } from '../services/authClient';
 import { deleteFitProfileApi } from '../services/ziprightApi';
 
 export type UserBaseSize = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
@@ -441,7 +442,7 @@ function getStorageOwnerId(user?: User | null) {
 }
 
 function resolveCurrentOwnerId(ownerId?: string | null) {
-  return ownerId || getStorageOwnerId(auth.currentUser);
+  return ownerId || getStorageOwnerId(authClient.currentUser);
 }
 
 function removeLocalProfile(ownerId?: string | null) {
@@ -498,7 +499,7 @@ async function fetchUserProfile(user?: User | null) {
 }
 
 export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const storageOwnerIdRef = useRef<string | null>(getStorageOwnerId(auth.currentUser));
+  const storageOwnerIdRef = useRef<string | null>(getStorageOwnerId(authClient.currentUser));
   const [userProfileState, setUserProfileState] = useState<UserProfile>(() => (
     readLocalProfile(storageOwnerIdRef.current) ?? defaultUserProfile
   ));
@@ -522,8 +523,8 @@ export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    storageOwnerIdRef.current = getStorageOwnerId(auth.currentUser);
-    const nextProfile = await fetchUserProfile(auth.currentUser);
+    storageOwnerIdRef.current = getStorageOwnerId(authClient.currentUser);
+    const nextProfile = await fetchUserProfile(authClient.currentUser);
     setUserProfileState(nextProfile);
     writeLocalProfile(storageOwnerIdRef.current, nextProfile);
     setIsHydrated(true);
@@ -622,7 +623,7 @@ export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ childre
   useEffect(() => {
     let unsubscribeProfile: (() => void) | undefined;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = authClient.onAuthStateChanged((user) => {
       unsubscribeProfile?.();
       storageOwnerIdRef.current = getStorageOwnerId(user);
       const localProfile = readLocalProfile(storageOwnerIdRef.current);
@@ -637,24 +638,28 @@ export const UserProfileProvider: React.FC<{ children: ReactNode }> = ({ childre
         setUserProfileState(localProfile);
       }
 
-      unsubscribeProfile = onSnapshot(
-        doc(db, 'users', user.uid),
-        snapshot => {
-          const remoteProfile = normalizeUserProfileDoc(snapshot.data());
-          const ownerId = storageOwnerIdRef.current || user.uid;
-          const localProfile = readLocalProfile(ownerId);
-          const nextProfile = hasProfileData(remoteProfile)
-            ? (localProfile ? mergeProfile(localProfile, remoteProfile) : remoteProfile)
-            : (localProfile ?? defaultUserProfile);
-          setUserProfileState(nextProfile);
-          writeLocalProfile(ownerId, nextProfile);
-          setIsHydrated(true);
-        },
-        (err) => {
-          console.error('[UserProfileContext] profile snapshot error:', err);
-          void refreshProfile();
-        },
-      );
+      if (import.meta.env.VITE_AUTH_PROVIDER !== 'appwrite') {
+        unsubscribeProfile = onSnapshot(
+          doc(db, 'users', user.uid),
+          snapshot => {
+            const remoteProfile = normalizeUserProfileDoc(snapshot.data());
+            const ownerId = storageOwnerIdRef.current || user.uid;
+            const localProfile = readLocalProfile(ownerId);
+            const nextProfile = hasProfileData(remoteProfile)
+              ? (localProfile ? mergeProfile(localProfile, remoteProfile) : remoteProfile)
+              : (localProfile ?? defaultUserProfile);
+            setUserProfileState(nextProfile);
+            writeLocalProfile(ownerId, nextProfile);
+            setIsHydrated(true);
+          },
+          (err) => {
+            console.error('[UserProfileContext] profile snapshot error:', err);
+            void refreshProfile();
+          },
+        );
+      } else {
+        setIsHydrated(true);
+      }
     });
 
     return () => {

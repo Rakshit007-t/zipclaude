@@ -5,6 +5,7 @@ import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, setDo
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import { auth, db } from '../firebase';
+import { authClient } from '../services/authClient';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
@@ -48,7 +49,7 @@ const UserProfile: React.FC = () => {
   const { userProfile, setUserProfile } = useUserProfile();
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [authUser, setAuthUser] = useState(auth.currentUser);
+  const [authUser, setAuthUser] = useState(authClient.currentUser);
   const targetUid = paramUid || authUser?.uid;
   const isMe = !paramUid || (!!authUser && paramUid === authUser.uid);
 
@@ -65,7 +66,7 @@ const UserProfile: React.FC = () => {
   const [giftsGiven, setGiftsGiven] = useState(0);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
+    const unsubscribe = authClient.onAuthStateChanged(user => {
       setAuthUser(user);
     });
     return () => unsubscribe();

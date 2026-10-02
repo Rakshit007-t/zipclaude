@@ -6,6 +6,7 @@ import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import { PLANS, getUserRole, setUserRole, getSellerStatus, setSellerStatus, getUserPlan } from '../utils/subscription';
 import { compressImage, uploadOrEncodeProfilePhoto } from '../utils/media';
 import app, { auth, db } from '../firebase';
+import { authClient } from '../services/authClient';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
@@ -42,7 +43,7 @@ import notificationClient from '../services/notificationClient';
 
 // Addresses persist locally per account (no backend orders API yet)
 function addressStoreKey() {
-  const owner = auth.currentUser?.uid;
+  const owner = authClient.currentUser?.uid;
   return owner ? `zipright_addresses:${owner}` : null;
 }
 
@@ -220,8 +221,8 @@ const Settings: React.FC = () => {
 
   const [profileImage, setProfileImage] = useState(
     userProfile.photoURL ||
-    auth.currentUser?.photoURL ||
-    ((auth.currentUser as typeof auth.currentUser & { photoUrl?: string })?.photoUrl ?? '') ||
+    authClient.currentUser?.photoURL ||
+    ((authClient.currentUser as typeof authClient.currentUser & { photoUrl?: string })?.photoUrl ?? '') ||
     ''
   );
 
@@ -244,8 +245,8 @@ const Settings: React.FC = () => {
 
   const effectivePhoto = typeof userProfile.photoURL !== 'undefined'
     ? (userProfile.photoURL || '')
-    : (profileImage || auth.currentUser?.photoURL || '');
-  const effectiveDisplayName = userProfile.displayName || userProfile.profileName || (userData.firstName ? `${userData.firstName} ${userData.lastName}`.trim() : '') || auth.currentUser?.displayName || 'ZipRIGHT Member';
+    : (profileImage || authClient.currentUser?.photoURL || '');
+  const effectiveDisplayName = userProfile.displayName || userProfile.profileName || (userData.firstName ? `${userData.firstName} ${userData.lastName}`.trim() : '') || authClient.currentUser?.displayName || 'ZipRIGHT Member';
   const initialLetter = (effectiveDisplayName || 'Z').charAt(0).toUpperCase();
 
   // Edit Profile Temp State
@@ -293,7 +294,7 @@ const Settings: React.FC = () => {
   };
 
   useEffect(() => {
-    const user = auth.currentUser;
+    const user = authClient.currentUser;
     if (!user) {
       setMembers([]);
     }
@@ -303,12 +304,12 @@ const Settings: React.FC = () => {
     const errInfo: FirestoreErrorInfo = {
       error: error instanceof Error ? error.message : String(error),
       authInfo: {
-        userId: auth.currentUser?.uid,
-        email: auth.currentUser?.email,
-        emailVerified: auth.currentUser?.emailVerified,
-        isAnonymous: auth.currentUser?.isAnonymous,
-        tenantId: auth.currentUser?.tenantId,
-        providerInfo: auth.currentUser?.providerData.map(provider => ({
+        userId: authClient.currentUser?.uid,
+        email: authClient.currentUser?.email,
+        emailVerified: authClient.currentUser?.emailVerified,
+        isAnonymous: authClient.currentUser?.isAnonymous,
+        tenantId: authClient.currentUser?.tenantId,
+        providerInfo: authClient.currentUser?.providerData.map(provider => ({
           providerId: provider.providerId,
           displayName: provider.displayName,
           email: provider.email,
@@ -325,7 +326,7 @@ const Settings: React.FC = () => {
   // Re-read storage and Firestore on mount and view change
   useEffect(() => {
     const init = async () => {
-        const user = auth.currentUser;
+        const user = authClient.currentUser;
 
         if (!user) {
             navigate('/login');
@@ -523,7 +524,7 @@ const Settings: React.FC = () => {
     try {
       showToast('Updating profile photo...', 'info');
       const url = await uploadOrEncodeProfilePhoto(file);
-      const user = auth.currentUser;
+      const user = authClient.currentUser;
       if (user && !user.isAnonymous) {
         if (url.startsWith('http://') || url.startsWith('https://')) {
           await updateAuthProfile(user, { photoURL: url }).catch(() => {});
@@ -548,7 +549,7 @@ const Settings: React.FC = () => {
   };
 
   const saveUserProfile = async () => {
-      const user = auth.currentUser;
+      const user = authClient.currentUser;
       if (!user) return;
 
       try {
@@ -636,9 +637,9 @@ const Settings: React.FC = () => {
 
   const deleteMember = async (id: string) => {
       try {
-          if (auth.currentUser) {
+          if (authClient.currentUser) {
               await deleteFitProfile(id).catch(async () => {
-                  await setDoc(doc(db, 'users', auth.currentUser!.uid), {
+                  await setDoc(doc(db, 'users', authClient.currentUser!.uid), {
                       profileName: '',
                       updatedAt: serverTimestamp(),
                   }, { merge: true });
@@ -708,7 +709,7 @@ const Settings: React.FC = () => {
       return;
     }
 
-    const user = auth.currentUser;
+    const user = authClient.currentUser;
     if (!user) {
       showToast("Please sign in to apply as a seller.", "error");
       return;
@@ -1694,7 +1695,7 @@ const Settings: React.FC = () => {
                         }
                         setIsRedeeming(true);
                         try {
-                          const user = auth.currentUser;
+                          const user = authClient.currentUser;
                           if (user) {
                             await setDoc(doc(db, 'users', user.uid), {
                               zipPoints: 0
@@ -1958,7 +1959,7 @@ const Settings: React.FC = () => {
               fullWidth
               onClick={async () => {
                 setShowLogoutConfirm(false);
-                try { await auth.signOut(); } catch {}
+                try { await authClient.signOut(); } catch {}
                 try { clearProfile(); } catch {}
                 navigate('/welcome', { replace: true });
               }}
@@ -2012,13 +2013,13 @@ const Settings: React.FC = () => {
         description="For your security, please verify your identity before deleting your account."
         actions={
           <div className="w-full flex flex-col gap-3">
-            {auth.currentUser?.providerData.some(p => p.providerId === 'google.com') ? (
+            {authClient.currentUser?.providerData.some(p => p.providerId === 'google.com') ? (
               <Button
                 variant="primary"
                 fullWidth
                 loading={reauthenticating}
                 onClick={async () => {
-                  const currentUser = auth.currentUser;
+                  const currentUser = authClient.currentUser;
                   if (!currentUser) return;
                   setReauthenticating(true);
                   setReauthError('');
@@ -2039,7 +2040,7 @@ const Settings: React.FC = () => {
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  const currentUser = auth.currentUser;
+                  const currentUser = authClient.currentUser;
                   if (!currentUser) return;
                   if (!reauthPassword) {
                     setReauthError('Please enter your current password.');
@@ -2081,10 +2082,10 @@ const Settings: React.FC = () => {
                 </div>
               </form>
             )}
-            {auth.currentUser?.providerData.some(p => p.providerId === 'google.com') && reauthError && (
+            {authClient.currentUser?.providerData.some(p => p.providerId === 'google.com') && reauthError && (
               <p role="alert" className="text-[12.5px] font-medium text-danger text-center">{reauthError}</p>
             )}
-            {auth.currentUser?.providerData.some(p => p.providerId === 'google.com') && (
+            {authClient.currentUser?.providerData.some(p => p.providerId === 'google.com') && (
               <Button variant="secondary" fullWidth disabled={reauthenticating} onClick={() => { setShowReauthModal(false); setReauthError(''); }}>Cancel</Button>
             )}
           </div>
@@ -2110,7 +2111,7 @@ const Settings: React.FC = () => {
               fullWidth
               loading={deletingAccount}
               onClick={async () => {
-                const currentUser = auth.currentUser;
+                const currentUser = authClient.currentUser;
                 if (!currentUser || !reauthenticated) {
                   showToast('Re-authentication required.', 'error');
                   setShowFinalDeleteConfirm(false);
@@ -2144,7 +2145,7 @@ const Settings: React.FC = () => {
                 } catch {}
 
                 try { clearProfile(); } catch {}
-                try { await auth.signOut(); } catch {}
+                try { await authClient.signOut(); } catch {}
                 showToast('Your account has been permanently deleted.', 'info');
                 navigate('/welcome', { replace: true });
               }}

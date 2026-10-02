@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
+import { authClient } from '../services/authClient';
 import { useToast } from '../contexts/ToastContext';
 import { fetchProductAvailability, fetchSizeChart } from '../services/BrandAPI';
 import { demoProducts } from '../services/demoProducts';
@@ -73,7 +73,7 @@ const Marketplace: React.FC = () => {
 
   const toggleLike = async (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
-    const user = auth.currentUser;
+    const user = authClient.currentUser;
     if (!user) {
       navigate('/login');
       return;
@@ -87,7 +87,7 @@ const Marketplace: React.FC = () => {
   };
 
   const handleProductClick = async (product: Product) => {
-    const user = auth.currentUser;
+    const user = authClient.currentUser;
     if (!user) {
       navigate('/login');
       return;

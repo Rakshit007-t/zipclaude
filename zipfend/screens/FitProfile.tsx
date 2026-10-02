@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { authClient } from '../services/authClient';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile, type FitProfileDraft } from '../contexts/UserProfileContext';
 import { useAppNavigation } from '../utils/useAppNavigation';
@@ -453,7 +454,7 @@ const FitProfile: React.FC = () => {
         return;
       }
 
-      const user = auth.currentUser;
+      const user = authClient.currentUser;
       if (!user) {
         return;
       }
@@ -728,7 +729,7 @@ const FitProfile: React.FC = () => {
       return;
     }
 
-    const user = auth.currentUser;
+    const user = authClient.currentUser;
     const userId = user?.uid;
     if (!userId) { showToast('Please sign in first.', 'error'); navigate('/login'); return; }
 

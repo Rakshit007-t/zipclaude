@@ -27,6 +27,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { authClient } from './authClient';
 import { authorizedFetch, getBackendBaseUrl } from './ziprightApi';
 
 export interface PublicProfile {
@@ -45,7 +46,7 @@ export interface PublicProfile {
 
 /** Real (non-anonymous) Firebase user — social writes need a real account. */
 export function socialUser() {
-  const user = auth.currentUser;
+  const user = authClient.currentUser;
   return user && !user.isAnonymous ? user : null;
 }
 
@@ -170,7 +171,7 @@ export function startPresence(): () => void {
 
 export async function getProfile(uid: string): Promise<PublicProfile | null> {
   try {
-    const isOwner = auth.currentUser?.uid === uid;
+    const isOwner = authClient.currentUser?.uid === uid;
     const primarySource = isOwner ? 'users' : 'publicProfiles';
     let snap = await getDoc(doc(db, primarySource, uid));
     if (!snap.exists() && !isOwner) {
@@ -198,7 +199,7 @@ export async function searchUsers(term: string): Promise<PublicProfile[]> {
     if (r.status !== 'fulfilled') continue;
     r.value.docs.forEach(d => { if (!seen.has(d.id)) seen.set(d.id, toProfile(d.id, d.data())); });
   }
-  const meUid = auth.currentUser?.uid;
+  const meUid = authClient.currentUser?.uid;
   return [...seen.values()].filter(p => p.uid !== meUid);
 }
 

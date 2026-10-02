@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { safeOpenUrl } from '../utils/sanitize';
 import { getUserPlan } from '../utils/subscription';
 import { auth, db } from '../firebase';
+import { authClient } from '../services/authClient';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
@@ -240,7 +241,7 @@ function buildRecommendationMembers(profile: any): Member[] {
       record.id ||
       profile.profileId ||
       profile.selectedProfileId ||
-      auth.currentUser?.uid ||
+      authClient.currentUser?.uid ||
       `profile-${index + 1}`,
     );
     const measurements = getRecordMeasurements(record, profile);
@@ -734,7 +735,7 @@ const Recommendation: React.FC = () => {
 
         void trackRecommendationGenerated({
           recommendationId,
-          userId: auth.currentUser?.uid,
+          userId: authClient.currentUser?.uid,
           product: displayProduct,
           backendSize: refined.mappedFromEngine,
           finalSize: refined.size,
@@ -742,12 +743,12 @@ const Recommendation: React.FC = () => {
           screenSource: 'recommendation',
         });
 
-        if (auth.currentUser) {
+        if (authClient.currentUser) {
           try {
-            const recRef = doc(db, 'users', auth.currentUser.uid, 'recommendations', recommendationId);
+            const recRef = doc(db, 'users', authClient.currentUser.uid, 'recommendations', recommendationId);
             void setDoc(recRef, {
               id: recommendationId,
-              userId: auth.currentUser.uid,
+              userId: authClient.currentUser.uid,
               profileId: input.profileId,
               productUrl: input.url,
               productTitle: displayProduct.title || '',
@@ -813,7 +814,7 @@ const Recommendation: React.FC = () => {
     viewedAnalyticsKeysRef.current.add(currentInputKey);
     void trackRecommendationViewed({
       recommendationId: visibleAiResult.recommendationId,
-      userId: auth.currentUser?.uid,
+      userId: authClient.currentUser?.uid,
       product: displayProduct,
       backendSize: visibleAiResult.backendSize || visibleAiResult.alternativeSize || visibleAiResult.recommendedSize,
       finalSize: visibleAiResult.recommendedSize,
@@ -835,7 +836,7 @@ const Recommendation: React.FC = () => {
     if (visibleAiResult && displayProduct) {
       void trackRecommendationAccepted({
         recommendationId: visibleAiResult.recommendationId,
-        userId: auth.currentUser?.uid,
+        userId: authClient.currentUser?.uid,
         product: displayProduct,
         backendSize: visibleAiResult.backendSize || visibleAiResult.alternativeSize || visibleAiResult.recommendedSize,
         finalSize: visibleAiResult.recommendedSize,
@@ -860,7 +861,7 @@ const Recommendation: React.FC = () => {
     if (visibleAiResult && displayProduct) {
       void trackRecommendationAccepted({
         recommendationId: visibleAiResult.recommendationId,
-        userId: auth.currentUser?.uid,
+        userId: authClient.currentUser?.uid,
         product: displayProduct,
         backendSize: visibleAiResult.backendSize || visibleAiResult.alternativeSize || visibleAiResult.recommendedSize,
         finalSize: visibleAiResult.recommendedSize,
@@ -880,7 +881,7 @@ const Recommendation: React.FC = () => {
     if (visibleAiResult && displayProduct) {
       void trackRecommendationRejected({
         recommendationId: visibleAiResult.recommendationId,
-        userId: auth.currentUser?.uid,
+        userId: authClient.currentUser?.uid,
         product: displayProduct,
         backendSize: visibleAiResult.backendSize || visibleAiResult.alternativeSize || visibleAiResult.recommendedSize,
         finalSize: visibleAiResult.recommendedSize,
@@ -909,7 +910,7 @@ const Recommendation: React.FC = () => {
 
     void trackRecommendationFeedback({
       recommendationId,
-      userId: auth.currentUser?.uid,
+      userId: authClient.currentUser?.uid,
       product: displayProduct,
       recommendedSize: visibleAiResult.recommendedSize,
       finalSize: visibleAiResult.recommendedSize,
@@ -943,7 +944,7 @@ const Recommendation: React.FC = () => {
     markOutcomeSubmitted(recommendationId, 'product_purchased');
     void trackProductPurchased({
       recommendationId,
-      userId: auth.currentUser?.uid,
+      userId: authClient.currentUser?.uid,
       product: displayProduct,
       recommendedSize: visibleAiResult.recommendedSize,
       finalSize: visibleAiResult.recommendedSize,
@@ -969,7 +970,7 @@ const Recommendation: React.FC = () => {
     setActiveOutcomeForm(null);
     void trackSizeExchanged({
       recommendationId,
-      userId: auth.currentUser?.uid,
+      userId: authClient.currentUser?.uid,
       product: displayProduct,
       recommendedSize: visibleAiResult.recommendedSize,
       finalSize: visibleAiResult.recommendedSize,
@@ -993,7 +994,7 @@ const Recommendation: React.FC = () => {
     setActiveOutcomeForm(null);
     void trackSizeReturned({
       recommendationId,
-      userId: auth.currentUser?.uid,
+      userId: authClient.currentUser?.uid,
       product: displayProduct,
       recommendedSize: visibleAiResult.recommendedSize,
       finalSize: visibleAiResult.recommendedSize,
