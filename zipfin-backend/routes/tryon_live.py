@@ -261,6 +261,15 @@ async def create_decart_token(
     """
     logger.info("Decart token requested by user_id=%s", current_user.uid)
 
+    if current_user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "Please sign in to start AI Live Try-On.",
+                "details": {"code": "anonymous_user_blocked"},
+            },
+        )
+
     # Check feature flag early
     if not is_decart_enabled():
         raise HTTPException(

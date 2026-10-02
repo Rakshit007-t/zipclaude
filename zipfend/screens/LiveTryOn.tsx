@@ -856,7 +856,7 @@ const LiveTryOn: React.FC = () => {
       const found = demoProducts.find(p => p.id === paramId);
       if (found) return found;
     }
-    // Default to primary curated demo garment: Roadster Checked Casual Shirt
+    // Default to primary catalog garment
     return CURATED_DEMO_GARMENTS[0] || demoProducts[0];
   })();
 
@@ -1102,8 +1102,8 @@ const LiveTryOn: React.FC = () => {
               setAiStatus('streaming');
               setAiSessionActive(true);
             },
-            onConnectionChange: (state) => {
-              console.log('Decart connection state:', state);
+            onConnectionChange: (_state) => {
+              // connection state transition handled via aiStatus
             },
             onError: (err) => {
               if (cancelled) return;
@@ -1964,7 +1964,7 @@ const LiveTryOn: React.FC = () => {
             </span>
           </div>
 
-          {/* Curated Demo Garment Selector */}
+          {/* Live Garment Selector */}
           <div className="w-full">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               {[

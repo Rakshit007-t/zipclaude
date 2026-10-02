@@ -72,7 +72,7 @@ export const BrandProfile: React.FC = () => {
       <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center justify-center text-center">
         <Wordmark className="mb-4" />
         <h2 className="text-xl font-bold mb-2">Brand Not Found</h2>
-        <p className="text-neutral-400 mb-6">We couldn't find the requested brand showcase.</p>
+        <p className="text-neutral-400 mb-6">We couldn't find the requested brand profile.</p>
         <Button onClick={() => navigate('/marketplace')}>Browse Marketplace</Button>
       </div>
     );

@@ -8,6 +8,7 @@
     "build": "vite build",
     "start": "tsx server.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test tests/*.test.ts",
     "lint": "npm run typecheck",
     "preview": "vite preview"
   },

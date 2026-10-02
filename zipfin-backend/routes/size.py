@@ -36,9 +36,11 @@ ANONYMOUS_UID = "demo-anonymous"
 
 
 def _calibration_user_id(current_user: AuthenticatedUser) -> str:
-    """Anonymous sessions share one uid; never use it for per-user learning."""
+    """Anonymous sessions share one uid or temporary guest identities; never use them for per-user learning."""
+    if getattr(current_user, "is_anonymous", False):
+        return ""
     uid = (current_user.uid or "").strip()
-    return "" if uid == ANONYMOUS_UID else uid
+    return "" if uid in (ANONYMOUS_UID, "demo-anonymous", "dev-anonymous") else uid
 
 
 def _invalid_scan_response(message: str = INVALID_SCAN_MESSAGE) -> ApiResponse[SmartFitScanResponse]:

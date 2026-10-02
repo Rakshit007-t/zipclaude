@@ -14,7 +14,6 @@ import { ScreenFallback, OfflineBanner, Wordmark, CookieConsentBanner } from './
 import { ProtectedAdminRoute, ProtectedSellerRoute } from './components/routing/ProtectedRoutes';
 import Splash from './screens/Splash';
 import SEOManager from './components/SEOManager';
-import { agentDebugLog } from './utils/agentDebugLog';
 
 // Screens are lazy-loaded: each becomes its own chunk so first paint only
 // pays for the route being visited, not the whole app.
@@ -493,9 +492,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const unsubscribe = authClient.onAuthStateChanged((currentUser) => {
-      // #region agent log
-      agentDebugLog('App.tsx:onAuthStateChanged', 'auth state', {hasUser:Boolean(currentUser),isAnonymous:Boolean(currentUser?.isAnonymous),emailVerified:Boolean(currentUser?.emailVerified),providers:(currentUser?.providerData||[]).map(p=>p.providerId)}, 'B');
-      // #endregion
       setUser(currentUser);
       setLoading(false);
     });

@@ -91,7 +91,7 @@ const Welcome: React.FC = () => {
       {/* Manifesto headline */}
       <div className="relative z-10 px-8 mt-12">
         <motion.p {...enter(0.1)} className="eyebrow mb-4">
-          NIT Event Demo Showcase
+          AI-powered fit, sizing and virtual try-on
         </motion.p>
         <motion.h1
           {...enter(0.18)}

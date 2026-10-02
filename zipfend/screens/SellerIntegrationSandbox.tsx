@@ -498,13 +498,13 @@ const SellerIntegrationSandbox: React.FC = () => {
               </label>
             )}
 
-            {/* Demo Avatar Option */}
+            {/* Sample Avatar Option */}
             {!personImage && (
               <button
                 onClick={() => setPersonImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500')}
                 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-brand text-center underline underline-offset-4"
               >
-                Use demo model avatar
+                Use sample model avatar
               </button>
             )}
 

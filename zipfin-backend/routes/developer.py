@@ -32,6 +32,11 @@ async def generate_api_key(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[ApiKeyCreateResponse]:
     """Generate a new API Key for the authenticated developer."""
+    if current_user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anonymous accounts cannot generate API keys. Please sign in or register.",
+        )
     try:
         result = create_api_key(current_user.uid, payload)
         return success_response(
@@ -57,6 +62,11 @@ async def get_api_keys(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[list[ApiKeyMetadataResponse]]:
     """List all active API Keys for the authenticated developer."""
+    if current_user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anonymous accounts cannot access developer keys. Please sign in or register.",
+        )
     try:
         result = list_api_keys(current_user.uid)
         return success_response(
@@ -83,6 +93,11 @@ async def delete_api_key(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[dict]:
     """Revoke an API Key."""
+    if current_user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anonymous accounts cannot revoke developer keys.",
+        )
     try:
         revoke_api_key(current_user.uid, key_id)
         return success_response(
@@ -109,6 +124,11 @@ async def get_analytics(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ApiResponse[UsageAnalyticsResponse]:
     """Retrieve usage analytics metrics for the authenticated developer."""
+    if current_user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anonymous accounts cannot access developer analytics.",
+        )
     try:
         data = get_developer_analytics(current_user.uid, time_range=time_range)
         return success_response(

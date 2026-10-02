@@ -178,7 +178,7 @@ const SwipeReel: React.FC = () => {
 
   if (loading) return <main className="flex min-h-dvh items-center justify-center bg-surface-0"><Spinner size={30} /></main>;
   if (error) return <main className="p-6 pt-24"><EmptyState icon="error" title="Reels unavailable" description={error} action={<Button onClick={() => window.location.reload()}>Try again</Button>} /></main>;
-  if (!reel) return <main className="p-6 pt-24"><EmptyState icon="movie" title="No reels yet" description="Published reels will appear here. There are no demo reels in this feed." /></main>;
+  if (!reel) return <main className="p-6 pt-24"><EmptyState icon="movie" title="No reels yet" description="Published reels will appear here." /></main>;
 
   return (
     <main className="relative isolate h-screen min-h-[640px] max-h-dvh overflow-hidden bg-black text-white touch-none select-none">

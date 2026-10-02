@@ -79,25 +79,28 @@ _metrics: dict = {
 
 
 def _get_cors_origins() -> list[str]:
+    is_production_like = os.getenv("ENV", "development").lower() in ("production", "staging")
     configured_origins = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
     if configured_origins and configured_origins != "*":
-        requested_origins = [
+        origins = [
             origin.strip().rstrip("/")
             for origin in configured_origins.split(",")
             if origin.strip()
         ]
+    elif is_production_like:
+        # Strictly disallow localhost and private loopback origins in production/staging
+        production_origin = os.getenv("PRODUCTION_CORS_ORIGIN", "https://zipright.ai").strip()
+        origins = [production_origin.rstrip("/")] if production_origin else []
     else:
-        requested_origins = []
-
-    origins = requested_origins or [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ]
-    production_origin = os.getenv("PRODUCTION_CORS_ORIGIN", "https://zipright.ai").strip()
-    if production_origin:
-        origins.append(production_origin.rstrip("/"))
+        origins = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+        production_origin = os.getenv("PRODUCTION_CORS_ORIGIN", "https://zipright.ai").strip()
+        if production_origin:
+            origins.append(production_origin.rstrip("/"))
 
     unique_origins: list[str] = []
     for origin in origins:

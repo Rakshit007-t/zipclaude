@@ -1,14 +1,23 @@
 /**
- * ZipRIGHT — NIT Event Demo Mode & Flow Orchestration
+ * ZipRIGHT — Internal Demo Mode & Fixture Utilities
  *
- * Controls demo triggers, curated product selection, and quick-fill
- * profile presets for high-impact stage demonstrations.
+ * Provides optional internal testing fixtures for local development.
+ * PRODUCTION BUILDS ALWAYS FORCE DEMO MODE OFF.
  */
 
 import { demoProducts, type DemoProduct } from './demoProducts';
 
 export function isDemoMode(): boolean {
-  if (typeof window === 'undefined') return true; // default enabled for presentation/dev
+  // CRITICAL: Production builds ALWAYS force demo mode OFF.
+  // Even if a localStorage key or URL parameter attempts to enable demo mode, production ignores it.
+  if (import.meta.env.PROD || import.meta.env.MODE === 'production') {
+    return false;
+  }
+  // Internal development gate: only enable if explicitly enabled via environment variable
+  if (import.meta.env.VITE_INTERNAL_DEMO_MODE !== 'true') {
+    return false;
+  }
+  if (typeof window === 'undefined') return false;
   try {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('demo') === 'true' || urlParams.get('demo') === '1') {
@@ -26,7 +35,7 @@ export function isDemoMode(): boolean {
   } catch {
     // ignore local storage restrictions
   }
-  return true; // Default active for seamless showcase experience
+  return false;
 }
 
 /**

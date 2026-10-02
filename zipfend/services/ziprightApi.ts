@@ -260,7 +260,6 @@ async function postRecommendationWithTimeout(
   } catch (error: any) {
     clearTimeout(timeout);
     if (error?.name === 'AbortError') {
-      console.log('TIMEOUT -> request aborted');
       throw new Error('timeout');
     }
 

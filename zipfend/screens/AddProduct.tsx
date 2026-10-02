@@ -522,7 +522,7 @@ const AddProduct: React.FC = () => {
     }
 
     if (activeTab === 'image' && selectedImage) {
-        const message = 'Image-based product analysis is unavailable for this demo. Paste a product link instead.';
+        const message = 'Image-based product analysis is temporarily unavailable. Paste a product link instead.';
         setRequestError(message);
         showToast(message, 'error');
         setIsLoading(false);

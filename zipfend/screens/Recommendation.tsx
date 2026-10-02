@@ -31,7 +31,7 @@ import {
   trackSizeReturned,
 } from '../services/recommendationAnalytics';
 import { AppBar, Button, IconButton, Eyebrow, Skeleton, Spinner } from '../components/ui';
-import { CURATED_DEMO_GARMENTS, DEMO_PRESET_PROFILE, isDemoMode } from '../services/demoMode';
+
 
 
 interface Member {
@@ -226,32 +226,11 @@ function getRecordMeasurements(record: Record<string, unknown>, fallback: any) {
 
 function buildRecommendationMembers(profile: any): Member[] {
   const profileRecords = Array.isArray(profile.fitProfiles) ? profile.fitProfiles : [];
-  const fallbackDemo = isDemoMode()
-    ? [
-        {
-          profileId: 'demo-alex',
-          profileName: DEMO_PRESET_PROFILE.profileName,
-          gender: DEMO_PRESET_PROFILE.gender,
-          preferredBrand: DEMO_PRESET_PROFILE.brand,
-          usualSize: DEMO_PRESET_PROFILE.topSize,
-          height: Number(DEMO_PRESET_PROFILE.heightCm),
-          weight: Number(DEMO_PRESET_PROFILE.weight),
-          bodyShape: DEMO_PRESET_PROFILE.bodyShape,
-          fitPreference: 'regular',
-          measurements: {
-            chest: Math.round(Number(DEMO_PRESET_PROFILE.chestSize) * 2.54),
-            waist: Math.round(Number(DEMO_PRESET_PROFILE.waistSize) * 2.54),
-            hips: Math.round(Number(DEMO_PRESET_PROFILE.hipsSize) * 2.54),
-            shoulders: Math.round(Number(DEMO_PRESET_PROFILE.chestSize) * 2.54 * 0.45),
-          },
-        },
-      ]
-    : [];
   const records = profileRecords.length
     ? profileRecords
     : profile.profileName
       ? [profile as Record<string, unknown>]
-      : fallbackDemo;
+      : [];
 
 
   return records.map((rawRecord, index) => {
@@ -488,8 +467,7 @@ const Recommendation: React.FC = () => {
 
   const product =
     location.state?.product ||
-    storedRecommendationRef.current?.product ||
-    (isDemoMode() ? CURATED_DEMO_GARMENTS[0] : undefined);
+    storedRecommendationRef.current?.product;
   const source = location.state?.source || storedRecommendationRef.current?.source || 'fit_profile';
 
   useEffect(() => {
@@ -1553,9 +1531,19 @@ const Recommendation: React.FC = () => {
 
                             </motion.div>
                         ) : (
-                            <div className="flex flex-col items-center text-center gap-4 py-14 opacity-70">
-                                <span className="material-symbols-outlined text-[32px] text-ink-faint" aria-hidden="true">info</span>
-                                <p className="eyebrow">No data yet</p>
+                            <div className="flex flex-col items-center text-center gap-3 py-12 px-4">
+                                <span className="material-symbols-outlined text-[36px] text-ink-faint" aria-hidden="true">straighten</span>
+                                <p className="text-[15px] font-semibold text-ink">Fit Profile Required</p>
+                                <p className="text-[13px] text-ink-soft max-w-xs leading-relaxed">
+                                    Create your Fit Profile to calculate your personalized size recommendation.
+                                </p>
+                                <Button
+                                    size="sm"
+                                    onClick={() => navigate('/fit-profile', { state: { returnTo: location.pathname, product: displayProduct } })}
+                                    className="mt-2"
+                                >
+                                    Create Fit Profile
+                                </Button>
                             </div>
                         )}
                     </div>

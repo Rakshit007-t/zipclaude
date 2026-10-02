@@ -93,29 +93,29 @@ const TryOnStudio: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState(initialRecommendedSize);
   const passedProduct = incomingProduct;
 
-  const loadDemoPresets = async () => {
+  const loadSampleLook = async () => {
     setLoadingPresets(true);
     try {
-      const demoModelUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop';
-      const demoGarmentUrl = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop';
+      const sampleModelUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop';
+      const sampleGarmentUrl = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop';
 
-      const modelRes = await fetch(demoModelUrl);
+      const modelRes = await fetch(sampleModelUrl);
       const modelBlob = await modelRes.blob();
       const modelDataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Could not encode demo model'));
+        reader.onerror = () => reject(new Error('Could not encode sample model'));
         reader.readAsDataURL(modelBlob);
       });
 
       setPersonPreview(modelDataUrl);
-      setGarmentPreview(demoGarmentUrl);
+      setGarmentPreview(sampleGarmentUrl);
       setGarmentIsUpload(false);
       setResultUrl(null);
-      showToast('Demo presets loaded successfully', 'success');
+      showToast('Sample outfit loaded successfully', 'success');
     } catch (err: any) {
-      console.error('Failed to load demo presets:', err);
-      showToast('Failed to load demo presets. Please try uploading manually.', 'error');
+      console.error('Failed to load sample outfit:', err);
+      showToast('Failed to load sample outfit. Please try uploading manually.', 'error');
     } finally {
       setLoadingPresets(false);
     }
@@ -473,15 +473,15 @@ const TryOnStudio: React.FC = () => {
           )}
         </div>
 
-        {/* Demo Presets Trigger */}
+        {/* Sample Look Trigger */}
         <div className="flex justify-center max-w-sm mx-auto">
           <button
-            onClick={loadDemoPresets}
+            onClick={loadSampleLook}
             disabled={loadingPresets}
             className="text-[12px] font-semibold uppercase tracking-[0.12em] text-brand hover:text-brand-strong disabled:opacity-40 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <span className="material-symbols-outlined text-[16px]">{loadingPresets ? 'sync' : 'auto_awesome'}</span>
-            {loadingPresets ? 'Loading presets...' : 'Use Demo Presets'}
+            {loadingPresets ? 'Loading sample...' : 'Try Sample Outfit'}
           </button>
         </div>
 

@@ -749,7 +749,7 @@ const Settings: React.FC = () => {
 
   const handleSelectPlan = (plan: any) => {
     setShowPremiumModal(false);
-    showToast("Checkout is unavailable in this demo.", "error");
+    showToast("Subscription checkout is coming soon.", "info");
   };
 
   // Plans Configuration mapped from utils

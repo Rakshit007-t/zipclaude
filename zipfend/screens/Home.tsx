@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
@@ -72,11 +72,17 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     setProducts(demoProducts);
-    setFriendsList([
-      { uid: 'demo-rhea', name: 'Rhea', avatar: '' },
-      { uid: 'demo-aman', name: 'Aman', avatar: '' },
-      { uid: 'demo-sara', name: 'Sara', avatar: '' },
-    ]);
+    const user = auth.currentUser;
+    if (user && !user.isAnonymous) {
+      const unsub = onSnapshot(collection(db, 'users', user.uid, 'friends'), (snap) => {
+        setFriendsList(snap.docs.map((d) => ({ uid: d.id, name: (d.data() as any).name || 'Friend', avatar: (d.data() as any).avatar || '' })));
+      }, () => {
+        setFriendsList([]);
+      });
+      return () => unsub();
+    } else {
+      setFriendsList([]);
+    }
   }, []);
 
   // Live closet state — hearts and badges reflect real saved data
@@ -258,16 +264,13 @@ const Home: React.FC = () => {
         </h1>
       </div>
 
-      {/* NIT Event Showcase: Primary Demo Journey */}
+      {/* Primary Sizing & Try-On Action Card */}
       <div className="px-6 pt-4 pb-2">
         <div className="relative overflow-hidden rounded-2xl border border-brand/40 bg-gradient-to-br from-surface-1 via-surface-1 to-brand-soft/20 p-5 shadow-lift">
           <div className="flex items-center justify-between mb-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand text-on-brand shadow-glow">
-              <span className="material-symbols-outlined text-[13px]">bolt</span>
-              NIT Event Demo
-            </span>
-            <span className="text-[10px] font-mono text-ink-faint">
-              LUCY-VTON-3.5
+              <span className="material-symbols-outlined text-[13px]">auto_awesome</span>
+              Smart Sizing &amp; Try-On
             </span>
           </div>
 
@@ -292,9 +295,9 @@ const Home: React.FC = () => {
               variant="outline"
               className="flex-1 font-semibold border-brand/40 text-brand hover:bg-brand-soft"
               icon="view_in_ar"
-              onClick={() => navigate('/live-tryon', { state: { startMode: 'ai' } })}
+              onClick={() => navigate('/live-tryon')}
             >
-              Start AI Live
+              Live Try-On
             </Button>
           </div>
         </div>
@@ -586,7 +589,7 @@ const Home: React.FC = () => {
                       const p = friendShareProduct;
                       try {
                         // Real users: write into the friend's inbox (same doc shape FriendsScreen reads)
-                        if (user && !user.isAnonymous && !friend.uid.startsWith('demo-')) {
+                        if (user && !user.isAnonymous) {
                           await addDoc(collection(db, 'users', friend.uid, 'friend_inbox'), {
                             fromUid: user.uid,
                             fromName: user.displayName || user.email || 'A friend',

@@ -1,10 +1,8 @@
 export function agentDebugLog(
-  location: string,
-  message: string,
-  data: Record<string, unknown>,
-  hypothesisId: string,
+  _location: string,
+  _message: string,
+  _data: Record<string, unknown>,
+  _hypothesisId: string,
 ) {
-  if (import.meta.env.DEV) {
-    console.debug(`[DEBUG:${hypothesisId}] ${location} - ${message}`, data);
-  }
+  // Production safe no-op: debug logging stripped from customer runtime
 }
