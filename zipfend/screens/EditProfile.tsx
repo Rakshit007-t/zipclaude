@@ -433,7 +433,7 @@ const EditProfile: React.FC = () => {
       </div>
 
       {/* Floating Glass Save Action */}
-      <div className="fixed bottom-0 inset-x-0 z-50 w-full px-6 pb-8 pt-4 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
+      <div className="fixed bottom-0 inset-x-0 z-50 w-full max-w-[430px] mx-auto px-6 pb-8 pt-4 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
         <Button
           size="lg"
           fullWidth

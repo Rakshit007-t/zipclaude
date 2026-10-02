@@ -94,6 +94,9 @@ export async function myProfile(): Promise<PublicProfile | null> {
  * Call once per app boot for signed-in users; safe to repeat.
  */
 export async function ensureUserDoc(): Promise<void> {
+  if (import.meta.env.VITE_AUTH_PROVIDER === 'appwrite') {
+    return;
+  }
   const user = socialUser();
   if (!user) return;
   try {
@@ -151,6 +154,9 @@ export function isOnline(lastActiveAt?: PublicProfile['lastActiveAt']): boolean 
 
 /** Heartbeat lastActiveAt every 60s while the tab is visible. Returns stop. */
 export function startPresence(): () => void {
+  if (import.meta.env.VITE_AUTH_PROVIDER === 'appwrite') {
+    return () => {};
+  }
   const beat = () => {
     const user = socialUser();
     if (!user || document.visibilityState !== 'visible') return;
@@ -224,6 +230,10 @@ export async function unfollow(targetUid: string): Promise<void> {
 /** Live set of the signed-in user's following edges. Firestore rules only
  * expose this collection to its owner; other profile lists go through the API. */
 export function onFollowing(cb: (uids: Set<string>) => void): () => void {
+  if (import.meta.env.VITE_AUTH_PROVIDER === 'appwrite') {
+    cb(new Set());
+    return () => {};
+  }
   const user = socialUser();
   if (!user) { cb(new Set()); return () => { }; }
   return onSnapshot(collection(db, 'users', user.uid, 'following'), snap => {
@@ -277,6 +287,10 @@ export async function muteUser(targetUid: string, enabled = true): Promise<void>
 }
 
 export function onBlocked(cb: (uids: Set<string>) => void): () => void {
+  if (import.meta.env.VITE_AUTH_PROVIDER === 'appwrite') {
+    cb(new Set());
+    return () => {};
+  }
   const user = socialUser();
   if (!user) { cb(new Set()); return () => { }; }
   return onSnapshot(collection(db, 'users', user.uid, 'blocked'), snap => {

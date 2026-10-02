@@ -1044,8 +1044,12 @@ const Login: React.FC = () => {
                     setIsLoading(true);
                     setError('');
                     try {
-                      await auth.currentUser?.reload();
-                      const currentUser = auth.currentUser;
+                      if (typeof auth.currentUser?.reload === 'function') {
+                        await auth.currentUser.reload();
+                      } else {
+                        await authClient.notifyAuthChanged();
+                      }
+                      const currentUser = authClient.currentUser || auth.currentUser;
                       if (currentUser?.emailVerified) {
                         const profileStatus = await getUserProfileStatus(currentUser);
                         const userDocRef = doc(db, 'users', currentUser.uid);

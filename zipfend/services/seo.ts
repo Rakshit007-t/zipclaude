@@ -123,6 +123,96 @@ export const ROUTE_METADATA: Record<string, PageMetadata> = {
     description: 'Exercise your rights to data access, correction, portable export, and account purging.',
     ogType: 'article',
   },
+  '/recommendation': {
+    title: 'Size & Fit Recommendation | ZipRIGHT — Calibrated Sizing',
+    description: 'Precision fit analysis and cross-brand sizing calibrated against your biometric measurements.',
+    noindex: true,
+  },
+  '/settings': {
+    title: 'Account Settings | ZipRIGHT — Preferences & Privacy',
+    description: 'Manage your account settings, display preferences, connected addresses, and privacy controls.',
+    noindex: true,
+  },
+  '/profile': {
+    title: 'Your Profile | ZipRIGHT — Atelier Closet',
+    description: 'Your ZipRIGHT profile, curated wardrobe, and fit history.',
+    noindex: true,
+  },
+  '/manage-profiles': {
+    title: 'Manage Fit Profiles | ZipRIGHT',
+    description: 'Switch and manage fit profiles for yourself and family members.',
+    noindex: true,
+  },
+  '/reel': {
+    title: 'Style Reel | ZipRIGHT — Curated Video Looks',
+    description: 'Swipe through curated outfit inspirations and fit-verified garments.',
+    ogType: 'website',
+  },
+  '/feed': {
+    title: 'Garment Feed | ZipRIGHT — Curated Drops',
+    description: 'Explore verified apparel and latest fashion drops.',
+    ogType: 'website',
+  },
+  '/rewards': {
+    title: 'ZipRewards | ZipRIGHT — Style Journey',
+    description: 'Earn points, level up your style journey, and unlock exclusive atelier perks.',
+    noindex: true,
+  },
+  '/recent-scans': {
+    title: 'Recent Scans | ZipRIGHT — Measurement History',
+    description: 'Review your recent 3D fit scans and measurement calibrations.',
+    noindex: true,
+  },
+  '/add-product': {
+    title: 'Add Garment | ZipRIGHT',
+    description: 'Submit or import a garment for fit analysis and virtual try-on.',
+    noindex: true,
+  },
+  '/avatar-intro': {
+    title: 'Your Digital Avatar | ZipRIGHT',
+    description: 'Create your 3D digital twin calibrated to your exact body proportions.',
+    noindex: true,
+  },
+  '/avatar-view': {
+    title: '3D Avatar View | ZipRIGHT — Digital Twin',
+    description: 'Inspect your 3D avatar and garment drape simulations.',
+    noindex: true,
+  },
+  '/gift-look': {
+    title: 'Gift a Look | ZipRIGHT — Precision Gifting',
+    description: 'Send outfit gifts with guaranteed recipient sizing accuracy.',
+    noindex: true,
+  },
+  '/gift-inbox': {
+    title: 'Gift Inbox | ZipRIGHT',
+    description: 'Review and accept gifted looks calibrated to your fit profile.',
+    noindex: true,
+  },
+  '/create-look': {
+    title: 'Create Look | ZipRIGHT — Outfit Builder',
+    description: 'Mix and match curated pieces into a cohesive style lookbook.',
+    noindex: true,
+  },
+  '/stylist': {
+    title: 'AI Stylist Chat | ZipRIGHT',
+    description: 'Personalized fashion advice and outfit recommendations from your AI stylist.',
+    noindex: true,
+  },
+  '/admin': {
+    title: 'Admin Analytics | ZipRIGHT',
+    description: 'Atelier administrative analytics and system telemetry.',
+    noindex: true,
+  },
+  '/admin/analytics': {
+    title: 'Admin Analytics | ZipRIGHT',
+    description: 'Atelier administrative analytics and system telemetry.',
+    noindex: true,
+  },
+  '/developer': {
+    title: 'Developer Portal | ZipRIGHT',
+    description: 'Developer documentation, API keys, and sandbox integrations.',
+    noindex: true,
+  },
   '/404': {
     title: 'Piece Not Found (404) | ZipRIGHT',
     description: 'The requested page or garment silhouette does not exist in the atelier. Return to the home feed or marketplace.',
@@ -142,28 +232,28 @@ export function getRouteMetadata(pathname: string): PageMetadata {
   }
 
   // Prefix matching for parameterized routes
-  if (cleanPath.startsWith('/product/')) {
+  if (cleanPath.startsWith('/product/') || cleanPath === '/product') {
     return {
       title: 'Product Details | ZipRIGHT — Fit Calibrated',
       description: 'View garment specifications, cross-brand size recommendation, and virtual try-on simulation.',
       ogType: 'product',
     };
   }
-  if (cleanPath.startsWith('/brand/')) {
+  if (cleanPath.startsWith('/brand/') || cleanPath === '/brand') {
     return {
       title: 'Brand Profile | ZipRIGHT',
       description: 'Explore brand size charts, fit tolerance standards, and verified catalog garments.',
       ogType: 'website',
     };
   }
-  if (cleanPath.startsWith('/seller/')) {
+  if (cleanPath.startsWith('/seller')) {
     return {
       title: 'Seller Portal | ZipRIGHT',
       description: 'Merchant dashboard for size chart ingestion and virtual try-on analytics.',
       noindex: true,
     };
   }
-  if (cleanPath.startsWith('/admin/')) {
+  if (cleanPath.startsWith('/admin')) {
     return {
       title: 'Atelier Admin | ZipRIGHT',
       description: 'Administrative management console.',
@@ -174,6 +264,27 @@ export function getRouteMetadata(pathname: string): PageMetadata {
     return {
       title: 'Stylist Chat | ZipRIGHT',
       description: 'Encrypted personal styling and outfit conversation.',
+      noindex: true,
+    };
+  }
+  if (cleanPath.startsWith('/profile')) {
+    return {
+      title: 'Member Profile | ZipRIGHT',
+      description: 'ZipRIGHT member wardrobe and verified lookbook.',
+      noindex: true,
+    };
+  }
+  if (cleanPath.startsWith('/developer')) {
+    return {
+      title: 'Developer Portal | ZipRIGHT',
+      description: 'Developer documentation, API keys, and sandbox integrations.',
+      noindex: true,
+    };
+  }
+  if (cleanPath.startsWith('/checkout')) {
+    return {
+      title: 'Checkout | ZipRIGHT',
+      description: 'Review order selection and complete verified purchase.',
       noindex: true,
     };
   }

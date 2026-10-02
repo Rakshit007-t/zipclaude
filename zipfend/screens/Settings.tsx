@@ -393,29 +393,34 @@ const Settings: React.FC = () => {
                 }
 
                 const savedProfile = await refreshProfile();
-                // Fetch User Data
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-                const data = userDoc.exists() ? userDoc.data() : null;
-                if (userDoc.exists()) {
-                    const resolvedDisplayName = data?.displayName || data?.profileName || savedProfile.displayName || savedProfile.profileName || user.displayName || '';
-                    const [firstName = '', ...lastNameParts] = resolvedDisplayName.split(' ').filter(Boolean);
-                    const photo = data?.photoURL || savedProfile.photoURL || user.photoURL || '';
-                    if (photo) setProfileImage(photo);
-                    const u = {
-                        firstName: firstName || 'ZipRIGHT',
-                        lastName: lastNameParts.join(' '),
-                        email: user.email || '',
-                        phone: '',
-                        gender: data?.gender || 'Male',
-                        dob: '',
-                        planId: 'free',
-                        zipPoints: 0
-                    };
-                    setUserData(u);
-                    setEditUserData(u);
-                    const plan = Object.values(PLANS).find(p => p.id === 'free') || PLANS.FREE;
-                    setUserPlan(plan);
+                // Fetch User Data safely
+                let data: any = null;
+                if (import.meta.env.VITE_AUTH_PROVIDER !== 'appwrite') {
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', user.uid));
+                        if (userDoc.exists()) data = userDoc.data();
+                    } catch {
+                        // ignore unauthenticated or unavailable Firestore user doc
+                    }
                 }
+                const resolvedDisplayName = data?.displayName || data?.profileName || savedProfile.displayName || savedProfile.profileName || user.displayName || '';
+                const [firstName = '', ...lastNameParts] = resolvedDisplayName.split(' ').filter(Boolean);
+                const photo = data?.photoURL || savedProfile.photoURL || user.photoURL || '';
+                if (photo) setProfileImage(photo);
+                const u = {
+                    firstName: firstName || 'ZipRIGHT',
+                    lastName: lastNameParts.join(' '),
+                    email: user.email || '',
+                    phone: '',
+                    gender: data?.gender || savedProfile.gender || 'Male',
+                    dob: '',
+                    planId: 'free',
+                    zipPoints: 0
+                };
+                setUserData(u);
+                setEditUserData(u);
+                const plan = Object.values(PLANS).find(p => p.id === 'free') || PLANS.FREE;
+                setUserPlan(plan);
 
                 const membersList = data?.profileName ? [{
                     id: user.uid,
@@ -529,15 +534,17 @@ const Settings: React.FC = () => {
         if (url.startsWith('http://') || url.startsWith('https://')) {
           await updateAuthProfile(user, { photoURL: url }).catch(() => {});
         }
-        await setDoc(doc(db, 'users', user.uid), {
-          photoURL: url,
-          updatedAt: new Date().toISOString(),
-        }, { merge: true });
-        await setDoc(doc(db, 'publicProfiles', user.uid), {
-          uid: user.uid,
-          photoURL: url,
-          updatedAt: serverTimestamp(),
-        }, { merge: true }).catch(() => {});
+        if (import.meta.env.VITE_AUTH_PROVIDER !== 'appwrite') {
+          await setDoc(doc(db, 'users', user.uid), {
+            photoURL: url,
+            updatedAt: new Date().toISOString(),
+          }, { merge: true }).catch(() => {});
+          await setDoc(doc(db, 'publicProfiles', user.uid), {
+            uid: user.uid,
+            photoURL: url,
+            updatedAt: serverTimestamp(),
+          }, { merge: true }).catch(() => {});
+        }
       }
       try { localStorage.setItem('zipright_profile_photo', url); } catch {}
       setProfileImage(url);
@@ -555,12 +562,14 @@ const Settings: React.FC = () => {
       try {
           const profileName = [editUserData.firstName.trim(), editUserData.lastName.trim()].filter(Boolean).join(' ');
           const displayName = profileName || user.displayName || '';
-          await setDoc(doc(db, 'users', user.uid), {
-              profileName,
-              // Keep the social-search fields in step with the edited name
-              ...(displayName ? { displayName, displayNameLower: displayName.toLowerCase() } : {}),
-              gender: editUserData.gender,
-          }, { merge: true });
+          if (import.meta.env.VITE_AUTH_PROVIDER !== 'appwrite') {
+            await setDoc(doc(db, 'users', user.uid), {
+                profileName,
+                // Keep the social-search fields in step with the edited name
+                ...(displayName ? { displayName, displayNameLower: displayName.toLowerCase() } : {}),
+                gender: editUserData.gender,
+            }, { merge: true });
+          }
           setUserData(editUserData);
           setUserProfile(prev => ({
               ...prev,
@@ -900,7 +909,7 @@ const Settings: React.FC = () => {
             </p>
           </div>
         </div>
-        <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+        <div className="fixed bottom-0 inset-x-0 w-full max-w-[430px] mx-auto px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
           <Button size="lg" fullWidth loading={loading} trailingIcon="send" onClick={handleSellerApply}>
             Submit application
           </Button>
@@ -987,7 +996,7 @@ const Settings: React.FC = () => {
                     />
                 </div>
             </div>
-            <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+            <div className="fixed bottom-0 inset-x-0 w-full max-w-[430px] mx-auto px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
                 <Button size="lg" fullWidth onClick={saveUserProfile}>Save changes</Button>
             </div>
         </div>
@@ -1062,7 +1071,7 @@ const Settings: React.FC = () => {
                             />
                          </div>
                     </div>
-                    <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+                    <div className="fixed bottom-0 inset-x-0 w-full max-w-[430px] mx-auto px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
                         <Button size="lg" fullWidth variant="accent" onClick={saveAddress}>Save address</Button>
                     </div>
                 </div>

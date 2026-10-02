@@ -641,7 +641,7 @@ const SellerAddProduct: React.FC = () => {
 
       {/* STICKY BOTTOM ACTIONS FOR REVIEW */}
       {previewData && (
-        <div className="fixed bottom-0 inset-x-0 z-50 w-full bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent px-6 pb-8 pt-6 phone-fixed-bottom">
+        <div className="fixed bottom-0 inset-x-0 z-50 w-full max-w-[430px] mx-auto bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent px-6 pb-8 pt-6 phone-fixed-bottom">
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1" size="lg" onClick={() => setPreviewData(null)}>
               Discard

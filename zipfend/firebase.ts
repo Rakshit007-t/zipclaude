@@ -31,7 +31,39 @@ try {
 const rawDbId = (import.meta.env.VITE_FIRESTORE_DATABASE_ID || '').trim();
 const FIRESTORE_DATABASE_ID = rawDbId || '(default)';
 
-export const auth = getAuth(app);
+const rawAuth = getAuth(app);
+export const auth = new Proxy(rawAuth, {
+  get(target, prop, receiver) {
+    if (import.meta.env.VITE_AUTH_PROVIDER === 'appwrite') {
+      if (prop === 'currentUser') {
+        try {
+          const cached = typeof window !== 'undefined' ? localStorage.getItem('zipright_cached_appwrite_user') : null;
+          if (cached) {
+            const u = JSON.parse(cached);
+            return {
+              uid: u.$id,
+              email: u.email,
+              displayName: u.name,
+              photoURL: null,
+              phoneNumber: u.phone || null,
+              isAnonymous: false,
+              emailVerified: Boolean(u.emailVerification),
+              getIdToken: async () => '',
+              providerData: [{ providerId: u.phone ? 'phone' : 'password' }],
+            };
+          }
+        } catch {}
+        return null;
+      }
+    }
+    const val = Reflect.get(target, prop, receiver);
+    if (typeof val === 'function') {
+      return val.bind(target);
+    }
+    return val;
+  }
+});
+
 export const db =
   FIRESTORE_DATABASE_ID === '(default)'
     ? getFirestore(app)

@@ -73,7 +73,7 @@ const Home: React.FC = () => {
   useEffect(() => {
     setProducts(demoProducts);
     const user = auth.currentUser;
-    if (user && !user.isAnonymous) {
+    if (user && !user.isAnonymous && import.meta.env.VITE_AUTH_PROVIDER !== 'appwrite') {
       const unsub = onSnapshot(collection(db, 'users', user.uid, 'friends'), (snap) => {
         setFriendsList(snap.docs.map((d) => ({ uid: d.id, name: (d.data() as any).name || 'Friend', avatar: (d.data() as any).avatar || '' })));
       }, () => {

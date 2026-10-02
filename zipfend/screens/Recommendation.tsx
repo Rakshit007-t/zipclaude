@@ -1589,7 +1589,7 @@ const Recommendation: React.FC = () => {
       </div>
 
       {/* Bottom Actions */}
-      <div className="fixed bottom-0 inset-x-0 w-full z-50 p-6 pb-8 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
+      <div className="fixed bottom-0 inset-x-0 w-full max-w-[430px] mx-auto z-50 p-6 pb-8 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
         <div className="flex flex-col gap-3">
           <Button
             size="lg"

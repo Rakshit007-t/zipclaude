@@ -653,7 +653,29 @@ const FitProfile: React.FC = () => {
   }, [hasUnsavedChanges]);
 
   const handleHeightUnitChange = (heightUnit: 'ft' | 'cm') => {
-    setFitData(prev => ({ ...prev, heightUnit }));
+    setFitData(prev => {
+      if (prev.heightUnit === heightUnit) return prev;
+      if (heightUnit === 'cm') {
+        const feet = Number(prev.heightFt);
+        const inches = Number(prev.heightIn);
+        let newCm = prev.heightCm;
+        if (prev.heightFt && Number.isFinite(feet) && feet > 0) {
+          const totalInches = feet * 12 + (Number.isFinite(inches) && inches >= 0 ? inches : 0);
+          newCm = Math.round(totalInches * 2.54).toString();
+        }
+        return { ...prev, heightUnit, heightCm: newCm };
+      } else {
+        const cm = Number(prev.heightCm);
+        let newFt = prev.heightFt;
+        let newIn = prev.heightIn;
+        if (prev.heightCm && Number.isFinite(cm) && cm > 0) {
+          const { feet, inches } = cmToFeetAndInches(cm);
+          newFt = feet.toString();
+          newIn = inches.toString();
+        }
+        return { ...prev, heightUnit, heightFt: newFt, heightIn: newIn };
+      }
+    });
   };
 
   const handleHeightCmChange = (value: string) => {
@@ -1285,7 +1307,7 @@ const FitProfile: React.FC = () => {
       </div>
 
       {/* Fixed Bottom CTA */}
-      <div className="fixed bottom-0 inset-x-0 z-50 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
+      <div className="fixed bottom-0 inset-x-0 z-50 w-full max-w-[430px] mx-auto px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
         <Button
           size="lg"
           fullWidth

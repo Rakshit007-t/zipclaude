@@ -102,7 +102,7 @@ const AIStudio: React.FC = () => {
 
       {/* Generate Button */}
       <>
-        <div className="fixed bottom-0 inset-x-0 w-full p-6 pb-8 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
+        <div className="fixed bottom-0 inset-x-0 w-full max-w-[430px] mx-auto p-6 pb-8 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
           <Button size="lg" fullWidth trailingIcon="auto_awesome" disabled={!prompt} onClick={handleGenerate}>
             Generate look
           </Button>

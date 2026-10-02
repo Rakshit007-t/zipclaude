@@ -14,6 +14,7 @@ import {
 } from '../services/tryonService';
 import { recordJourneyEvent } from '../services/styleJourney';
 import { toImageDataUrl } from '../utils/media';
+import { addToCloset } from '../services/closet';
 
 // Persist the running job id so the generation survives page refresh,
 // minimize, or the phone locking — the server keeps rendering meanwhile.
@@ -60,24 +61,31 @@ const TryOnStudio: React.FC = () => {
   const location = useLocation();
   const { showToast } = useToast();
   const incomingProduct = location.state?.product;
+  const activeRec = (() => {
+    try {
+      const raw = sessionStorage.getItem('zr_active_recommendation');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const passedProduct = incomingProduct || activeRec?.product || null;
+
   const initialRecommendedSize = (() => {
     if (location.state?.recommendedSize) return location.state.recommendedSize;
     if (incomingProduct?.recommendedSize) return incomingProduct.recommendedSize;
-    try {
-      const raw = sessionStorage.getItem('zr_active_recommendation');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.recommendedSize) return parsed.recommendedSize;
-      }
-    } catch {
-      // ignore
-    }
+    if (activeRec?.recommendedSize) return activeRec.recommendedSize;
+    if (activeRec?.product?.recommendedSize) return activeRec.product.recommendedSize;
     return 'M';
   })();
 
+  const rawConfidence = passedProduct?.confidence ?? activeRec?.confidence;
+  const confidenceLabel = rawConfidence ? `${rawConfidence}% Fit Match` : 'Verified Fit';
+
   const [personPreview, setPersonPreview] = useState<string | null>(null);
   const [garmentPreview, setGarmentPreview] = useState<string | null>(
-    incomingProduct?.image || null
+    passedProduct?.image || null
   );
   const [garmentIsUpload, setGarmentIsUpload] = useState(false);
   const [clothType, setClothType] = useState<ClothType>('auto');
@@ -91,7 +99,6 @@ const TryOnStudio: React.FC = () => {
   const [hintIndex, setHintIndex] = useState(0);
   const [loadingPresets, setLoadingPresets] = useState(false);
   const [selectedSize, setSelectedSize] = useState(initialRecommendedSize);
-  const passedProduct = incomingProduct;
 
   const loadSampleLook = async () => {
     setLoadingPresets(true);
@@ -349,7 +356,7 @@ const TryOnStudio: React.FC = () => {
                     <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px] text-success" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
                       <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white">
-                        98% Fit Match
+                        {confidenceLabel}
                       </span>
                     </div>
                   </button>
@@ -360,12 +367,33 @@ const TryOnStudio: React.FC = () => {
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-on-media">Recommended size · {initialRecommendedSize}</p>
                         <h3 className="font-display text-[19px] font-medium text-white line-clamp-1">
-                          {passedProduct?.title || passedProduct?.brand || 'Luxury Tailored Piece'}
+                          {passedProduct?.title || passedProduct?.name || (garmentIsUpload ? 'Custom Garment Fitting' : 'Studio Piece')}
                         </h3>
-                        <p className="text-[14px] font-medium text-white/75">{passedProduct?.brand || 'ZipRIGHT edit'} · {passedProduct?.price || '₹3,990'}</p>
+                        {passedProduct ? (
+                          <p className="text-[14px] font-medium text-white/75">
+                            {passedProduct.brand || 'Verified Fit'}{passedProduct.price ? ` · ${passedProduct.price}` : ''}
+                          </p>
+                        ) : (
+                          <p className="text-[14px] font-medium text-white/75">
+                            Personal Wardrobe
+                          </p>
+                        )}
                       </div>
                       <button
-                        onClick={() => showToast('Saved to Wishlist', 'success')}
+                        onClick={() => {
+                          if (passedProduct) {
+                            addToCloset('likes', {
+                              id: passedProduct.id || String(Date.now()),
+                              title: passedProduct.title || passedProduct.name || 'Studio Piece',
+                              brand: passedProduct.brand || 'ZipRIGHT',
+                              price: passedProduct.price || '',
+                              image: passedProduct.image || garmentPreview || '',
+                              url: passedProduct.url || '',
+                              category: passedProduct.category || '',
+                            });
+                          }
+                          showToast('Saved to Wishlist', 'success');
+                        }}
                         className="h-9 w-9 rounded-full border border-white/35 flex items-center justify-center text-white active:scale-90 transition-transform"
                       >
                         <span className="material-symbols-outlined text-[18px]">favorite_border</span>
@@ -402,6 +430,17 @@ const TryOnStudio: React.FC = () => {
                         size="sm"
                         icon="shopping_bag"
                         onClick={() => {
+                          if (passedProduct) {
+                            addToCloset('cart', {
+                              id: passedProduct.id || String(Date.now()),
+                              title: passedProduct.title || passedProduct.name || 'Studio Piece',
+                              brand: passedProduct.brand || 'ZipRIGHT',
+                              price: passedProduct.price || '',
+                              image: passedProduct.image || garmentPreview || '',
+                              url: passedProduct.url || '',
+                              category: passedProduct.category || '',
+                            });
+                          }
                           showToast('Added to Cart', 'success');
                           navigate('/cart');
                         }}
@@ -556,7 +595,7 @@ const TryOnStudio: React.FC = () => {
       </AnimatePresence>
 
       {/* Generate */}
-      <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+      <div className="fixed bottom-0 inset-x-0 w-full max-w-[430px] mx-auto px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
         <Button
           variant="accent"
           size="lg"

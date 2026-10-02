@@ -50,11 +50,29 @@ const UserProfile: React.FC = () => {
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [authUser, setAuthUser] = useState(authClient.currentUser);
-  const targetUid = paramUid || authUser?.uid;
-  const isMe = !paramUid || (!!authUser && paramUid === authUser.uid);
+  const currentEffectiveUser = authUser || authClient.currentUser;
+  const isMe = !paramUid || (!!currentEffectiveUser && paramUid === currentEffectiveUser.uid);
+  const targetUid = paramUid || currentEffectiveUser?.uid || userProfile.profileId || '';
 
-  const [profile, setProfile] = useState<PublicProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<PublicProfile | null>(() => {
+    if (isMe) {
+      return {
+        uid: targetUid || currentEffectiveUser?.uid || 'me',
+        displayName: userProfile.displayName || userProfile.profileName || currentEffectiveUser?.displayName || 'ZipRIGHT Member',
+        username: userProfile.username || defaultUsername(currentEffectiveUser?.displayName),
+        photoURL: userProfile.photoURL || currentEffectiveUser?.photoURL || null,
+        bio: userProfile.bio || '',
+        location: userProfile.location || '',
+        website: userProfile.website || '',
+        followersCount: 0,
+        followingCount: 0,
+        postsCount: 0,
+        lastActiveAt: { toMillis: () => Date.now() },
+      };
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(!isMe);
   const [looks, setLooks] = useState<LookThumb[]>([]);
   const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
   const [blockedSet, setBlockedSet] = useState<Set<string>>(new Set());
@@ -134,45 +152,62 @@ const UserProfile: React.FC = () => {
   const blocked = !!targetUid && blockedSet.has(targetUid);
 
   useEffect(() => {
-    if (!targetUid) {
+    if (!targetUid && !isMe) {
       setLoading(false);
       return;
     }
     let cancelled = false;
     (async () => {
-      setLoading(true);
-      const [p, looksSnap] = await Promise.all([
-        getProfile(targetUid),
-        getDocs(query(
-          collection(db, 'looks'),
-          where('creatorId', '==', targetUid),
-          where('status', '==', 'active'),
-          orderBy('createdAt', 'desc'),
-          limit(30),
-        )).catch(() => null),
-      ]);
+      if (!isMe) {
+        setLoading(true);
+      }
+      let p: PublicProfile | null = null;
+      let looksSnap: any = null;
+
+      if (targetUid) {
+        try {
+          const [fetchedP, snap] = await Promise.all([
+            getProfile(targetUid).catch(() => null),
+            getDocs(query(
+              collection(db, 'looks'),
+              where('creatorId', '==', targetUid),
+              where('status', '==', 'active'),
+              orderBy('createdAt', 'desc'),
+              limit(30),
+            )).catch(() => null),
+          ]);
+          p = fetchedP;
+          looksSnap = snap;
+        } catch {
+          // ignore
+        }
+      }
+
       if (cancelled) return;
 
       if (isMe) {
+        const activeUserObj = currentEffectiveUser || authClient.currentUser;
         setProfile({
-          uid: (authUser || auth.currentUser)?.uid || targetUid,
-          displayName: userProfile.displayName || userProfile.profileName || p?.displayName || (authUser || auth.currentUser)?.displayName || 'ZipRIGHT Member',
-          username: userProfile.username || p?.username || 'member',
-          photoURL: userProfile.photoURL !== undefined ? (userProfile.photoURL || null) : (p?.photoURL || (authUser || auth.currentUser)?.photoURL || null),
+          uid: targetUid || activeUserObj?.uid || 'me',
+          displayName: userProfile.displayName || userProfile.profileName || p?.displayName || activeUserObj?.displayName || 'ZipRIGHT Member',
+          username: userProfile.username || p?.username || defaultUsername(activeUserObj?.displayName),
+          photoURL: userProfile.photoURL !== undefined ? (userProfile.photoURL || null) : (p?.photoURL || activeUserObj?.photoURL || null),
           bio: typeof userProfile.bio !== 'undefined' ? userProfile.bio : (p?.bio || ''),
           location: typeof userProfile.location !== 'undefined' ? userProfile.location : (p?.location || ''),
           website: typeof userProfile.website !== 'undefined' ? userProfile.website : (p?.website || ''),
           followersCount: p?.followersCount || 0,
           followingCount: p?.followingCount || 0,
-          postsCount: looksSnap?.docs.length || p?.postsCount || 0,
+          postsCount: looksSnap?.docs?.length || p?.postsCount || 0,
           lastActiveAt: p?.lastActiveAt || { toMillis: () => Date.now() },
         });
       } else if (p) {
         setProfile(p);
+      } else {
+        setProfile(null);
       }
 
-      if (looksSnap) {
-        setLooks(looksSnap.docs.map(d => {
+      if (looksSnap?.docs) {
+        setLooks(looksSnap.docs.map((d: any) => {
           const data = d.data();
           return { id: d.id, mediaUrl: data.mediaUrl, caption: data.caption || '', likesCount: data.likesCount || 0 };
         }));
@@ -182,7 +217,7 @@ const UserProfile: React.FC = () => {
 
     const unsubs = [onFollowing(setFollowingSet), onBlocked(setBlockedSet)];
     return () => { cancelled = true; unsubs.forEach(u => u()); };
-  }, [targetUid, isMe, authUser, userProfile.displayName, userProfile.profileName, userProfile.photoURL, userProfile.username, userProfile.location, userProfile.bio, userProfile.website]);
+  }, [targetUid, isMe, authUser, userProfile.displayName, userProfile.profileName, userProfile.photoURL, userProfile.username, userProfile.location, userProfile.bio, userProfile.website, userProfile.profileId]);
 
   const handleFollowToggle = async () => {
     if (!profile || busy) return;

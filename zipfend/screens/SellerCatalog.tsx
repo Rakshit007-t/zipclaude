@@ -448,7 +448,7 @@ const SellerCatalog: React.FC = () => {
 
       {/* BULK OPERATIONS ACTION BAR */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-0 inset-x-0 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
+        <div className="fixed bottom-0 inset-x-0 w-full max-w-[430px] mx-auto px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent z-50 phone-fixed-bottom">
           <div className="rounded-card bg-surface-1 border border-line shadow-float p-4 flex flex-col gap-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand text-center">
               {selectedIds.length} Selected

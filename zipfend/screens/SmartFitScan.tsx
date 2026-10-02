@@ -564,7 +564,7 @@ const SmartFitScan: React.FC = () => {
             Measurements are estimated based on your input and images. Accuracy may vary depending on clothing and camera angle.
           </p>
         </div>
-        <div className="fixed bottom-0 inset-x-0 z-50 w-full px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
+        <div className="fixed bottom-0 inset-x-0 z-50 w-full max-w-[430px] mx-auto px-6 pb-8 pt-5 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent phone-fixed-bottom">
           <Button
             size="lg"
             fullWidth

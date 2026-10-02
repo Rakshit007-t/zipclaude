@@ -223,6 +223,26 @@ export async function trackRecommendationEvent(
       clientTimestamp: new Date().toISOString(),
     };
 
+    if (import.meta.env.VITE_AUTH_PROVIDER === 'appwrite' || !auth.currentUser) {
+      // In Appwrite mode or when not signed into Firebase Auth, record to local
+      // telemetry buffer and avoid unauthenticated Firestore writes that cause permission warnings.
+      try {
+        const key = 'zr_pending_rec_analytics';
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        existing.push({
+          eventName,
+          recommendationId,
+          userId,
+          confidence: event.confidence,
+          recommendedSize: event.recommendedSize,
+          timestamp: event.clientTimestamp,
+        });
+        if (existing.length > 50) existing.shift();
+        localStorage.setItem(key, JSON.stringify(existing));
+      } catch {}
+      return;
+    }
+
     await addDoc(collection(db, EVENT_COLLECTIONS[eventName]), event);
   } catch (error) {
     console.warn('[RecommendationAnalytics] Event tracking failed:', error);

@@ -206,13 +206,13 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({ inHub, onShowPeople }) =>
       onFollowing(setFollowingSet),
       onBlocked(setBlockedSet),
     ];
-    if (user) {
+    if (user && import.meta.env.VITE_AUTH_PROVIDER !== 'appwrite') {
       const likesRef = collection(db, 'users', user.uid, 'lookLikes');
       unsubs.push(onSnapshot(likesRef, snap => {
         const map: Record<string, boolean> = {};
         snap.docs.forEach(d => { map[d.id] = true; });
         setLikedMap(map);
-      }));
+      }, () => {}));
     }
     return () => unsubs.forEach(u => u());
   }, []);

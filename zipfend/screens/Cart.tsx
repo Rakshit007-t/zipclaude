@@ -229,7 +229,7 @@ const Cart: React.FC = () => {
 
       {/* Checkout Bar */}
       {items.length > 0 && (
-        <div className="fixed bottom-0 inset-x-0 w-full p-6 bg-surface-0/92 backdrop-blur-xl border-t border-line phone-fixed-bottom">
+        <div className="fixed bottom-0 inset-x-0 w-full max-w-[430px] mx-auto p-6 bg-surface-0/92 backdrop-blur-xl border-t border-line phone-fixed-bottom">
           {checkoutMessage && (
             <div className="mb-3 p-3 rounded-lg bg-surface-2 border border-line text-[12px] text-ink text-center">
               {checkoutMessage}
