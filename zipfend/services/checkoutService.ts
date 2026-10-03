@@ -352,3 +352,206 @@ export async function pollOrderPaymentStatus(
 
   return 'PENDING_PAYMENT';
 }
+
+// ── Razorpay Standard Web Checkout Integration ──────────────────────────────
+
+export interface StandardOrderRequest {
+  amount: number; // in paise (minimum 100 paise)
+  currency?: string;
+  receipt?: string;
+}
+
+export interface StandardOrderResponse {
+  order_id: string;
+  amount: number;
+  currency: string;
+  key_id?: string;
+}
+
+export interface VerifyPaymentPayload {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+export interface VerifyPaymentResponse {
+  status: string;
+  message: string;
+  order_id: string;
+  payment_id: string;
+}
+
+export interface StandardCheckoutOptions {
+  amount: number; // in paise
+  currency?: string;
+  receipt?: string;
+  name?: string;
+  description?: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  backendUrl?: string;
+  onSuccess: (response: {
+    payment_id: string;
+    order_id: string;
+    signature: string;
+    verification: VerifyPaymentResponse;
+  }) => void;
+  onFailure: (error: RazorpayFailurePayload) => void;
+  onDismiss: () => void;
+}
+
+/**
+ * Step 1: Create an order via backend endpoint POST /api/create-order
+ */
+export async function createStandardRazorpayOrder(
+  params: StandardOrderRequest,
+  backendUrl?: string
+): Promise<StandardOrderResponse> {
+  if (!params.amount || params.amount < 100) {
+    throw new Error('Minimum order amount is 100 paise (₹1.00).');
+  }
+
+  const baseUrl = (backendUrl || (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_BACKEND_URL || import.meta.env?.VITE_API_URL)) || 'http://localhost:8000').replace(/\/+$/, '');
+
+  const res = await fetch(`${baseUrl}/api/create-order`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      amount: Math.round(params.amount),
+      currency: (params.currency || 'INR').trim().toUpperCase(),
+      receipt: params.receipt,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.message || data?.detail || 'Failed to create payment order.');
+  }
+
+  return data;
+}
+
+/**
+ * Step 3: Cryptographically verify signature via backend endpoint POST /api/verify-payment
+ */
+export async function verifyStandardRazorpayPayment(
+  payload: VerifyPaymentPayload,
+  backendUrl?: string
+): Promise<VerifyPaymentResponse> {
+  if (!payload.razorpay_order_id || !payload.razorpay_payment_id || !payload.razorpay_signature) {
+    throw new Error('Missing payment verification details: order ID, payment ID, and signature are required.');
+  }
+
+  const baseUrl = (backendUrl || (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_BACKEND_URL || import.meta.env?.VITE_API_URL)) || 'http://localhost:8000').replace(/\/+$/, '');
+
+  const res = await fetch(`${baseUrl}/api/verify-payment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      razorpay_order_id: payload.razorpay_order_id.trim(),
+      razorpay_payment_id: payload.razorpay_payment_id.trim(),
+      razorpay_signature: payload.razorpay_signature.trim(),
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.message || data?.detail || 'Payment signature verification failed.');
+  }
+
+  return data;
+}
+
+/**
+ * Step 2: Open Razorpay modal, handle success/failure/dismiss, and verify signature upon completion
+ */
+export async function startStandardCheckout(
+  options: StandardCheckoutOptions
+): Promise<void> {
+  if (!options.amount || options.amount < 100) {
+    throw new Error('Minimum order amount is 100 paise (₹1.00).');
+  }
+
+  const scriptLoaded = await loadRazorpayScript();
+  if (!scriptLoaded || typeof window.Razorpay !== 'function') {
+    throw new Error('Failed to load payment gateway checkout SDK. Please check your connection.');
+  }
+
+  // 1. Create order
+  const order = await createStandardRazorpayOrder(
+    {
+      amount: options.amount,
+      currency: options.currency || 'INR',
+      receipt: options.receipt,
+    },
+    options.backendUrl
+  );
+
+  const envKey = typeof import.meta !== 'undefined' ? (import.meta.env?.VITE_RAZORPAY_KEY_ID || '') : '';
+  const keyId = (order.key_id || envKey).trim();
+  if (!keyId) {
+    throw new Error('Razorpay public key ID is missing. Please configure VITE_RAZORPAY_KEY_ID.');
+  }
+
+  // 2. Build options
+  const rzpOptions: RazorpayOptions = {
+    key: keyId,
+    amount: order.amount,
+    currency: order.currency,
+    name: options.name || 'ZipRIGHT',
+    description: options.description || `Order ${order.order_id}`,
+    order_id: order.order_id,
+    handler: async (response: RazorpaySuccessPayload) => {
+      try {
+        const verification = await verifyStandardRazorpayPayment(response, options.backendUrl);
+        options.onSuccess({
+          payment_id: response.razorpay_payment_id,
+          order_id: response.razorpay_order_id,
+          signature: response.razorpay_signature,
+          verification,
+        });
+      } catch (err) {
+        options.onFailure({
+          error: {
+            code: 'SIGNATURE_VERIFICATION_FAILED',
+            description: err instanceof Error ? err.message : 'Payment signature verification failed.',
+          },
+        });
+      }
+    },
+    modal: {
+      ondismiss: () => {
+        options.onDismiss();
+      },
+      escape: true,
+      backdropclose: false,
+    },
+    prefill: options.prefill
+      ? {
+          name: options.prefill.name?.trim(),
+          email: options.prefill.email?.trim(),
+          contact: options.prefill.contact?.trim(),
+        }
+      : undefined,
+    theme: {
+      color: '#10b981',
+    },
+  };
+
+  // 3. Open modal & register failure handler
+  const rzp = new window.Razorpay(rzpOptions);
+  if (typeof rzp.on === 'function') {
+    rzp.on('payment.failed', (errPayload: RazorpayFailurePayload) => {
+      options.onFailure(errPayload);
+    });
+  }
+
+  rzp.open();
+}

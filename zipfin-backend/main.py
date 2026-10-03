@@ -50,6 +50,7 @@ from routes.notification import router as notification_router
 from routes.brand import router as brand_router
 from routes.gifts import router as gifts_router
 from routes.payments import router as payments_router
+from routes.razorpay import router as razorpay_router
 from routes.media import router as media_router
 from routes.orders import router as orders_router
 from services.billing_alerts import router as billing_router
@@ -196,6 +197,7 @@ def create_app() -> FastAPI:
     app.include_router(billing_router)
     app.include_router(media_router)
     app.include_router(orders_router)
+    app.include_router(razorpay_router)
 
     # ── Static file mounts (directory listing disabled) ───────────────────────
     # Phase 1B: /uploads unauthenticated public mount removed for customer privacy.

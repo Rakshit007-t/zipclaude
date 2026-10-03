@@ -37,3 +37,5 @@ fakeredis>=2.20.0
 sentry-sdk[fastapi]>=2.0.0,<3
 # Appwrite Integration (Dual-Provider Architecture)
 appwrite>=6.1.0,<7.0.0
+# Razorpay Standard Payment Gateway SDK
+razorpay>=2.0.1

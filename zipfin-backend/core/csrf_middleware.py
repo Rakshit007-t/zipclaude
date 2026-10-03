@@ -23,6 +23,7 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 CSRF_EXEMPT_PREFIXES = (
     "/public/",
     "/v1/",
+    "/api/",
     "/docs",
     "/redoc",
     "/openapi.json",

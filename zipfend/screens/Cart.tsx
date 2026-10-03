@@ -3,7 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { listCloset, onClosetChange, removeFromCloset, updateQuantity, type ClosetItem } from '../services/closet';
-import { openRazorpayCheckout, pollOrderPaymentStatus, getOrCreateCheckoutIdempotencyKey, clearCheckoutIdempotencyKey, type ServerCheckoutData } from '../services/checkoutService';
+import {
+  openRazorpayCheckout,
+  pollOrderPaymentStatus,
+  getOrCreateCheckoutIdempotencyKey,
+  clearCheckoutIdempotencyKey,
+  verifyStandardRazorpayPayment,
+  type ServerCheckoutData,
+  type RazorpaySuccessPayload,
+} from '../services/checkoutService';
 import { useAppNavigation } from '../utils/useAppNavigation';
 import { AppBar, Button, EmptyState, Spinner } from '../components/ui';
 import { safeOpenUrl } from '../utils/sanitize';
@@ -91,13 +99,16 @@ const Cart: React.FC = () => {
       await openRazorpayCheckout(
         orderData,
         {
-          onSuccess: async () => {
-            // CRITICAL: Frontend does NOT mark the order as PAID directly.
-            // Backend webhook is authoritative. Frontend displays confirmation polling.
+          onSuccess: async (paymentPayload: RazorpaySuccessPayload) => {
             setCheckoutStatus('processing');
-            setCheckoutMessage(`Payment submitted for order ${orderData.order_id}. Awaiting settlement confirmation...`);
+            setCheckoutMessage(`Payment submitted for order ${orderData.order_id}. Verifying payment signature...`);
 
             try {
+              // Cryptographically verify signature at backend endpoint POST /api/verify-payment
+              if (paymentPayload?.razorpay_order_id && paymentPayload?.razorpay_signature) {
+                await verifyStandardRazorpayPayment(paymentPayload, backendUrl);
+              }
+
               const finalStatus = await pollOrderPaymentStatus(orderData.order_id, token, backendUrl);
               if (finalStatus === 'PAID') {
                 setCheckoutStatus('confirmed');

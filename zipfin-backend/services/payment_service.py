@@ -120,8 +120,8 @@ def create_razorpay_order(
     if amount_paise <= 0:
         raise ValueError("Order amount must be a positive integer in paise.")
 
-    key_id = (settings.RAZORPAY_KEY_ID or os.getenv("RAZORPAY_KEY_ID", "")).strip()
-    key_secret = (settings.RAZORPAY_KEY_SECRET or os.getenv("RAZORPAY_KEY_SECRET", "")).strip()
+    key_id = (settings.RAZORPAY_KEY_ID if getattr(settings, "RAZORPAY_KEY_ID", None) is not None else os.getenv("RAZORPAY_KEY_ID", "")).strip()
+    key_secret = (settings.RAZORPAY_KEY_SECRET if getattr(settings, "RAZORPAY_KEY_SECRET", None) is not None else os.getenv("RAZORPAY_KEY_SECRET", "")).strip()
 
     # Real Razorpay API call when valid production/staging keys are provided
     if key_id and key_secret and not key_id.startswith("your_") and not key_id.startswith("mock_") and not key_id.startswith("rzp_test_placeholder"):
