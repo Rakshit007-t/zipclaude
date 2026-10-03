@@ -276,7 +276,7 @@ async def get_widget_config(
             "seller_uid": seller_uid,
             "store_name": store_name,
             "store_url": store_url,
-            "zipright_app_url": "https://zipright.ai",
+            "zipright_app_url": "https://zipright.in",
         },
     )
 

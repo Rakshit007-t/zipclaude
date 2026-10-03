@@ -89,7 +89,7 @@ def _get_cors_origins() -> list[str]:
         ]
     elif is_production_like:
         # Strictly disallow localhost and private loopback origins in production/staging
-        production_origin = os.getenv("PRODUCTION_CORS_ORIGIN", "https://zipright.ai").strip()
+        production_origin = os.getenv("PRODUCTION_CORS_ORIGIN", "https://zipright.in").strip()
         origins = [production_origin.rstrip("/")] if production_origin else []
     else:
         origins = [
@@ -98,7 +98,7 @@ def _get_cors_origins() -> list[str]:
             "http://localhost:5173",
             "http://127.0.0.1:5173",
         ]
-        production_origin = os.getenv("PRODUCTION_CORS_ORIGIN", "https://zipright.ai").strip()
+        production_origin = os.getenv("PRODUCTION_CORS_ORIGIN", "https://zipright.in").strip()
         if production_origin:
             origins.append(production_origin.rstrip("/"))
 
@@ -327,7 +327,7 @@ def create_app() -> FastAPI:
         """
         return success_response(
             message="ZipRIGHT process alive.",
-            data={"status": "ok", "version": APP_VERSION},
+            data={"status": "ok", "version": APP_VERSION, "commit": os.getenv("GIT_COMMIT_SHA", "fce4615")},
         )
 
     @app.get("/health", tags=["health"], response_model=ApiResponse[dict])
@@ -371,6 +371,7 @@ def create_app() -> FastAPI:
         data = {
             "status": overall,
             "version": APP_VERSION,
+            "commit": os.getenv("GIT_COMMIT_SHA", "fce4615"),
             "env": env,
             "uptime_seconds": uptime_seconds,
             "checks": checks,

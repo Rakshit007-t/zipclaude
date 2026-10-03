@@ -5,23 +5,28 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Python artefacts
-__pycache__/
+__pycache__
+__pycache__/**
 *.py[cod]
 *.pyo
 *.pyd
-*.egg-info/
-.eggs/
+*.egg-info
+*.egg-info/**
+.eggs
+.eggs/**
 
-# Virtual environments
-venv/
-.venv/
-env/
-.env/
-
-# Environment / secrets — NEVER include in image
+# Virtual environments (must match both directory and contents on Windows)
+venv
+venv/**
+.venv
+.venv/**
+env
+env/**
 .env
 .env.*
 *.local
+
+# Environment / secrets — NEVER include in image
 serviceAccountKey.json
 *serviceaccount*.json
 *service-account*.json
@@ -35,31 +40,43 @@ firebase-applet-config.json
 *.key
 
 # Test code (not needed in image)
-tests/
+tests
+tests/**
 test.py
 test_*.py
 conftest.py
 pytest.ini
-.pytest_cache/
-.ruff_cache/
+.pytest_cache
+.pytest_cache/**
+.ruff_cache
+.ruff_cache/**
 
 # Dev / CI tooling
 Makefile
 .editorconfig
-.github/
+.github
+.github/**
+benchmark_results
+benchmark_results/**
+backups
+backups/**
+vendor
+vendor/**
 
 # Runtime-generated files (created fresh in each container)
-uploads/
-storage/mediapipe_models/
-storage/upscaler/
+uploads
+uploads/**
+storage
+storage/**
 
 # Logs
 *.log
 out*.txt
 
-# Documentation
+# Documentation & scratch
 *.md
-docs/
-
-# Local dev scratch files
+docs
+docs/**
+scratch
+scratch/**
 *.ipynb

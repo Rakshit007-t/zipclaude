@@ -1,13 +1,13 @@
 /*!
  * ZipRIGHT Widget SDK v1.0.0
- * https://zipright.ai
+ * https://zipright.in
  *
  * Drop-in "Find My Size" + "Try On" button for any merchant storefront.
  *
  * Usage:
  *   <script src="zipright-widget.js"
  *           data-store-url="https://my-store.myshopify.com"
- *           data-api-base="https://api.zipright.ai"
+ *           data-api-base="https://api.zipright.in"
  *           data-product-id="FIRESTORE_DOC_ID"
  *           data-button-target="#my-add-to-cart-container"
  *   ></script>
@@ -22,7 +22,7 @@
   // ─── Constants ───────────────────────────────────────────────────────────────
 
   var SDK_VERSION = '1.0.0';
-  var ZIPRIGHT_APP_URL = 'https://zipright.ai';
+  var ZIPRIGHT_APP_URL = 'https://zipright.in';
   var DEFAULT_PRIMARY = '#C9A06C';
   var Z_INDEX_BASE = 9000;
 

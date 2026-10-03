@@ -44,7 +44,7 @@
 - TLS is terminated at the **Azure Container Apps managed load balancer** — no plain HTTP in production.
 - Appwrite custom domain: `https://appwrite.zipright.in` (SniEnabled managed certificate).
 - Backend FQDN: `ca-zipright-backend-staging.calmfield-d6fa58ac.centralindia.azurecontainerapps.io`
-- Production frontend: `https://zipright.ai` and `https://app.zipright.ai`
+- Production frontend: `https://zipright.in`
 
 ### Data Flow Summary
 
@@ -52,7 +52,7 @@
 Browser (SPA)
   |
   +-- Auth --> Appwrite (https://appwrite.zipright.in/v1)
-  +-- API  --> FastAPI Backend (HTTPS, CORS-restricted to zipright.ai)
+  +-- API  --> FastAPI Backend (HTTPS, CORS-restricted to zipright.in)
   |             +-- Firebase Firestore (server-side)
   |             +-- Firebase Storage (server-side)
   |             +-- Appwrite DB/Storage (server-side)
@@ -83,10 +83,10 @@ Browser (SPA)
 
 ### 2.2 CORS
 
-- [ ] `CORS_ALLOW_ORIGINS` is set to **exactly**: `https://zipright.ai,https://app.zipright.ai`
+- [ ] `CORS_ALLOW_ORIGINS` is set to **exactly**: `https://zipright.in`
 - [ ] No `*` wildcard in CORS config
 - [ ] `CORS_ALLOW_ORIGIN_REGEX` is left **blank** in production
-- [ ] CORS preflight (`OPTIONS`) from `https://zipright.ai` returns correct `Access-Control-Allow-Origin`
+- [ ] CORS preflight (`OPTIONS`) from `https://zipright.in` returns correct `Access-Control-Allow-Origin`
 
 ### 2.3 Auth and JWT
 
@@ -141,7 +141,7 @@ grep -r "localhost\|127\.0\.0\.1" dist/assets/*.js | grep -v "//.*localhost" && 
 | `REDIS_PASSWORD` | **Secret ref** | Azure Managed Redis primary access key |
 | `REDIS_SSL` | Plain value | `true` |
 | `REDIS_CLUSTER_MODE` | Plain value | `true` |
-| `CORS_ALLOW_ORIGINS` | Plain value | `https://zipright.ai,https://app.zipright.ai` |
+| `CORS_ALLOW_ORIGINS` | Plain value | `https://zipright.in` |
 | `WEB_CONCURRENCY` | Plain value | `2` (1 vCPU), `4-5` (2 vCPU) |
 | `GUNICORN_BIND` | Plain value | `0.0.0.0:8000` |
 | `RAZORPAY_KEY_ID` | Plain value | Public key ID |
@@ -176,17 +176,17 @@ grep -r "localhost\|127\.0\.0\.1" dist/assets/*.js | grep -v "//.*localhost" && 
 
 | Variable | Production Value |
 |---|---|
-| `VITE_API_URL` | `https://api.zipright.ai` |
-| `VITE_BACKEND_URL` | `https://api.zipright.ai` |
+| `VITE_API_URL` | `https://ca-zipright-backend-staging.calmfield-d6fa58ac.centralindia.azurecontainerapps.io` |
+| `VITE_BACKEND_URL` | `https://ca-zipright-backend-staging.calmfield-d6fa58ac.centralindia.azurecontainerapps.io` |
 | `VITE_AUTH_PROVIDER` | `appwrite` |
 | `VITE_BACKEND_PROVIDER` | `appwrite` |
 | `VITE_APPWRITE_ENDPOINT` | `https://appwrite.zipright.in/v1` |
-| `VITE_APPWRITE_PROJECT_ID` | `zipright-prod` |
-| `VITE_APPWRITE_DATABASE_ID` | `zipright-prod-db` |
+| `VITE_APPWRITE_PROJECT_ID` | `zipright-staging` |
+| `VITE_APPWRITE_DATABASE_ID` | `zipright-staging-db` |
 | `VITE_FIREBASE_API_KEY` | `<production web API key>` |
-| `VITE_FIREBASE_AUTH_DOMAIN` | `zipright-prod.firebaseapp.com` |
-| `VITE_FIREBASE_PROJECT_ID` | `zipright-prod` |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `zipright-prod.firebasestorage.app` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | `zipright-staging.firebaseapp.com` |
+| `VITE_FIREBASE_PROJECT_ID` | `zipright-staging` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `zipright-staging.firebasestorage.app` |
 | `VITE_FIRESTORE_DATABASE_ID` | `(default)` |
 | `VITE_RAZORPAY_KEY_ID` | `rzp_live_<id>` (public key ID only) |
 | `VITE_SENTRY_DSN` | `<frontend Sentry DSN>` |
@@ -194,7 +194,7 @@ grep -r "localhost\|127\.0\.0\.1" dist/assets/*.js | grep -v "//.*localhost" && 
 | `VITE_SENTRY_RELEASE` | `zipright-frontend@1.0.0` |
 | `VITE_VAPID_PUBLIC_KEY` | `<VAPID public key>` |
 | `VITE_ENABLE_PHONE_AUTH` | `false` (set `true` after OTP verification) |
-| `VITE_PASSWORD_RESET_CONTINUE_URL` | `https://app.zipright.ai/#/login?passwordReset=complete` |
+| `VITE_PASSWORD_RESET_CONTINUE_URL` | `https://zipright.in/#/login?passwordReset=complete` |
 
 ---
 
@@ -285,7 +285,7 @@ curl -f "$BASE/health" | jq .data.status
 
 # CORS preflight
 curl -s -X OPTIONS "$BASE/auth/me" \
-  -H "Origin: https://zipright.ai" \
+  -H "Origin: https://zipright.in" \
   -H "Access-Control-Request-Method: GET" -v 2>&1 | grep "Access-Control-Allow-Origin"
 
 # Docs must be hidden (expect 404)

@@ -1,0 +1,20 @@
+# ─── ZipRIGHT Backend — Production Container Image (commit fce4615) ────────
+# Built using verified runtime base with latest production code
+FROM acrziprightstaging.azurecr.io/zipright-backend:28939203
+
+USER root
+WORKDIR /app
+
+# Copy latest production application code (respects .dockerignore)
+COPY . .
+
+# Ensure permissions and runtime dirs
+RUN mkdir -p uploads ui storage && chown -R appuser:appgroup /app
+
+USER appuser
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')" || exit 1
+
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "main:app"]
